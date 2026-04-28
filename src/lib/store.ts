@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { Task, Domain, AllData, Status, Priority, PRIORITIES, STATUSES } from "./types";
+import { Task, Domain, AllData, Status, Priority, PRIORITIES, STATUSES, MONTHS } from "./types";
 import { createNewTask } from "./metrics";
 import { createUndoHelpers } from "./undo";
 
@@ -12,6 +12,20 @@ function getWeekNumber(d: Date): number {
   date.setUTCDate(date.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
   return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+
+function makeSystemLog(text: string): { date: string; week: string; text: string; planH: string; factH: string; status: string } {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    date: `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`,
+    week: String(getWeekNumber(now)),
+    text,
+    planH: "—",
+    factH: "—",
+    status: "—",
+  };
 }
 
 function getStateSnapshot() {
@@ -233,7 +247,7 @@ export const useTaskStore = create<AppState>()(
         const rows = state.allData[month] || [];
         const newAllData = {
           ...state.allData,
-          [month]: rows.map(r => r.id === taskId ? { ...r, [key]: value } : r),
+          [month]: rows.map(r => r.id === taskId ? { ...r, [key]: value, _ts: Date.now() } : r),
         };
         return withDomainSync(state, { allData: newAllData });
       }),
@@ -271,7 +285,7 @@ export const useTaskStore = create<AppState>()(
         set(state => {
           const newAllData = {
             ...state.allData,
-            [month]: [...(state.allData[month] || []), createNewTask()],
+            [month]: [...(state.allData[month] || []), { ...createNewTask(), _ts: Date.now() }],
           };
           return withDomainSync(state, { allData: newAllData });
         });
@@ -280,9 +294,12 @@ export const useTaskStore = create<AppState>()(
       deleteTask: (month, taskId) => {
         undoHelpers.snapshot(getStateSnapshot);
         set(state => {
+          const now = Date.now();
           const newAllData = {
             ...state.allData,
-            [month]: (state.allData[month] || []).filter(r => r.id !== taskId),
+            [month]: (state.allData[month] || []).map(r =>
+              r.id === taskId ? { ...r, _deleted: true, _ts: now } : r
+            ),
           };
           return withDomainSync(state, { allData: newAllData });
         });
@@ -328,7 +345,14 @@ export const useTaskStore = create<AppState>()(
             ...state.allData,
             [month]: rows.filter(r => r.id !== taskId),
           };
-          const newBacklog = [...state.backlog, { ...task, priority: PRIORITIES.QUEUE, status: STATUSES.IDEA }];
+          const backlogEntry = {
+            ...task,
+            priority: PRIORITIES.QUEUE,
+            status: STATUSES.IDEA,
+            _ts: Date.now(),
+            commentLog: [...(task.commentLog || []), makeSystemLog("📦 Задача добавлена в беклог")],
+          };
+          const newBacklog = [...state.backlog, backlogEntry];
           return withDomainSync(state, { allData: newAllData, backlog: newBacklog });
         });
       },
@@ -347,7 +371,7 @@ export const useTaskStore = create<AppState>()(
             priority: task.priority,
             status: task.status,
             comment: task.comment,
-            commentLog: task.commentLog,
+            commentLog: [...(task.commentLog || []), makeSystemLog(`📋 Возвращена в таблицу (${MONTHS[targetMonth]})`)],
           };
           const existing = state.allData[targetMonth] || [];
           const isEmpty = existing.length === 1 && !existing[0].num && !existing[0].name;
@@ -374,7 +398,7 @@ export const useTaskStore = create<AppState>()(
             priority: edits.priority,
             status: edits.status,
             comment: task.comment,
-            commentLog: task.commentLog,
+            commentLog: [...(task.commentLog || []), makeSystemLog(`📋 Возвращена в таблицу (${MONTHS[targetMonth]})`)],
           };
           const existing = state.allData[targetMonth] || [];
           const isEmpty = existing.length === 1 && !existing[0].num && !existing[0].name;
@@ -390,7 +414,10 @@ export const useTaskStore = create<AppState>()(
       deleteBacklogTask: (taskId) => {
         undoHelpers.snapshot(getStateSnapshot);
         set(state => {
-          const newBacklog = state.backlog.filter(t => t.id !== taskId);
+          const now = Date.now();
+          const newBacklog = state.backlog.map(t =>
+            t.id === taskId ? { ...t, _deleted: true, _ts: now } : t
+          );
           return withDomainSync(state, { backlog: newBacklog });
         });
       },
@@ -411,7 +438,9 @@ export const useTaskStore = create<AppState>()(
       updateBacklogTask: (taskId, key, value) => {
         undoHelpers.snapshot(getStateSnapshot);
         set(state => {
-          const newBacklog = state.backlog.map(t => t.id === taskId ? { ...t, [key]: value } : t);
+          const newBacklog = state.backlog.map(t =>
+            t.id === taskId ? { ...t, [key]: value, _ts: Date.now() } : t
+          );
           return withDomainSync(state, { backlog: newBacklog });
         });
       },
@@ -560,7 +589,7 @@ export const useTaskStore = create<AppState>()(
         set(state => {
           const newAllData = {
             ...state.allData,
-            [month]: [...(state.allData[month] || []), ...tasks],
+            [month]: [...(state.allData[month] || []), ...tasks.map(t => ({ ...t, _ts: t._ts ?? Date.now() }))],
           };
           return withDomainSync(state, { allData: newAllData });
         });
@@ -572,7 +601,7 @@ export const useTaskStore = create<AppState>()(
           r => r.status !== STATUSES.DONE && r.status !== STATUSES.COMPLETED && r.status !== STATUSES.CANCEL
         );
         if (incomplete.length === 0) return 0;
-        const transferred = incomplete.map(r => ({ ...r, id: crypto.randomUUID(), factH: "0", commentLog: [] }));
+        const transferred = incomplete.map(r => ({ ...r, id: crypto.randomUUID(), factH: "0", commentLog: [], _ts: Date.now() }));
         undoHelpers.snapshot(getStateSnapshot);
         const newAllData = {
           ...state.allData,

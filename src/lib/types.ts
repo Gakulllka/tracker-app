@@ -34,6 +34,9 @@ export interface Task {
   name: string;
   planH: string;
   factH: string;
+  // Sync metadata
+  _ts?: number;       // Last-modified timestamp (ms). Used for concurrent conflict resolution.
+  _deleted?: boolean; // Soft-delete tombstone. Filtered from UI; persists on server for sync.
   priority: Priority;
   status: Status;
   comment: string;
@@ -93,6 +96,7 @@ export const COLS: Column[] = [
 ];
 
 export const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+export const MONTHS_SHORT = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"];
 
 export const NAV_CELLS = ["num", "name", "planH", "factH", "priority", "status", "comment"];
 

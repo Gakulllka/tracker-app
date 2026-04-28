@@ -9,14 +9,30 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
     });
     return NextResponse.json({
-      questions: questions.map((q) => ({
-        id: q.id,
-        text: q.text,
-        author: q.author,
-        answer: q.answer,
-        questionDate: q.questionDate.toISOString(),
-        answerDate: q.answerDate?.toISOString() || null,
-      })),
+      questions: questions.map((q) => {
+        let answers: Array<{ id: string; author: string; text: string; date: string }> = [];
+        if (q.answer) {
+          try {
+            const parsed = JSON.parse(q.answer);
+            if (Array.isArray(parsed)) answers = parsed;
+            else if (typeof parsed === "string" && parsed.trim()) {
+              answers = [{ id: "legacy", author: "Аноним", text: parsed, date: q.questionDate.toISOString() }];
+            }
+          } catch {
+            if (q.answer.trim()) {
+              answers = [{ id: "legacy", author: "Аноним", text: q.answer, date: q.questionDate.toISOString() }];
+            }
+          }
+        }
+        return {
+          id: q.id,
+          text: q.text,
+          author: q.author,
+          answers,
+          questionDate: q.questionDate.toISOString(),
+          answerDate: q.answerDate?.toISOString() || null,
+        };
+      }),
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";

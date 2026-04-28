@@ -12,6 +12,7 @@ import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, undoStore } from "@/lib/
 import {
   COLS,
   MONTHS,
+  MONTHS_SHORT,
   STATUSES,
   PRIORITIES,
   PCOL,
@@ -32,6 +33,7 @@ import {
   buildTotalFactMap,
   evalExpr,
   fmt2,
+  R2,
   progColor,
   createNewTask,
   sortVal,
@@ -141,11 +143,18 @@ interface EditingCell {
   col: string;
 }
 
+interface QuestionAnswer {
+  id: string;
+  author: string;
+  text: string;
+  date: string;
+}
+
 interface Question {
   id: string;
   text: string;
   author: string;
-  answer?: string;
+  answers: QuestionAnswer[];
   questionDate?: string;
   answerDate?: string;
 }
@@ -221,6 +230,8 @@ function hsl2hex(h: number, s: number, l: number): string {
 interface ThemeColors {
   accent: string;
   accentSoft: string;
+  accentBg: string;
+  accentFgDark: string;
   bgMain: string;
   bgCard: string;
   textMain: string;
@@ -231,18 +242,21 @@ interface ThemeColors {
 
 function createTheme(baseHex: string, isDark = false): ThemeColors {
   const [h, s] = hex2hsl(baseHex);
-  const sat = Math.min(s, 55);
-  const acSat = isDark ? Math.min(s, 75) : Math.min(s, 72);
+  const sat = Math.min(s, 48);
+  const acSat = isDark ? Math.min(s, 65) : Math.min(s, 56);
   const hx = (sm: number, l: number) => hsl2hex(h, sat * sm, l);
+  const ac = hsl2hex(h, acSat, isDark ? 68 : 58);
   return {
-    accent: hsl2hex(h, acSat, isDark ? 70 : 54),
-    accentSoft: hsl2hex(h, acSat, isDark ? 70 : 54) + "22",
-    bgMain: hx(isDark ? 0.55 : 0.85, isDark ? 10 : 95),
-    bgCard: hx(isDark ? 0.4 : 0.55, isDark ? 15 : 98),
-    textMain: hx(isDark ? 0.2 : 0.4, isDark ? 90 : 14),
-    textMuted: hx(isDark ? 0.25 : 0.35, isDark ? 44 : 48),
-    border: hx(isDark ? 0.35 : 0.55, isDark ? 22 : 85),
-    danger: hsl2hex(350, isDark ? 55 : 58, isDark ? 68 : 48),
+    accent: ac,
+    accentSoft: ac + "1c",
+    accentBg: hsl2hex(h, isDark ? 24 : 20, isDark ? 19 : 95.5),
+    accentFgDark: hsl2hex(h, isDark ? 38 : 46, isDark ? 82 : 32),
+    bgMain: hx(isDark ? 0.42 : 0.50, isDark ? 10 : 97),
+    bgCard: hx(isDark ? 0.28 : 0.30, isDark ? 15 : 99.5),
+    textMain: hx(isDark ? 0.15 : 0.32, isDark ? 90 : 12),
+    textMuted: hx(isDark ? 0.20 : 0.26, isDark ? 44 : 52),
+    border: hx(isDark ? 0.28 : 0.38, isDark ? 20 : 90),
+    danger: hsl2hex(350, isDark ? 50 : 52, isDark ? 68 : 52),
   };
 }
 
@@ -261,6 +275,8 @@ function applyTheme(th: ThemeColors) {
   const [r, g, b] = hexToRgb(th.accent);
   s.setProperty("--tracker-accent-hover", `rgba(${r}, ${g}, ${b}, 0.22)`);
   s.setProperty("--tracker-accent-fg", th.accent);
+  s.setProperty("--tracker-accent-bg", th.accentBg);
+  s.setProperty("--tracker-accent-fg-dark", th.accentFgDark);
   // Override shadcn CSS variables so all components follow the theme
   s.setProperty("--background", th.bgMain);
   s.setProperty("--foreground", th.textMain);
@@ -467,6 +483,353 @@ export default function TaskTrackerPage() {
   );
 }
 
+
+// ──────────────────────────────────────────────────────────────────
+//  DesignView — theme picker with named themes and live preview
+// ──────────────────────────────────────────────────────────────────
+
+const NAMED_THEMES = [
+  { hex: "#9B72CF", label: "Лаванда",    desc: "Мягкий фиолетовый",     emoji: "🪻" },
+  { hex: "#5B9BD5", label: "Небо",       desc: "Спокойный синий",        emoji: "🌤" },
+  { hex: "#4DB6AC", label: "Нефрит",     desc: "Холодная бирюза",        emoji: "🌿" },
+  { hex: "#4FC3F7", label: "Океан",      desc: "Яркий голубой",          emoji: "🌊" },
+  { hex: "#66BB6A", label: "Трава",      desc: "Свежий зелёный",         emoji: "🍃" },
+  { hex: "#9CCC65", label: "Мята",       desc: "Светло-зелёный",         emoji: "🍀" },
+  { hex: "#D4A017", label: "Янтарь",     desc: "Тёплый золотистый",      emoji: "🌟" },
+  { hex: "#E8813A", label: "Закат",      desc: "Живой оранжевый",        emoji: "🌅" },
+  { hex: "#E86B6B", label: "Коралл",     desc: "Тёплый красный",         emoji: "🪸" },
+  { hex: "#E07BAD", label: "Пион",       desc: "Нежно-розовый",          emoji: "🌸" },
+  { hex: "#7986CB", label: "Индиго",     desc: "Глубокий синий",         emoji: "💠" },
+  { hex: "#C49A6C", label: "Дюна",       desc: "Тёплый бежевый",         emoji: "🏜" },
+  { hex: "#6B7280", label: "Графит",     desc: "Нейтральный серый",      emoji: "🩶" },
+  { hex: "#0F766E", label: "Малахит",    desc: "Насыщенный тёмно-зелёный", emoji: "💚" },
+  { hex: "#7C3AED", label: "Аметист",    desc: "Глубокий фиолетовый",    emoji: "🔮" },
+  { hex: "#DB2777", label: "Рубин",      desc: "Яркий малиновый",        emoji: "💎" },
+];
+
+interface DesignViewProps {
+  themeId: string;
+  customColor: string;
+  customDark: boolean;
+  accentHex: string;
+  onSetTheme: (hex: string) => void;
+  onSetCustomColor: (hex: string, dark: boolean) => void;
+  presBg: PresBgSettings;
+  onSetPresBg: (bg: Partial<PresBgSettings>) => void;
+  toast: (opts: { title: string; description?: string }) => void;
+}
+
+function ThemePreview({ hex, isDark }: { hex: string; isDark: boolean }) {
+  const theme = createTheme(hex, isDark);
+
+  const previewStyle = {
+    "--p-accent": theme.accent,
+    "--p-accent-soft": theme.accentSoft,
+    "--p-accent-bg": theme.accentBg,
+    "--p-accent-fg": theme.accentFgDark,
+    "--p-bg": theme.bgMain,
+    "--p-card": theme.bgCard,
+    "--p-text": theme.textMain,
+    "--p-muted": theme.textMuted,
+    "--p-border": theme.border,
+    "--p-danger": theme.danger,
+  } as React.CSSProperties;
+
+  // Sample task data for preview
+  const tasks = [
+    { num: "35191", name: "Разработка модуля оплаты", status: "Разработка",   priority: "Высокий",   plan: 24, fact: 18, pct: 75  },
+    { num: "35204", name: "Тестирование API",          status: "Тестирование", priority: "Наивысший", plan: 16, fact: 19, pct: 119 },
+    { num: "35218", name: "Документация к релизу",     status: "Согласование", priority: "Средний",   plan: 8,  fact: 3,  pct: 37  },
+  ];
+
+  const statusColor: Record<string, string> = {
+    "Разработка": "#7cc3fc",
+    "Тестирование": "#5719a3",
+    "Согласование": "#ff9400",
+  };
+  const priorityColor: Record<string, string> = {
+    "Высокий": "#d48040",
+    "Наивысший": "#d45454",
+    "Средний": "#b89830",
+  };
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden border select-none"
+      style={{
+        ...previewStyle,
+        background: "var(--p-bg)",
+        borderColor: "var(--p-border)",
+        fontSize: "11px",
+        lineHeight: "1.4",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+      }}
+    >
+      {/* Mini header */}
+      <div className="flex items-center gap-2 px-3 py-2" style={{ background: "var(--p-card)", borderBottom: "1px solid var(--p-border)" }}>
+        <span style={{ color: "var(--p-accent)", opacity: 0.7, fontWeight: 700 }}>✦</span>
+        <span style={{ color: "var(--p-text)", fontWeight: 600 }}>Трекер задач</span>
+        <div className="ml-auto flex items-center gap-1">
+          <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+          <span style={{ color: "var(--p-muted)" }}>онлайн</span>
+        </div>
+      </div>
+
+      {/* KPI row */}
+      <div className="grid grid-cols-3 gap-2 px-3 py-2.5" style={{ borderBottom: "1px solid var(--p-border)" }}>
+        {[
+          { label: "Задач", val: "12" },
+          { label: "Завершено", val: "7" },
+          { label: "План, ч", val: "48" },
+        ].map(kpi => (
+          <div key={kpi.label} className="rounded-lg px-2 py-1.5 text-center" style={{ background: "var(--p-card)", border: "1px solid var(--p-border)" }}>
+            <div style={{ color: "var(--p-muted)", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.06em" }}>{kpi.label}</div>
+            <div style={{ color: "var(--p-accent-fg)", fontWeight: 800, fontSize: "15px", lineHeight: 1.1 }}>{kpi.val}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Table header */}
+      <div className="grid px-3 py-1.5 gap-1" style={{ gridTemplateColumns: "2fr 1.2fr 0.8fr 0.6fr 0.6fr", background: "var(--p-accent-bg)", borderBottom: "1px solid var(--p-border)" }}>
+        {["Наименование", "Статус", "Приоритет", "План", "Факт"].map(h => (
+          <span key={h} style={{ color: "var(--p-accent-fg)", fontWeight: 650, fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</span>
+        ))}
+      </div>
+
+      {/* Table rows */}
+      {tasks.map((task, i) => {
+        const isOver = task.pct > 100;
+        return (
+          <div
+            key={task.num}
+            className="grid px-3 py-2 gap-1 items-center"
+            style={{
+              gridTemplateColumns: "2fr 1.2fr 0.8fr 0.6fr 0.6fr",
+              background: i % 2 === 0 ? "var(--p-card)" : "var(--p-bg)",
+              borderBottom: "1px solid var(--p-border)",
+            }}
+          >
+            {/* Name + num */}
+            <div>
+              <div style={{ color: "var(--p-text)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</div>
+              <div style={{ color: "var(--p-muted)", fontSize: "9px" }}>#{task.num}</div>
+            </div>
+            {/* Status */}
+            <div>
+              <span
+                style={{
+                  display: "inline-block",
+                  background: (statusColor[task.status] || "#888") + "20",
+                  color: statusColor[task.status] || "var(--p-muted)",
+                  borderRadius: "999px",
+                  padding: "1px 6px",
+                  fontSize: "9px",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  maxWidth: "100%",
+                }}
+              >{task.status}</span>
+            </div>
+            {/* Priority */}
+            <span style={{ color: priorityColor[task.priority] || "var(--p-muted)", fontWeight: 600, fontSize: "10px" }}>{task.priority}</span>
+            {/* Plan */}
+            <span style={{ color: "var(--p-muted)", textAlign: "right" }}>{task.plan}ч</span>
+            {/* Fact */}
+            <div className="flex flex-col items-end gap-0.5">
+              <span style={{ color: isOver ? "var(--p-danger)" : "var(--p-text)", fontWeight: isOver ? 700 : 400, textAlign: "right" }}>{task.fact}ч</span>
+              <div style={{ width: "100%", height: "3px", borderRadius: "9999px", background: "var(--p-border)", overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: "9999px", width: `${Math.min(task.pct, 100)}%`, background: isOver ? "var(--p-danger)" : "var(--p-accent)" }} />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Color swatches row — show derived colors */}
+      <div className="px-3 py-2.5 flex items-center gap-2" style={{ background: "var(--p-card)", borderTop: "1px solid var(--p-border)" }}>
+        <span style={{ color: "var(--p-muted)", fontSize: "9px", letterSpacing: "0.06em", textTransform: "uppercase" }}>Палитра темы</span>
+        {[
+          { color: theme.accent,      tip: "Акцент" },
+          { color: theme.accentBg,    tip: "Фон акцента" },
+          { color: theme.accentFgDark,tip: "Текст акцента" },
+          { color: theme.bgCard,      tip: "Карточка" },
+          { color: theme.bgMain,      tip: "Фон" },
+          { color: theme.border,      tip: "Граница" },
+          { color: theme.textMain,    tip: "Текст" },
+          { color: theme.danger,      tip: "Опасность" },
+        ].map(({ color, tip }) => (
+          <div
+            key={tip}
+            title={tip}
+            className="w-5 h-5 rounded-full border"
+            style={{ background: color, borderColor: "var(--p-border)", flexShrink: 0 }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DesignView({ themeId, customColor, customDark, accentHex, onSetTheme, onSetCustomColor }: DesignViewProps) {
+  const [customInput, setCustomInput] = useState(customColor || themeId || "#9B72CF");
+  const [darkMode, setDarkMode] = useState(customDark);
+  const [previewHex, setPreviewHex] = useState(accentHex);
+
+  // Keep previewHex in sync with external changes
+  useEffect(() => { setPreviewHex(accentHex); }, [accentHex]);
+  useEffect(() => { setCustomInput(customColor || themeId || "#9B72CF"); }, [customColor, themeId]);
+  useEffect(() => { setDarkMode(customDark); }, [customDark]);
+
+  const activeHex = customColor || themeId;
+  const isCustom = !!customColor && !NAMED_THEMES.find(t => t.hex === customColor);
+
+  const handleSelectTheme = (hex: string) => {
+    onSetTheme(hex);
+    setPreviewHex(hex);
+  };
+
+  const handleCustomChange = (hex: string) => {
+    setCustomInput(hex);
+    setPreviewHex(hex);
+    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+      onSetCustomColor(hex, darkMode);
+    }
+  };
+
+  const handleDarkToggle = (checked: boolean) => {
+    setDarkMode(checked);
+    onSetCustomColor(customColor || themeId || "#9B72CF", checked);
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
+
+      {/* ── Left: controls ──────────────────────────────────────── */}
+      <div className="space-y-6">
+
+        {/* Section: Named themes */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Тема оформления</h3>
+              <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Выберите одну из готовых тем</p>
+            </div>
+            <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-full" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>
+              <span style={{ fontSize: "14px" }}>
+                {NAMED_THEMES.find(t => t.hex === activeHex)?.emoji || "🎨"}
+              </span>
+              <span className="font-semibold">
+                {NAMED_THEMES.find(t => t.hex === activeHex)?.label || (isCustom ? "Свой цвет" : "Тема")}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2.5">
+            {NAMED_THEMES.map(theme => {
+              const isActive = activeHex === theme.hex && !isCustom;
+              return (
+                <button
+                  key={theme.hex}
+                  onClick={() => handleSelectTheme(theme.hex)}
+                  onMouseEnter={() => setPreviewHex(theme.hex)}
+                  onMouseLeave={() => setPreviewHex(activeHex)}
+                  className="group relative flex flex-col items-center gap-2 rounded-xl p-3 border-2 transition-all"
+                  style={{
+                    borderColor: isActive ? "var(--tracker-accent)" : "var(--tracker-border)",
+                    background: isActive ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)",
+                    boxShadow: isActive ? `0 0 0 3px ${theme.hex}22` : undefined,
+                  }}
+                >
+                  {/* Color circle */}
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-base transition-transform group-hover:scale-110"
+                    style={{ background: `${theme.hex}22`, boxShadow: `inset 0 0 0 2.5px ${theme.hex}` }}
+                  >
+                    {theme.emoji}
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs font-semibold" style={{ color: isActive ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-main)" }}>
+                      {theme.label}
+                    </div>
+                    <div className="text-[9px] leading-tight mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>
+                      {theme.desc}
+                    </div>
+                  </div>
+                  {isActive && (
+                    <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: theme.hex }}>
+                      <Check className="w-2.5 h-2.5 text-white" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Section: Custom colour */}
+        <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+          <div>
+            <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Свой цвет</h3>
+            <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Введите любой HEX или выберите из палитры</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <input
+                type="color"
+                value={customInput.match(/^#[0-9A-Fa-f]{6}$/) ? customInput : "#9B72CF"}
+                onChange={e => handleCustomChange(e.target.value)}
+                className="w-12 h-12 rounded-xl border-2 cursor-pointer"
+                style={{ borderColor: "var(--tracker-border)", padding: "2px" }}
+              />
+            </div>
+            <div className="flex-1">
+              <input
+                type="text"
+                value={customInput}
+                onChange={e => handleCustomChange(e.target.value)}
+                maxLength={7}
+                placeholder="#RRGGBB"
+                className="w-full h-10 rounded-lg border px-3 text-sm font-mono bg-transparent outline-none focus:ring-2"
+                style={{
+                  borderColor: "var(--tracker-border)",
+                  color: "var(--tracker-text-main)",
+                  background: "var(--tracker-bg-main)",
+                }}
+              />
+              {isCustom && (
+                <p className="text-[10px] mt-1" style={{ color: "var(--tracker-accent-fg-dark)" }}>
+                  ✓ Применён свой цвет
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Section: Dark mode */}
+        <div className="rounded-xl border p-4 flex items-center justify-between" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Тёмный режим</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Инвертировать яркость палитры</p>
+          </div>
+          <Switch checked={darkMode} onCheckedChange={handleDarkToggle} />
+        </div>
+      </div>
+
+      {/* ── Right: live preview ──────────────────────────────────── */}
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Предпросмотр</h3>
+          <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Наведите на тему чтобы увидеть</p>
+        </div>
+        <ThemePreview hex={previewHex} isDark={darkMode} />
+      </div>
+
+    </div>
+  );
+}
+
+
 function AppWithAuth() {
   const [authData, setAuthData] = useState<AuthData | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
@@ -570,12 +933,34 @@ function AppWithAuth() {
   return <TaskTrackerInner authData={authData} onLogout={handleLogout} />;
 }
 
-function mapQuestionFromAPI(q: { id: string; text: string; author: string; answer?: string; questionDate?: string; answerDate?: string }) {
+function mapQuestionFromAPI(q: {
+  id: string; text: string; author: string;
+  answers?: Array<{ id: string; author: string; text: string; date: string }>;
+  answer?: string;
+  questionDate?: string; answerDate?: string;
+}): Question {
+  // Support both new "answers" array and legacy "answer" string
+  let answers: QuestionAnswer[] = [];
+  if (q.answers && Array.isArray(q.answers)) {
+    answers = q.answers;
+  } else if (q.answer) {
+    try {
+      const parsed = JSON.parse(q.answer);
+      if (Array.isArray(parsed)) answers = parsed;
+      else if (typeof parsed === "string" && parsed.trim()) {
+        answers = [{ id: "legacy", author: "Аноним", text: parsed, date: q.questionDate || new Date().toISOString() }];
+      }
+    } catch {
+      if (q.answer.trim()) {
+        answers = [{ id: "legacy", author: "Аноним", text: q.answer, date: q.questionDate || new Date().toISOString() }];
+      }
+    }
+  }
   return {
     id: q.id,
     text: q.text,
     author: q.author || "Аноним",
-    answer: q.answer || "",
+    answers,
     questionDate: q.questionDate,
     answerDate: q.answerDate,
   };
@@ -591,7 +976,8 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
   /* ---- Store selectors ---- */
   const allData = useTaskStore((s) => s.allData);
-  const backlog = useTaskStore((s) => s.backlog);
+  const _rawBacklog = useTaskStore((s) => s.backlog);
+  const backlog = useMemo(() => _rawBacklog.filter((t) => !t._deleted), [_rawBacklog]);
   const domains = useTaskStore((s) => s.domains);
   const activeDomainId = useTaskStore((s) => s.activeDomainId);
   const currentMonth = useTaskStore((s) => s.currentMonth);
@@ -789,16 +1175,14 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   // Questions are managed via /api/question & /api/answer only (not via /sync).
   const initialLoadDoneRef = useRef(false);
   const serverUpdatedAtRef = useRef<string>("");
-  const suppressNextPushRef = useRef(false);
+  const lastPullAtRef = useRef(0);
   const lastLocalChangeRef = useRef(0);
 
   const pushToServer = useCallback(async () => {
     if (isSyncingRef.current) return;
     if (!initialLoadDoneRef.current) return;
-    if (suppressNextPushRef.current) {
-      suppressNextPushRef.current = false;
-      return;
-    }
+    // Don't push for 2s after a pull (server just sent us its state)
+    if (Date.now() - lastPullAtRef.current < 2000) return;
     isSyncingRef.current = true;
     try {
       const s = useTaskStore.getState();
@@ -845,9 +1229,8 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
       const s = useTaskStore.getState();
 
-      // Always accept server data — it's the source of truth.
-      // Suppress the push that setDomainData will trigger.
-      suppressNextPushRef.current = true;
+      // Record pull time so pushes are suppressed briefly (avoids echo)
+      lastPullAtRef.current = Date.now();
 
       if (data.domainData && Object.keys(data.domainData).length > 0) {
         s.setDomainData(data.domainData);
@@ -916,18 +1299,16 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     lastLocalChangeRef.current = Date.now();
     const timer = setTimeout(() => {
       pushToServer();
-    }, 500);
+    }, 800);
     return () => clearTimeout(timer);
   }, [allData, backlog, pushToServer]);
 
-  // Pull from server: every 15 seconds, but only if user has been idle for 3+ seconds
+  // Pull from server: every 10 seconds for better multi-user responsiveness
   useEffect(() => {
     if (!initialLoadDoneRef.current) return;
     const interval = setInterval(() => {
-      if (Date.now() - lastLocalChangeRef.current > 3000) {
-        pullFromServer();
-      }
-    }, 15_000);
+      pullFromServer();
+    }, 10_000);
     return () => clearInterval(interval);
   }, [pullFromServer]);
 
@@ -1006,7 +1387,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   );
 
   const rows = useMemo(
-    () => allData[currentMonth] || [],
+    () => (allData[currentMonth] || []).filter((r) => !r._deleted),
     [allData, currentMonth]
   );
 
@@ -1105,31 +1486,53 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
   /* Dashboard data */
   const dashboardData = useMemo(() => {
-    let total = 0;
-    let completed = 0;
-    let planH = 0;
-    let factH = 0;
+    const allRows = (allData[currentMonth] || []).filter(r => !r._deleted);
+    let total = 0, completed = 0, planH = 0, factH = 0;
     const statusCounts: Record<string, number> = {};
-    const allRows = allData[currentMonth] || [];
+    const priorityCounts: Record<string, number> = {};
+    const atRisk: Task[] = [];
+
     for (const r of allRows) {
+      if (!r.name && !r.num) continue; // skip empty rows
       total++;
-      if (
-        r.status === STATUSES.DONE ||
-        r.status === STATUSES.COMPLETED
-      ) {
-        completed++;
-      }
-      planH += evalExpr(r.planH);
-      factH += evalExpr(r.factH);
-      statusCounts[r.status] =
-        (statusCounts[r.status] || 0) + 1;
+      const isCompleted = r.status === STATUSES.DONE || r.status === STATUSES.COMPLETED;
+      if (isCompleted) completed++;
+      const p = evalExpr(r.planH);
+      const f = evalExpr(r.factH);
+      planH += p;
+      factH += f;
+      statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
+      priorityCounts[r.priority] = (priorityCounts[r.priority] || 0) + 1;
+      if (p > 0 && f > p && !isCompleted) atRisk.push(r);
     }
+
+    // Month-by-month sparkline (fact hours per month, all 12)
+    const monthlyFact = Array.from({ length: 12 }, (_, i) => {
+      const monthRows = (allData[i] || []).filter(r => !r._deleted && (r.name || r.num));
+      return R2(monthRows.reduce((sum, r) => sum + evalExpr(r.factH), 0));
+    });
+    const monthlyPlan = Array.from({ length: 12 }, (_, i) => {
+      const monthRows = (allData[i] || []).filter(r => !r._deleted && (r.name || r.num));
+      return R2(monthRows.reduce((sum, r) => sum + evalExpr(r.planH), 0));
+    });
+    const monthlyTotal = Array.from({ length: 12 }, (_, i) =>
+      (allData[i] || []).filter(r => !r._deleted && (r.name || r.num)).length
+    );
+    const monthlyCompleted = Array.from({ length: 12 }, (_, i) =>
+      (allData[i] || []).filter(r => !r._deleted && (r.status === STATUSES.DONE || r.status === STATUSES.COMPLETED)).length
+    );
+
+    // Top tasks by fact hours in current month
+    const topTasks = [...allRows]
+      .filter(r => evalExpr(r.factH) > 0 && (r.name || r.num))
+      .sort((a, b) => evalExpr(b.factH) - evalExpr(a.factH))
+      .slice(0, 5);
+
     return {
-      total,
-      completed,
-      planH,
-      factH,
-      statusCounts,
+      total, completed, planH: R2(planH), factH: R2(factH),
+      statusCounts, priorityCounts, atRisk,
+      monthlyFact, monthlyPlan, monthlyTotal, monthlyCompleted,
+      topTasks,
     };
   }, [allData, currentMonth]);
 
@@ -1178,25 +1581,20 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
   const addQuestion = useCallback(async () => {
     if (!newQuestionText.trim()) return;
+    const authorName = authData.user.displayName || authData.user.username || "Аноним";
 
     // Push to server first
     try {
       const res = await fetch("/api/question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: newQuestionText.trim(), author: newQuestionAuthor.trim() || "Аноним" }),
+        body: JSON.stringify({ question: newQuestionText.trim(), author: authorName }),
       });
       if (res.ok) {
         const data = await res.json();
         if (data.question) {
           const q = data.question;
-          setQuestions((prev) => [...prev, {
-            id: q.id,
-            text: q.text,
-            author: q.author,
-            questionDate: q.questionDate,
-            answer: q.answer || "",
-          }]);
+          setQuestions((prev) => [...prev, mapQuestionFromAPI(q)]);
         }
       }
     } catch { /* silent — fallback to local only */ }
@@ -1205,6 +1603,24 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     setNewQuestionAuthor("");
   }, [newQuestionText, newQuestionAuthor]);
 
+  const addQuestionDirect = useCallback(async (text: string, author: string) => {
+    if (!text.trim()) return;
+    try {
+      const res = await fetch("/api/question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: text.trim(), author: author || "AI-ассистент" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.question) {
+          const q = data.question;
+          setQuestions(prev => [...prev, { id: q.id, text: q.text, author: q.author, questionDate: q.questionDate, answer: q.answer || "" }]);
+        }
+      }
+    } catch { /* silent */ }
+  }, []);
+
   const removeQuestion = useCallback(async (id: string) => {
     setQuestions((prev) => prev.filter((q) => q.id !== id));
     try {
@@ -1212,21 +1628,43 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     } catch { /* silent */ }
   }, []);
 
-  const answerQuestion = useCallback(async (questionId: string, answer: string) => {
-    setQuestions((prev) => prev.map((q) =>
-      q.id === questionId ? { ...q, answer, answerDate: new Date().toISOString() } : q
-    ));
-    setAnsweringId(null);
-    setAnswerText("");
-
+  const answerQuestion = useCallback(async (questionId: string, answerText: string, authorName: string) => {
     // Push to server
     try {
-      await fetch("/api/answer", {
+      const res = await fetch("/api/answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questionId, answer }),
+        body: JSON.stringify({ questionId, answer: answerText, author: authorName }),
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.answers) {
+          setQuestions(prev => prev.map(q =>
+            q.id === questionId ? { ...q, answers: data.answers, answerDate: new Date().toISOString() } : q
+          ));
+          return;
+        }
+      }
     } catch { /* silent */ }
+    // Optimistic fallback
+    const newEntry: QuestionAnswer = {
+      id: crypto.randomUUID(),
+      author: authorName,
+      text: answerText,
+      date: new Date().toISOString(),
+    };
+    setQuestions(prev => prev.map(q =>
+      q.id === questionId ? { ...q, answers: [...(q.answers || []), newEntry], answerDate: new Date().toISOString() } : q
+    ));
+  }, []);
+
+  const deleteAnswer = useCallback(async (questionId: string, answerId: string) => {
+    try {
+      await fetch(`/api/answer?questionId=${questionId}&answerId=${answerId}`, { method: "DELETE" });
+    } catch { /* silent */ }
+    setQuestions(prev => prev.map(q =>
+      q.id === questionId ? { ...q, answers: (q.answers || []).filter(a => a.id !== answerId) } : q
+    ));
   }, []);
 
   /* ---- Export/Import Handlers ---- */
@@ -1483,19 +1921,17 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       )}
 
       {/* ---- HEADER ---- */}
-      <header className="sticky top-0 z-30 border-b border-[var(--tracker-accent)]/20 text-white backdrop-blur supports-[backdrop-filter]:opacity-95" style={{ background: "linear-gradient(135deg, var(--tracker-accent) 0%, color-mix(in srgb, var(--tracker-accent) 85%, #a78bfa) 100%)", boxShadow: "0 2px 16px color-mix(in srgb, var(--tracker-accent) 25%, transparent)" }}>
-        <div className="flex h-14 items-center justify-between px-4 gap-3">
-          <h1 className="text-xl font-bold tracking-tight whitespace-nowrap">
-            <span className="text-white/80">✦</span>{" "}
-            <span className="text-white">
-              Трекер задач
-            </span>
+      <header className="sticky top-0 z-30 backdrop-blur-md supports-[backdrop-filter]:bg-[var(--tracker-bg-card)]/90 bg-[var(--tracker-bg-card)]" style={{ borderBottom: "1px solid var(--tracker-border)", boxShadow: "0 1px 0 0 var(--tracker-border)" }}>
+        <div className="flex h-12 md:h-14 items-center justify-between px-3 md:px-4 gap-2 md:gap-3">
+          <h1 className="text-base md:text-xl font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5 md:gap-2">
+            <span style={{ color: "var(--tracker-accent)", opacity: 0.6 }}>✦</span>
+            <span style={{ color: "var(--tracker-text-main)" }}>Трекер задач</span>
           </h1>
 
           {/* Sync status */}
           <div className="flex items-center gap-1.5 ml-2" title={isOnline ? (lastSync ? `Синхронизировано: ${lastSync.toLocaleTimeString("ru-RU")}` : "Подключение...") : "Нет подключения"}>
             <div className={`size-2 rounded-full ${isOnline ? "bg-green-400 animate-pulse" : "bg-red-400"}`} />
-            <span className="text-xs text-white/70 hidden md:inline">{isOnline ? "Онлайн" : "Оффлайн"}</span>
+            <span className="text-xs text-[var(--tracker-text-muted)] hidden md:inline">{isOnline ? "Онлайн" : "Оффлайн"}</span>
           </div>
 
           {/* Spacer */}
@@ -1503,19 +1939,19 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
           {/* User info + Logout */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/10">
-              <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                <span className="text-[10px] font-bold text-white/90">{(authData.user.displayName || authData.user.username).charAt(0).toUpperCase()}</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--tracker-accent-bg)]">
+              <div className="w-5 h-5 rounded-full bg-[var(--tracker-accent)]/20 flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-bold text-[var(--tracker-accent-fg-dark)]">{(authData.user.displayName || authData.user.username).charAt(0).toUpperCase()}</span>
               </div>
-              <span className="text-xs text-white/80 max-w-[120px] truncate hidden sm:inline">{authData.user.displayName || authData.user.username}</span>
+              <span className="text-xs text-[var(--tracker-text-main)] max-w-[120px] truncate hidden sm:inline">{authData.user.displayName || authData.user.username}</span>
               {isAdmin && (
-                <span className="text-[9px] px-1 py-0.5 rounded font-bold hidden sm:inline" style={{ background: "rgba(155,114,207,0.7)", color: "#fff" }}>ADMIN</span>
+                <span className="text-[9px] px-1 py-0.5 rounded font-bold hidden sm:inline" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)", border: "1px solid var(--tracker-border)" }}>ADMIN</span>
               )}
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
               title="Выйти из аккаунта"
               onClick={onLogout}
             >
@@ -1525,9 +1961,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
           <div className="flex items-center gap-1.5">
             {/* Save/Load dropdown */}
-            <DropdownMenu>
+            <span className="header-file-btn contents"><DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 gap-1.5 border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white">
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 border-[var(--tracker-border)] bg-transparent text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-accent-fg-dark)]">
                   <Save className="size-3.5" />
                   <span className="hidden sm:inline">Файл</span>
                 </Button>
@@ -1565,7 +2001,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
                   <span>📂 Загрузить Excel (месяц)</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
-            </DropdownMenu>
+            </DropdownMenu></span>
 
             {/* Hidden file inputs */}
             <input
@@ -1584,10 +2020,11 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             />
 
             {/* Undo / Redo */}
+            <span className="header-undo-redo contents">
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
               title="Отменить (Ctrl+Z)"
               disabled={!undoStore.canUndo()}
               onClick={storeUndo}
@@ -1597,21 +2034,22 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
               title="Повторить (Ctrl+Shift+Z)"
               disabled={!undoStore.canRedo()}
               onClick={storeRedo}
             >
               <Redo2 className="size-4" />
             </Button>
+            </span>
 
             {/* Settings button */}
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
               title="Настройки"
-              onClick={() => { setSettingsOpen(true); setSettingsTab("theme"); setCustomColorInput(customColor || "#5B9BD5"); }}
+              onClick={() => { setSettingsOpen(true); setSettingsTab("theme"); setCustomColorInput(customColor || themeId || "#9B72CF"); }}
             >
               <Settings className="size-4" />
             </Button>
@@ -1621,7 +2059,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+                className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
                 title="Админ-панель"
                 onClick={() => window.location.href = "/admin"}
               >
@@ -1631,7 +2069,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
             <Separator
               orientation="vertical"
-              className="mx-1 h-6 bg-white/20 hidden sm:block"
+              className="header-separator mx-1 h-6 bg-[var(--tracker-border)] hidden sm:block"
             />
 
             {/* Domain selector (only if > 1 visible domain) */}
@@ -1678,9 +2116,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       </header>
 
       {/* ---- MAIN CONTENT ---- */}
-      <main className="flex-1 w-full px-4 py-4 space-y-4">
+      <main className="flex-1 w-full px-3 md:px-4 py-3 md:py-4 pb-20 md:pb-4 space-y-3 md:space-y-4">
         {/* ---- NAVIGATION TABS ---- */}
-        <nav className="flex gap-1 rounded-lg bg-muted/60 p-1">
+        <nav className="hidden md:flex gap-1 rounded-lg bg-muted/60 p-1">
           {(
             [
               { key: "table", emoji: "📋", label: "Таблица" },
@@ -1733,7 +2171,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
                     />
                   )}
                   <span className="truncate hidden sm:inline">{m}</span>
-                  <span className="sm:hidden text-xs font-semibold">{m.charAt(0)}</span>
+                  <span className="sm:hidden text-[11px] font-semibold">{MONTHS_SHORT[i]}</span>
                 </button>
               ))}
             </div>
@@ -1752,6 +2190,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             clientMode={clientMode}
             editingCell={editingCell}
             editRef={editRef}
+            inputEditRef={inputEditRef}
             isEditing={isEditing}
             startEditing={startEditing}
             stopEditing={stopEditing}
@@ -1797,6 +2236,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             data={dashboardData}
             monthBudget={monthBudget[currentMonth]}
             onBudgetChange={(v) => setMonthBudget(currentMonth, v)}
+            currentMonth={currentMonth}
+            backlogCount={(backlog || []).length}
+            isDark={customDark}
           />
         )}
 
@@ -1804,16 +2246,22 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
           <QuestionsView
             questions={questions}
             newQuestionText={newQuestionText}
-            newQuestionAuthor={newQuestionAuthor}
             setNewQuestionText={setNewQuestionText}
-            setNewQuestionAuthor={setNewQuestionAuthor}
             addQuestion={addQuestion}
             removeQuestion={removeQuestion}
-            answeringId={answeringId}
-            answerText={answerText}
-            setAnsweringId={setAnsweringId}
-            setAnswerText={setAnswerText}
             answerQuestion={answerQuestion}
+            deleteAnswer={deleteAnswer}
+            currentUsername={authData.user.displayName || authData.user.username}
+            currentMonth={currentMonth}
+            addToBacklog={(task) => {
+              useTaskStore.setState({ backlog: [...useTaskStore.getState().backlog, { ...task, _ts: Date.now() }] });
+            }}
+            addToTable={(month, task) => {
+              const state = useTaskStore.getState();
+              const existing = state.allData[month] || [];
+              const isEmpty = existing.length === 1 && !existing[0].num && !existing[0].name;
+              state.setAllData({ ...state.allData, [month]: isEmpty ? [task] : [...existing, task] });
+            }}
           />
         )}
 
@@ -1829,6 +2277,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             allData={allData}
             backlog={backlog}
             totalFactMap={totalFactMap}
+            questions={questions}
+            addQuestion={addQuestionDirect}
+            isDark={customDark}
           />
         )}
 
@@ -1859,6 +2310,32 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
           />
         )}
       </main>
+
+      {/* ---- MOBILE BOTTOM NAV ---- */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 mobile-bottom-nav">
+        <div className="flex items-stretch">
+          {(
+            [
+              { key: "table",     emoji: "📋", label: "Задачи" },
+              { key: "backlog",   emoji: "📦", label: "Беклог" },
+              ...(canSeeQuestions ? [{ key: "questions" as const, emoji: "❓", label: "Вопросы" }] : []),
+              { key: "dashboard", emoji: "📊", label: "Дашборд" },
+              { key: "chat",      emoji: "💬", label: "Чат" },
+            ] as const
+          )
+            .filter((tab) => !allowedTabs || allowedTabs.has(tab.key))
+            .map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setView(tab.key)}
+              className={`mobile-bottom-nav-item ${view === tab.key ? "active" : ""}`}
+            >
+              <span className="mobile-bottom-nav-icon">{tab.emoji}</span>
+              <span className="mobile-bottom-nav-label">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
 
       {/* ---- TOTALH DIALOG ---- */}
       <Dialog
@@ -2403,6 +2880,7 @@ interface TableViewProps {
   editRef: React.RefObject<
     HTMLTextAreaElement | HTMLInputElement | null
   >;
+  inputEditRef: React.RefObject<HTMLInputElement | null>;
   isEditing: (rowId: string, col: string) => boolean;
   startEditing: (rowId: string, col: string) => void;
   stopEditing: () => void;
@@ -2456,6 +2934,7 @@ function TableView({
   clientMode,
   editingCell,
   editRef,
+  inputEditRef,
   isEditing,
   startEditing,
   stopEditing,
@@ -2636,7 +3115,7 @@ function TableView({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5 border-[var(--tracker-accent)]/30 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent-soft)]"
+            className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent-soft)]"
             onClick={onOpenTransfer}
           >
             <ArrowRight className="size-3.5" />
@@ -2645,7 +3124,7 @@ function TableView({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5 border-[var(--tracker-accent)]/30 bg-[var(--tracker-accent)]/6 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent)]/14 hover:border-[var(--tracker-accent)]/50"
+            className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 bg-[var(--tracker-accent)]/6 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent)]/14 hover:border-[var(--tracker-accent)]/50"
             onClick={onCreatePresentation}
           >
             <Presentation className="size-3.5" />
@@ -2672,11 +3151,99 @@ function TableView({
         </div>
       )}
 
-      {/* ---- TABLE ---- */}
-      <Card className="max-h-[70vh] overflow-auto py-0">
+
+      {/* ---- MOBILE TASK CARDS (md:hidden) ---- */}
+      <div className="md:hidden space-y-2">
+        {rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <span className="text-4xl mb-3">📋</span>
+            <p className="text-sm font-medium">Нет задач</p>
+            <p className="text-xs mt-1 opacity-60">Добавьте первую задачу</p>
+          </div>
+        ) : (
+          rows.map((task) => {
+            const isSelected = selectedRowId === task.id;
+            const metrics = getTaskMetrics(task, totalFactMap);
+            const pct = metrics.totalH > 0 && evalExpr(task.planH) > 0
+              ? Math.min(100, (metrics.totalH / evalExpr(task.planH)) * 100)
+              : null;
+            const isOver = pct !== null && pct > 100;
+            return (
+              <div
+                key={task.id}
+                onClick={() => setSelectedRowId(task.id)}
+                className={`mobile-task-card ${isSelected ? "selected" : ""}`}
+              >
+                {/* Top row: number + priority */}
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="mobile-task-num">#{task.num || "—"}</span>
+                  <span
+                    className="mobile-task-priority-pill"
+                    style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
+                  >
+                    {task.priority}
+                  </span>
+                </div>
+                {/* Name */}
+                <p className="mobile-task-name">
+                  {task.name || <span className="italic opacity-40">без названия</span>}
+                </p>
+                {/* Bottom row: status + hours */}
+                <div className="flex items-center justify-between mt-2 pt-2 mobile-task-footer">
+                  <span
+                    className="mobile-task-status-pill"
+                    style={{
+                      color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
+                      background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
+                    }}
+                  >
+                    {task.status}
+                  </span>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>📐 {task.planH || "0"}ч</span>
+                    <span className={isOver ? "text-red-500 font-semibold" : ""}>
+                      ⏱ {task.factH || "0"}ч
+                    </span>
+                  </div>
+                </div>
+                {/* Progress bar */}
+                {pct !== null && (
+                  <div className="mt-2 h-1 rounded-full overflow-hidden bg-muted/60">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(pct, 100)}%`,
+                        background: isOver
+                          ? "var(--tracker-danger)"
+                          : "var(--tracker-accent)",
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+        {/* Mobile FAB */}
+        {!clientMode && (
+          <button
+            className="mobile-fab"
+            onClick={() => addTask(month)}
+            aria-label="Добавить задачу"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* ---- DESKTOP TABLE (hidden on mobile) ---- */}
+      {/* ---- DESKTOP TABLE ---- */}
+      <Card className="hidden md:block max-h-[70vh] overflow-auto py-0">
         <Table className="border-collapse sticky-table-header">
-          <TableHeader className="bg-[var(--tracker-accent)]">
-            <TableRow className="[&_th]:text-white">
+          <TableHeader className="bg-[var(--tracker-accent-bg,#f3f0fb)]">
+            <TableRow className="[&_th]:text-[var(--tracker-accent-fg-dark,#3d2264)]">
               {!clientMode && (
                 <TableHead className="w-8 text-center px-1">
                   <span className="sr-only">Перетащить</span>
@@ -2688,7 +3255,7 @@ function TableView({
               {COLS.map((col) => (
                 <TableHead
                   key={col.key}
-                  className="cursor-pointer select-none hover:bg-white/15"
+                  className="cursor-pointer select-none hover:bg-[var(--tracker-accent)]/8"
                   style={{ minWidth: col.minW }}
                   onClick={() =>
                     col.sortable && handleSort(col.key)
@@ -2698,9 +3265,9 @@ function TableView({
                     {col.label}
                     {col.sortable && sortKey === col.key && (
                       sortDir === 1 ? (
-                        <ChevronUp className="size-3.5 text-white/80" />
+                        <ChevronUp className="size-3.5 text-[var(--tracker-accent-fg-dark)] opacity-60" />
                       ) : (
-                        <ChevronDown className="size-3.5 text-white/80" />
+                        <ChevronDown className="size-3.5 text-[var(--tracker-accent-fg-dark)] opacity-60" />
                       )
                     )}
                   </span>
@@ -2722,7 +3289,7 @@ function TableView({
               return (
                 <TableRow
                   key={task.id}
-                  className={`cursor-pointer ${selectedRowId === task.id ? "bg-[var(--tracker-accent-soft)]" : idx % 2 === 0 ? "" : "bg-[var(--tracker-accent)]/[0.02]"} ${dragRowId === task.id ? "opacity-40" : ""} ${dropTargetId === task.id && dragRowId !== task.id ? "border-t-2 border-b-2 border-[var(--tracker-accent)] bg-[var(--tracker-accent)]/[0.06]" : ""}`}
+                  className={`cursor-pointer ${selectedRowId === task.id ? "row-selected" : ""} ${dragRowId === task.id ? "opacity-40" : ""} ${dropTargetId === task.id && dragRowId !== task.id ? "border-t-[1.5px] border-b-[1.5px] border-[var(--tracker-accent)]/40 !bg-[var(--tracker-accent)]/[0.06]" : ""}`}
                   onClick={() => setSelectedRowId(task.id)}
                   onDragOver={(e) => handleRowDragOver(e, task.id)}
                   onDrop={(e) => handleRowDrop(e, task.id)}
@@ -3172,7 +3739,7 @@ function TableView({
           {/* Footer totals */}
           {rows.length > 0 && (
             <TableFooter className="sticky bottom-0">
-              <TableRow className="font-semibold bg-[var(--tracker-accent)]/10">
+              <TableRow className="font-semibold bg-[var(--tracker-accent-bg)] border-t-[1.5px] border-[var(--tracker-border)]">
                 {!clientMode && <TableCell className="border-t border-[var(--tracker-accent)]/20" />}
                 <TableCell className="border-t border-[var(--tracker-accent)]/20" />
                 <TableCell className="border-t border-[var(--tracker-accent)]/20" />
@@ -3227,13 +3794,10 @@ function TableView({
 interface BacklogViewProps {
   backlog: Task[];
   currentMonth: number;
-  updateBacklogTask: (
-    taskId: string,
-    key: keyof Task,
-    value: unknown
-  ) => void;
+  updateBacklogTask: (taskId: string, key: keyof Task, value: unknown) => void;
   deleteBacklogTask: (taskId: string) => void;
   reorderBacklog: (fromId: string, toId: string) => void;
+  setCommentArchiveDialog: (v: { taskId: string; taskName: string; logs: Array<{ date: string; week: string; text: string; planH: string; factH: string; status: string }>; open: boolean }) => void;
   isDark: boolean;
 }
 
@@ -3255,208 +3819,291 @@ function BacklogView({
   updateBacklogTask,
   deleteBacklogTask,
   reorderBacklog,
+  setCommentArchiveDialog,
   isDark,
 }: BacklogViewProps) {
   const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [editingCell, setEditingCell] = useState<{ id: string; col: string } | null>(null);
+  const [commentDialogId, setCommentDialogId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  /* ---- Drag & Drop ---- */
   const handleDragStart = useCallback((e: React.DragEvent, rowId: string) => {
     e.stopPropagation();
     e.dataTransfer.setData("application/backlog-row", rowId);
     e.dataTransfer.effectAllowed = "move";
     setDragRowId(rowId);
   }, []);
-
   const handleDragOver = useCallback((e: React.DragEvent, rowId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     e.dataTransfer.dropEffect = "move";
     setDropTargetId(rowId);
   }, []);
-
   const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     const fromId = e.dataTransfer.getData("application/backlog-row");
-    if (fromId && fromId !== targetId && reorderBacklog) {
-      reorderBacklog(fromId, targetId);
-    }
-    setDragRowId(null);
-    setDropTargetId(null);
+    if (fromId && fromId !== targetId && reorderBacklog) reorderBacklog(fromId, targetId);
+    setDragRowId(null); setDropTargetId(null);
   }, [reorderBacklog]);
+  const handleDragEnd = useCallback(() => { setDragRowId(null); setDropTargetId(null); }, []);
 
-  const handleDragEnd = useCallback((e: React.DragEvent) => {
-    e.stopPropagation();
-    setDragRowId(null);
-    setDropTargetId(null);
+  /* ---- Inline editing ---- */
+  const startEdit = useCallback((id: string, col: string) => {
+    setEditingCell({ id, col });
+    setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+      textareaRef.current?.focus();
+    }, 30);
   }, []);
-  const [dialog, setDialog] = useState<BacklogDialogState>({
-    open: false,
-    taskId: "",
-    num: "",
-    name: "",
-    planH: "0",
-    factH: "0",
-    month: currentMonth,
-    priority: PRIORITIES.QUEUE,
-    status: STATUSES.IDEA,
-  });
+  const stopEdit = useCallback(() => setEditingCell(null), []);
+  const isEdit = (id: string, col: string) => editingCell?.id === id && editingCell?.col === col;
 
-  const handleAddToBacklog = useCallback(() => {
+  /* ---- Queue reorder by number input ---- */
+  const handleQueueChange = useCallback((taskId: string, newPos: string) => {
+    const n = parseInt(newPos, 10);
+    if (isNaN(n) || n < 1 || n > backlog.length) return;
+    const fromIdx = backlog.findIndex(t => t.id === taskId);
+    const toIdx = Math.min(n - 1, backlog.length - 1);
+    if (fromIdx === toIdx) return;
+    // Find the target task id at desired index
+    const targetTask = backlog[toIdx];
+    if (targetTask) reorderBacklog(taskId, targetTask.id);
+  }, [backlog, reorderBacklog]);
+
+  /* ---- Add task ---- */
+  const handleAdd = useCallback(() => {
     const newTask = createNewTask();
-    const current = useTaskStore.getState().backlog;
-    useTaskStore.setState({
-      backlog: [...current, newTask],
-    });
+    useTaskStore.setState({ backlog: [...useTaskStore.getState().backlog, newTask] });
   }, []);
 
-  const openReturnDialog = useCallback((task: Task) => {
-    const resolvedPlan = fmt2(evalExpr(task.planH || "0"));
-    const resolvedFact = fmt2(evalExpr(task.factH || "0"));
-    console.log("[backlog dialog] raw planH:", task.planH, "=> resolved:", resolvedPlan);
-    console.log("[backlog dialog] raw factH:", task.factH, "=> resolved:", resolvedFact);
-    setDialog({
-      open: true,
+  /* ---- Open comment archive ---- */
+  const openArchive = useCallback((task: Task) => {
+    setCommentArchiveDialog({
       taskId: task.id,
-      num: task.num,
-      name: task.name,
-      planH: resolvedPlan,
-      factH: resolvedFact,
-      month: currentMonth,
-      priority: task.priority,
-      status: task.status,
+      taskName: task.name || "Без названия",
+      open: true,
+      logs: [...(task.commentLog || [])].reverse().map(e => ({
+        date: e.date, week: e.week, text: e.text, planH: e.planH, factH: e.factH, status: e.status,
+      })),
+    });
+  }, [setCommentArchiveDialog]);
+
+  /* ---- Save inline comment ---- */
+  const handleCommentSave = useCallback((task: Task, newComment: string) => {
+    if (newComment === task.comment) { stopEdit(); return; }
+    updateBacklogTask(task.id, "comment", newComment);
+    stopEdit();
+  }, [updateBacklogTask, stopEdit]);
+
+  /* ---- Return to table dialog ---- */
+  const [dialog, setDialog] = useState<BacklogDialogState>({
+    open: false, taskId: "", num: "", name: "", planH: "0", factH: "0",
+    month: currentMonth, priority: PRIORITIES.QUEUE, status: STATUSES.IDEA,
+  });
+  const openReturnDialog = useCallback((task: Task) => {
+    setDialog({
+      open: true, taskId: task.id, num: task.num, name: task.name,
+      planH: fmt2(evalExpr(task.planH || "0")), factH: fmt2(evalExpr(task.factH || "0")),
+      month: currentMonth, priority: task.priority, status: task.status,
     });
   }, [currentMonth]);
-
-  const closeDialog = useCallback(() => {
-    setDialog(prev => ({ ...prev, open: false }));
-  }, []);
-
+  const closeDialog = useCallback(() => setDialog(prev => ({ ...prev, open: false })), []);
   const handleReturnToTable = useCallback(() => {
-    useTaskStore.getState().returnFromBacklogWithEdits(
-      dialog.taskId,
-      dialog.month,
-      {
-        num: dialog.num,
-        name: dialog.name,
-        planH: dialog.planH,
-        factH: dialog.factH,
-        priority: dialog.priority,
-        status: dialog.status,
-      },
-    );
+    useTaskStore.getState().returnFromBacklogWithEdits(dialog.taskId, dialog.month, {
+      num: dialog.num, name: dialog.name, planH: dialog.planH, factH: dialog.factH,
+      priority: dialog.priority, status: dialog.status,
+    });
     closeDialog();
   }, [dialog, closeDialog]);
 
   const statusValues = Object.values(STATUSES);
   const priorityValues = Object.values(PRIORITIES);
 
+  /* ---- Queue urgency styling ---- */
+  const getQueueStyle = (idx: number, total: number): React.CSSProperties => {
+    const rank = idx + 1;
+    if (rank === 1) return { borderLeft: "3px solid var(--tracker-danger)", background: "color-mix(in srgb, var(--tracker-danger) 5%, transparent)" };
+    if (rank === 2) return { borderLeft: "3px solid #f97316", background: "color-mix(in srgb, #f97316 4%, transparent)" };
+    if (rank === 3) return { borderLeft: "3px solid #eab308", background: "color-mix(in srgb, #eab308 3%, transparent)" };
+    if (rank <= 5) return { borderLeft: "3px solid var(--tracker-border)", background: "transparent" };
+    return { borderLeft: "3px solid transparent", background: "transparent" };
+  };
+
+  const getQueueBadgeStyle = (idx: number): React.CSSProperties => {
+    const rank = idx + 1;
+    if (rank === 1) return { background: "var(--tracker-danger)", color: "#fff", fontWeight: 700 };
+    if (rank === 2) return { background: "#f97316", color: "#fff", fontWeight: 700 };
+    if (rank === 3) return { background: "#eab308", color: "#fff", fontWeight: 600 };
+    if (rank <= 5) return { background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)", fontWeight: 600 };
+    return { background: "transparent", color: "var(--tracker-text-muted)", fontWeight: 500, border: "1px solid var(--tracker-border)" };
+  };
+
   return (
     <div className="space-y-3">
       <Card className="max-h-[70vh] overflow-auto py-0">
         <Table className="border-collapse sticky-table-header">
-          <TableHeader className="bg-[var(--tracker-accent)]">
-            <TableRow className="[&_th]:text-white">
-              <TableHead className="w-10">#</TableHead>
-              <TableHead className="min-w-[200px]">
-                Наименование
-              </TableHead>
-              <TableHead className="min-w-[100px]">
-                Приоритет
-              </TableHead>
-              <TableHead className="min-w-[160px]">
-                Статус
-              </TableHead>
-              <TableHead className="min-w-[200px]">
-                Комментарий
-              </TableHead>
-              <TableHead className="w-24 text-center">
-                Действия
-              </TableHead>
+          <TableHeader className="bg-[var(--tracker-accent-bg,#f3f0fb)]">
+            <TableRow className="[&_th]:text-[var(--tracker-accent-fg-dark,#3d2264)]">
+              <TableHead className="w-12 text-center">Очередь</TableHead>
+              <TableHead className="min-w-[260px]">Наименование</TableHead>
+              <TableHead className="w-28 text-right">План, ч</TableHead>
+              <TableHead className="min-w-[220px]">Комментарий</TableHead>
+              <TableHead className="w-24 text-center">Действия</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {backlog.map((task, idx) => (
-              <TableRow 
-                key={task.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, task.id)}
-                onDragOver={(e) => handleDragOver(e, task.id)}
-                onDrop={(e) => handleDrop(e, task.id)}
-                onDragEnd={handleDragEnd}
-                className={`cursor-move ${dragRowId === task.id ? "opacity-40" : ""} ${dropTargetId === task.id && dragRowId !== task.id ? "border-t-2 border-b-2 border-[var(--tracker-accent)] bg-[var(--tracker-accent)]/[0.06]" : ""}`}
-              >
-                <TableCell className="text-center text-muted-foreground text-xs">
-                  {idx + 1}
-                </TableCell>
-                <TableCell>
-                  <span className="text-sm block overflow-hidden text-ellipsis whitespace-nowrap">
-                    {task.name || (
-                      <span className="italic text-muted-foreground">
-                        без названия
+            {backlog.map((task, idx) => {
+              const qStyle = getQueueStyle(idx, backlog.length);
+              const qBadge = getQueueBadgeStyle(idx);
+              const isDragging = dragRowId === task.id;
+              const isDropTarget = dropTargetId === task.id && dragRowId !== task.id;
+              return (
+                <TableRow
+                  key={task.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, task.id)}
+                  onDragOver={(e) => handleDragOver(e, task.id)}
+                  onDrop={(e) => handleDrop(e, task.id)}
+                  onDragEnd={handleDragEnd}
+                  style={qStyle}
+                  className={`cursor-move transition-opacity ${isDragging ? "opacity-30" : ""} ${isDropTarget ? "!border-t-2 !border-b-2 !border-[var(--tracker-accent)] !bg-[var(--tracker-accent)]/[0.06]" : ""}`}
+                >
+                  {/* Queue number */}
+                  <TableCell className="text-center px-2">
+                    {isEdit(task.id, "queue") ? (
+                      <input
+                        ref={inputRef}
+                        type="number"
+                        min={1}
+                        max={backlog.length}
+                        defaultValue={idx + 1}
+                        className="w-12 text-center text-sm font-bold rounded border border-[var(--tracker-border)] bg-transparent outline-none focus:ring-1 focus:ring-[var(--tracker-accent)] p-0.5"
+                        onBlur={(e) => { handleQueueChange(task.id, e.target.value); stopEdit(); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") { handleQueueChange(task.id, (e.target as HTMLInputElement).value); stopEdit(); } if (e.key === "Escape") stopEdit(); }}
+                      />
+                    ) : (
+                      <span
+                        onClick={() => startEdit(task.id, "queue")}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs cursor-pointer hover:scale-110 transition-transform"
+                        style={qBadge}
+                        title="Нажмите, чтобы изменить позицию"
+                      >
+                        {idx + 1}
                       </span>
                     )}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <span
-                    className="text-xs font-medium"
-                    style={{ color: PCOL[task.priority] }}
-                  >
-                    {task.priority}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <span
-                    className="text-xs"
-                    style={{ color: scolText(task.status, isDark) || "#888" }}
-                  >
-                    {task.status}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <span className="text-sm text-muted-foreground block overflow-hidden text-ellipsis whitespace-nowrap">
-                    {task.comment || "—"}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-center gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => openReturnDialog(task)}
-                      title="Вернуть в таблицу"
-                    >
-                      <span className="text-sm">📋</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() =>
-                        deleteBacklogTask(task.id)
-                      }
-                      title="Удалить"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+
+                  {/* Name */}
+                  <TableCell className="max-w-[320px]">
+                    {isEdit(task.id, "name") ? (
+                      <AutoResizeTextarea
+                        ref={textareaRef}
+                        className="text-sm w-full"
+                        value={task.name}
+                        onChange={(e) => updateBacklogTask(task.id, "name", e.target.value)}
+                        onBlur={stopEdit}
+                        onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Escape") stopEdit(); }}
+                      />
+                    ) : (
+                      <span
+                        onClick={() => startEdit(task.id, "name")}
+                        className="cursor-pointer block text-sm rounded px-1 py-0.5 hover:bg-muted/50 overflow-hidden text-ellipsis whitespace-nowrap"
+                        title={task.name}
+                      >
+                        {task.name || <span className="italic text-muted-foreground opacity-50">введите название...</span>}
+                      </span>
+                    )}
+                  </TableCell>
+
+                  {/* Plan hours */}
+                  <TableCell className="text-right">
+                    {isEdit(task.id, "planH") ? (
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        defaultValue={task.planH}
+                        className="w-20 text-right text-sm rounded border border-[var(--tracker-border)] bg-transparent outline-none focus:ring-1 focus:ring-[var(--tracker-accent)] p-0.5 ml-auto block"
+                        onBlur={(e) => { updateBacklogTask(task.id, "planH", e.target.value); stopEdit(); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") { updateBacklogTask(task.id, "planH", (e.target as HTMLInputElement).value); stopEdit(); } if (e.key === "Escape") stopEdit(); }}
+                      />
+                    ) : (
+                      <span
+                        onClick={() => startEdit(task.id, "planH")}
+                        className="cursor-pointer rounded px-1 py-0.5 text-sm font-medium hover:bg-muted/50 inline-block"
+                        style={{ color: "var(--tracker-accent-fg-dark)" }}
+                      >
+                        {task.planH || "—"}
+                      </span>
+                    )}
+                  </TableCell>
+
+                  {/* Comment */}
+                  <TableCell className="max-w-[260px]">
+                    <div className="flex items-start gap-1 w-full">
+                      {isEdit(task.id, "comment") ? (
+                        <AutoResizeTextarea
+                          ref={textareaRef}
+                          className="text-sm flex-1"
+                          value={task.comment}
+                          onChange={(e) => updateBacklogTask(task.id, "comment", e.target.value)}
+                          onBlur={(e) => handleCommentSave(task, e.target.value)}
+                          onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Escape") { handleCommentSave(task, task.comment); } }}
+                        />
+                      ) : (
+                        <span
+                          onClick={() => startEdit(task.id, "comment")}
+                          className="cursor-pointer block text-sm rounded px-1 py-0.5 hover:bg-muted/50 overflow-hidden text-ellipsis whitespace-nowrap flex-1 text-muted-foreground"
+                          title={task.comment}
+                        >
+                          {task.comment || <span className="italic opacity-40">комментарий...</span>}
+                        </span>
+                      )}
+                      {task.commentLog && task.commentLog.length > 0 && (
+                        <button
+                          onClick={() => openArchive(task)}
+                          className="shrink-0 flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full transition-colors hover:bg-[var(--tracker-accent-bg)]"
+                          style={{ color: "var(--tracker-accent-fg-dark)", whiteSpace: "nowrap" }}
+                          title="Архив комментариев"
+                        >
+                          <span>📜</span>
+                          <span>{task.commentLog.length}</span>
+                        </button>
+                      )}
+                    </div>
+                  </TableCell>
+
+                  {/* Actions */}
+                  <TableCell>
+                    <div className="flex items-center justify-center gap-0.5">
+                      <Button
+                        variant="ghost" size="icon" className="h-7 w-7"
+                        onClick={() => openReturnDialog(task)}
+                        title="Вернуть в таблицу"
+                      >
+                        <span className="text-sm">📋</span>
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={() => deleteBacklogTask(task.id)}
+                        title="Удалить"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {backlog.length === 0 && (
               <TableRow>
-                <TableCell
-                  colSpan={6}
-                >
+                <TableCell colSpan={5}>
                   <EmptyState
                     type="backlog"
-                    onAction={() => {
-                      const newTask = createNewTask();
-                      const current = useTaskStore.getState().backlog;
-                      useTaskStore.setState({ backlog: [...current, newTask] });
-                    }}
+                    onAction={handleAdd}
                   />
                 </TableCell>
               </TableRow>
@@ -3468,7 +4115,7 @@ function BacklogView({
       <Button
         size="sm"
         className="gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-        onClick={handleAddToBacklog}
+        onClick={handleAdd}
       >
         <Plus className="size-3.5" />
         Создать задачу
@@ -3477,7 +4124,6 @@ function BacklogView({
       {/* ---- RETURN FROM BACKLOG DIALOG ---- */}
       <Dialog open={dialog.open} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent className="sm:max-w-md">
-          {/* Header */}
           <DialogHeader className="text-center sm:text-left">
             <div className="flex flex-col items-center sm:items-start gap-2">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--tracker-accent-soft)]">
@@ -3489,125 +4135,70 @@ function BacklogView({
               </div>
             </div>
           </DialogHeader>
-
-          {/* Form fields */}
           <div className="grid gap-3 py-1">
-            {/* Task number + Name */}
             <div className="grid grid-cols-[100px_1fr] gap-2">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">№ Задачи</label>
-                <Input
-                  value={dialog.num}
-                  onChange={(e) => setDialog(prev => ({ ...prev, num: e.target.value }))}
-                  placeholder="Номер..."
-                  className="h-9 text-sm"
-                />
+                <Input value={dialog.num} onChange={(e) => setDialog(prev => ({ ...prev, num: e.target.value }))} placeholder="Номер..." className="h-9 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Наименование</label>
-                <Input
-                  value={dialog.name}
-                  onChange={(e) => setDialog(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Название задачи..."
-                  className="h-9 text-sm"
-                />
+                <Input value={dialog.name} onChange={(e) => setDialog(prev => ({ ...prev, name: e.target.value }))} placeholder="Название задачи..." className="h-9 text-sm" />
               </div>
             </div>
-
-            {/* Plan + Fact */}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">План, ч</label>
-                <Input
-                  value={dialog.planH}
-                  onChange={(e) => setDialog(prev => ({ ...prev, planH: e.target.value }))}
-                  placeholder="0 или формула (2+3)"
-                  className="h-9 text-sm"
-                />
+                <Input value={dialog.planH} onChange={(e) => setDialog(prev => ({ ...prev, planH: e.target.value }))} placeholder="0" className="h-9 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Факт, ч</label>
-                <Input
-                  value={dialog.factH}
-                  onChange={(e) => setDialog(prev => ({ ...prev, factH: e.target.value }))}
-                  placeholder="0 или формула (2+3)"
-                  className="h-9 text-sm"
-                />
+                <Input value={dialog.factH} onChange={(e) => setDialog(prev => ({ ...prev, factH: e.target.value }))} placeholder="0" className="h-9 text-sm" />
               </div>
             </div>
-
-            {/* Month + Priority + Status */}
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">Месяц</label>
-                <Select
-                  value={String(dialog.month)}
-                  onValueChange={(v) => setDialog(prev => ({ ...prev, month: Number(v) }))}
-                >
-                  <SelectTrigger className="h-9 text-sm w-full">
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={String(dialog.month)} onValueChange={(v) => setDialog(prev => ({ ...prev, month: Number(v) }))}>
+                  <SelectTrigger className="h-9 text-sm w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {MONTHS.map((m, i) => (
-                      <SelectItem key={m} value={String(i)} className="text-sm">
-                        {m}
-                      </SelectItem>
+                      <SelectItem key={m} value={String(i)} className="text-sm">{m}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">Приоритет</label>
-                <Select
-                  value={dialog.priority}
-                  onValueChange={(v) => setDialog(prev => ({ ...prev, priority: v as Priority }))}
-                >
-                  <SelectTrigger className="h-9 text-sm w-full" style={{ color: PCOL[dialog.priority] || undefined }}>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={dialog.priority} onValueChange={(v) => setDialog(prev => ({ ...prev, priority: v as Priority }))}>
+                  <SelectTrigger className="h-9 text-sm w-full" style={{ color: PCOL[dialog.priority] || undefined }}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {priorityValues.map((p) => (
-                      <SelectItem key={p} value={p} className="text-sm" style={{ color: PCOL[p] }}>
-                        {p}
-                      </SelectItem>
+                      <SelectItem key={p} value={p} className="text-sm"><span style={{ color: PCOL[p] }}>{p}</span></SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">Статус</label>
-                <Select
-                  value={dialog.status}
-                  onValueChange={(v) => setDialog(prev => ({ ...prev, status: v as Status }))}
-                >
-                  <SelectTrigger className="h-9 text-sm w-full" style={{ color: scolText(dialog.status, isDark) || undefined }}>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={dialog.status} onValueChange={(v) => setDialog(prev => ({ ...prev, status: v as Status }))}>
+                  <SelectTrigger className="h-9 text-sm w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {statusValues.map((s) => (
-                      <SelectItem key={s} value={s} className="text-sm" style={{ color: scolText(s, isDark) || "#888" }}>
-                        {s}
-                      </SelectItem>
+                      <SelectItem key={s} value={s} className="text-sm">{s}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
           </div>
-
-          {/* Action buttons */}
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <Button
-              onClick={handleReturnToTable}
-              className="h-12 gap-2 text-base bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-            >
-              <span>📋</span>
-              В таблицу
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>Отмена</Button>
+            <Button onClick={handleReturnToTable} className="bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]">
+              <Check className="size-4 mr-1.5" />
+              Перенести в таблицу
             </Button>
-            <Button className="h-12 text-base" variant="outline" onClick={closeDialog}>
-              Отмена
-            </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -3625,204 +4216,408 @@ interface DashboardViewProps {
     planH: number;
     factH: number;
     statusCounts: Record<string, number>;
+    priorityCounts: Record<string, number>;
+    atRisk: Task[];
+    monthlyFact: number[];
+    monthlyPlan: number[];
+    monthlyTotal: number[];
+    monthlyCompleted: number[];
+    topTasks: Task[];
   };
   monthBudget: string;
   onBudgetChange: (v: string) => void;
+  currentMonth: number;
+  backlogCount: number;
+  isDark: boolean;
 }
 
-function DashboardView({ data, monthBudget, onBudgetChange }: DashboardViewProps) {
-  // Evaluate budget formula
-  const budgetValue = evalExpr(monthBudget);
-  const budgetDisplay = isNaN(budgetValue) || budgetValue <= 0 ? 0 : budgetValue;
+/* Mini SVG sparkline */
+function Sparkline({ values, color, height = 36, fill = false }: {
+  values: number[];
+  color: string;
+  height?: number;
+  fill?: boolean;
+}) {
+  if (!values.length) return null;
+  const max = Math.max(...values, 1);
+  const w = 160, h = height;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w;
+    const y = h - (v / max) * (h - 4);
+    return [x, y] as [number, number];
+  });
+  const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  const fillPath = `${linePath} L${w},${h} L0,${h} Z`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full overflow-visible" style={{ height }}>
+      {fill && <path d={fillPath} fill={color} opacity={0.12} />}
+      <path d={linePath} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      {/* Current month dot */}
+      <circle
+        cx={pts[pts.length - 1][0]}
+        cy={pts[pts.length - 1][1]}
+        r={3.5}
+        fill={color}
+        stroke="white"
+        strokeWidth={1.5}
+      />
+    </svg>
+  );
+}
 
-  // Team load percentage
-  const teamLoad = budgetDisplay > 0 ? Math.min(100, Math.round((data.factH / budgetDisplay) * 100)) : 0;
-  const isOverBudget = teamLoad > 100;
+/* Radial progress ring */
+function RadialProgress({ pct, size = 72, stroke = 6, color }: { pct: number; size?: number; stroke?: number; color: string }) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = Math.min(pct / 100, 1) * circ;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-muted/40" />
+      <circle
+        cx={size/2} cy={size/2} r={r} fill="none"
+        stroke={color} strokeWidth={stroke}
+        strokeDasharray={`${dash.toFixed(1)} ${circ.toFixed(1)}`}
+        strokeLinecap="round"
+        style={{ transition: "stroke-dasharray 0.6s ease" }}
+      />
+    </svg>
+  );
+}
 
-  // Accuracy: how close fact is to plan
-  const accuracy = data.planH > 0 ? Math.min(100, Math.round((data.planH / data.factH) * 100)) : 0;
+/* Horizontal segmented status bar */
+function StatusBar({ statusCounts, total }: { statusCounts: Record<string, number>; total: number }) {
+  if (total === 0) return <div className="h-3 rounded-full bg-muted/40" />;
+  const ordered = Object.values(STATUSES).filter(s => statusCounts[s] > 0);
+  return (
+    <div className="flex h-3 w-full overflow-hidden rounded-full gap-px">
+      {ordered.map(s => {
+        const pct = ((statusCounts[s] || 0) / total) * 100;
+        return (
+          <div
+            key={s}
+            title={`${s}: ${statusCounts[s]}`}
+            className="h-full transition-all duration-500"
+            style={{ width: `${pct}%`, background: SCOL[s] || "#ccc", minWidth: pct > 0 ? "3px" : undefined }}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
-  const kpiCards = [
-    {
-      label: "Всего задач",
-      value: data.total,
-      icon: "📋",
-      color: "text-[var(--tracker-accent-fg)]",
-    },
-    {
-      label: "Завершено",
-      value: data.completed,
-      icon: "✅",
-      color: "text-green-600 dark:text-green-400",
-    },
-    {
-      label: "План, ч",
-      value: fmt2(data.planH),
-      icon: "📝",
-      color: "text-amber-600 dark:text-amber-400",
-    },
-    {
-      label: "Факт, ч",
-      value: fmt2(data.factH),
-      icon: "⏱",
-      color: "text-[var(--tracker-accent-fg)]",
-    },
-  ];
+function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, backlogCount, isDark }: DashboardViewProps) {
+  const budget = evalExpr(monthBudget);
+  const budgetH = isNaN(budget) || budget <= 0 ? 0 : budget;
+  const completionRate = data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0;
+  const planExec = data.planH > 0 ? Math.round((data.factH / data.planH) * 100) : 0;
+  const budgetUsed = budgetH > 0 ? Math.round((data.factH / budgetH) * 100) : 0;
+  const isOverBudget = budgetUsed > 100;
+
+  /* Accent from CSS var */
+  const accent = "var(--tracker-accent)";
+  const accentDark = "var(--tracker-accent-fg-dark)";
+
+  /* Priority order */
+  const priorityOrder = Object.values(PRIORITIES);
+
+  const monthName = MONTHS[currentMonth];
 
   return (
-    <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {kpiCards.map((kpi) => (
-          <Card key={kpi.label} className="py-4">
-            <CardContent className="flex items-center gap-3 px-4 py-0">
-              <span className="text-2xl">{kpi.icon}</span>
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  {kpi.label}
-                </p>
-                <p
-                  className={`text-2xl font-bold ${kpi.color}`}
-                >
-                  {kpi.value}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+    <div className="space-y-4">
+
+      {/* ── Row 1: Month summary header ────────────────────────────── */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight" style={{ color: accentDark }}>
+            {monthName}
+          </h2>
+          <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>
+            {data.total} задач · {data.completed} завершено · {data.atRisk.length} в риске
+          </p>
+        </div>
+        {/* Budget input */}
+        <div className="flex items-center gap-2 text-sm">
+          <span style={{ color: "var(--tracker-text-muted)" }} className="text-xs whitespace-nowrap">Бюджет ч/мес:</span>
+          <input
+            className="w-24 h-8 text-sm text-center rounded-lg border px-2 bg-transparent outline-none focus:ring-2"
+            style={{
+              borderColor: "var(--tracker-border)",
+              color: "var(--tracker-text-main)",
+              boxShadow: undefined,
+            }}
+            value={monthBudget}
+            onChange={e => onBudgetChange(e.target.value)}
+            placeholder="160"
+          />
+          {budgetH > 0 && (
+            <span className="text-xs font-medium whitespace-nowrap" style={{ color: accentDark }}>
+              = {fmt2(budgetH)} ч
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Team Load & Budget */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {/* Team Load */}
-        <Card className="py-4">
-          <CardContent className="space-y-3 px-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div
-                  className="flex size-8 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: isOverBudget ? "rgba(239,68,68,.1)" : teamLoad >= 80 ? "rgba(234,179,8,.1)" : "rgba(34,197,94,.1)" }}
-                >
-                  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke={isOverBudget ? "#ef4444" : teamLoad >= 80 ? "#eab308" : "#22c55e"} strokeWidth="2">
-                    <rect x="2" y="6" width="18" height="12" rx="2" />
-                    <rect x="4" y="8" width="10" height="8" rx="1" fill={isOverBudget ? "#ef4444" : teamLoad >= 80 ? "#eab308" : "#22c55e"} opacity="0.3" />
-                    <line x1="22" y1="12" x2="22" y2="18" />
-                    <line x1="22" y1="9" x2="22" y2="11" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Загрузка команды</p>
-                  <p className="text-xs text-muted-foreground">факт / бюджет</p>
-                </div>
-              </div>
-              <span className={`text-2xl font-bold ${isOverBudget ? "text-red-500" : teamLoad >= 80 ? "text-amber-500" : "text-green-600"}`}>
-                {teamLoad}%
-              </span>
+      {/* ── Row 2: KPI cards ───────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Completion */}
+        <div className="dashboard-kpi-card relative overflow-hidden">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <p className="dashboard-kpi-label">Выполнение</p>
+              <p className="dashboard-kpi-value" style={{ color: completionRate >= 80 ? "#22c55e" : completionRate >= 50 ? "#f59e0b" : "var(--tracker-accent-fg-dark)" }}>
+                {completionRate}%
+              </p>
             </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${Math.min(teamLoad, 100)}%`,
-                  backgroundColor: isOverBudget ? "#ef4444" : teamLoad >= 80 ? "#eab308" : "#22c55e",
-                }}
-              />
+            <div className="shrink-0">
+              <RadialProgress pct={completionRate} size={52} stroke={5} color={completionRate >= 80 ? "#22c55e" : completionRate >= 50 ? "#f59e0b" : "var(--tracker-accent)"} />
             </div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{fmt2(data.factH)} ч факт</span>
-              <span>{fmt2(budgetDisplay)} ч / мес</span>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+          <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+            {data.completed} из {data.total} задач
+          </p>
+        </div>
 
-        {/* Accuracy & Budget Input */}
-        <Card className="py-4">
-          <CardContent className="space-y-3 px-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex size-8 items-center justify-center rounded-lg bg-blue-500/10">
-                  <span className="text-lg">🎯</span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Точность</p>
-                  <p className="text-xs text-muted-foreground">план / факт</p>
-                </div>
+        {/* Plan vs Fact */}
+        <div className="dashboard-kpi-card">
+          <p className="dashboard-kpi-label">План / Факт</p>
+          <div className="flex items-end gap-1.5 my-1">
+            <span className="dashboard-kpi-value" style={{ color: accentDark }}>
+              {fmt2(data.factH)}
+            </span>
+            <span className="text-sm mb-1" style={{ color: "var(--tracker-text-muted)" }}>/ {fmt2(data.planH)} ч</span>
+          </div>
+          <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+            <div className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${Math.min(planExec, 100)}%`,
+                background: planExec > 110 ? "#ef4444" : planExec >= 90 ? "#22c55e" : "var(--tracker-accent)",
+              }}
+            />
+          </div>
+          <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>{planExec}% от плана</p>
+        </div>
+
+        {/* Budget */}
+        <div className="dashboard-kpi-card">
+          <p className="dashboard-kpi-label">Бюджет</p>
+          <div className="flex items-end gap-1.5 my-1">
+            <span className="dashboard-kpi-value" style={{ color: isOverBudget ? "#ef4444" : accentDark }}>
+              {budgetH > 0 ? `${budgetUsed}%` : "—"}
+            </span>
+            {budgetH > 0 && <span className="text-sm mb-1" style={{ color: "var(--tracker-text-muted)" }}>использовано</span>}
+          </div>
+          {budgetH > 0 ? (
+            <>
+              <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min(budgetUsed, 100)}%`,
+                    background: isOverBudget ? "#ef4444" : budgetUsed >= 80 ? "#f59e0b" : "#22c55e",
+                  }}
+                />
               </div>
-              <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {accuracy}%
-              </span>
-            </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full rounded-full bg-blue-500 transition-all duration-500"
-                style={{ width: `${Math.min(accuracy, 100)}%` }}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground whitespace-nowrap">Бюджет:</span>
-              <Input
-                className="h-7 text-sm"
-                value={monthBudget}
-                onChange={(e) => onBudgetChange(e.target.value)}
-                placeholder="напр. 10+15"
-              />
-              <span className="text-xs font-medium whitespace-nowrap">
-                = {fmt2(budgetDisplay)} ч/мес
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+              <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>
+                {fmt2(data.factH)} / {fmt2(budgetH)} ч
+              </p>
+            </>
+          ) : (
+            <p className="text-xs mt-2" style={{ color: "var(--tracker-text-muted)" }}>Введите бюджет выше</p>
+          )}
+        </div>
+
+        {/* Backlog */}
+        <div className="dashboard-kpi-card">
+          <p className="dashboard-kpi-label">Беклог</p>
+          <p className="dashboard-kpi-value" style={{ color: accentDark }}>{backlogCount}</p>
+          <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>
+            {data.atRisk.length > 0
+              ? <span style={{ color: "#ef4444" }}>⚠ {data.atRisk.length} в риске</span>
+              : "задач в очереди"}
+          </p>
+        </div>
       </div>
 
-      {/* Status Distribution */}
-      <Card className="py-4">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            Распределение по статусам
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {Object.values(STATUSES).map((s) => {
-              const count = data.statusCounts[s] || 0;
-              if (count === 0) return null;
-              return (
-                <div
-                  key={s}
-                  className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2"
-                >
-                  <span
-                    className="inline-block size-3 shrink-0 rounded-full"
-                    style={{
-                      backgroundColor: SCOL[s] || "#888",
-                    }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">{s}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {count}{" "}
-                      {count === 1
-                        ? "задача"
-                        : count < 5
-                          ? "задачи"
-                          : "задач"}
-                    </p>
+      {/* ── Row 3: Status bar + sparkline ─────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+        {/* Status distribution */}
+        <div className="dashboard-section-card">
+          <p className="dashboard-section-title">Статусы</p>
+          <div className="mt-3">
+            <StatusBar statusCounts={data.statusCounts} total={data.total} />
+          </div>
+          <div className="mt-3 space-y-1.5">
+            {Object.values(STATUSES)
+              .filter(s => (data.statusCounts[s] || 0) > 0)
+              .sort((a, b) => (data.statusCounts[b] || 0) - (data.statusCounts[a] || 0))
+              .slice(0, 6)
+              .map(s => {
+                const count = data.statusCounts[s] || 0;
+                const pct = data.total > 0 ? Math.round((count / data.total) * 100) : 0;
+                return (
+                  <div key={s} className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: SCOL[s] || "#ccc" }} />
+                    <span className="text-xs flex-1 truncate" style={{ color: "var(--tracker-text-main)" }}>{s}</span>
+                    <div className="w-16 h-1.5 rounded-full overflow-hidden shrink-0" style={{ background: "var(--tracker-border)" }}>
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SCOL[s] || "#ccc" }} />
+                    </div>
+                    <span className="text-xs w-6 text-right font-medium tabular-nums" style={{ color: "var(--tracker-text-muted)" }}>{count}</span>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className="ml-auto text-xs"
-                  >
-                    {count}
-                  </Badge>
+                );
+              })
+            }
+          </div>
+        </div>
+
+        {/* Monthly sparkline */}
+        <div className="dashboard-section-card">
+          <p className="dashboard-section-title">Динамика по месяцам</p>
+          <div className="mt-3 relative">
+            <Sparkline values={data.monthlyFact} color="var(--tracker-accent)" height={48} fill />
+            {/* Month labels */}
+            <div className="flex justify-between mt-1">
+              {MONTHS_SHORT.map((m, i) => (
+                <span
+                  key={m}
+                  className="text-[9px] tabular-nums"
+                  style={{
+                    color: i === currentMonth ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
+                    fontWeight: i === currentMonth ? 700 : 400,
+                  }}
+                >
+                  {m}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-4 text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-0.5 rounded" style={{ background: "var(--tracker-accent)" }} />
+              Факт-часы
+            </span>
+            <span>Пик: {fmt2(Math.max(...data.monthlyFact))} ч</span>
+            <span>Итого за год: {fmt2(data.monthlyFact.reduce((a, b) => a + b, 0))} ч</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Row 4: Priority + Top tasks ───────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+        {/* Priority breakdown */}
+        <div className="dashboard-section-card">
+          <p className="dashboard-section-title">Приоритеты</p>
+          <div className="mt-3 space-y-2">
+            {priorityOrder
+              .filter(p => (data.priorityCounts[p] || 0) > 0)
+              .map(p => {
+                const count = data.priorityCounts[p] || 0;
+                const pct = data.total > 0 ? (count / data.total) * 100 : 0;
+                return (
+                  <div key={p} className="flex items-center gap-2">
+                    <span className="text-xs w-24 shrink-0" style={{ color: PCOL[p as Priority] }}>{p}</span>
+                    <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${pct}%`, background: PCOL[p as Priority] + "cc" }}
+                      />
+                    </div>
+                    <span className="text-xs w-5 text-right font-semibold tabular-nums" style={{ color: PCOL[p as Priority] }}>{count}</span>
+                  </div>
+                );
+              })
+            }
+            {Object.keys(data.priorityCounts).length === 0 && (
+              <p className="text-xs py-2" style={{ color: "var(--tracker-text-muted)" }}>Нет данных</p>
+            )}
+          </div>
+        </div>
+
+        {/* Top tasks by fact hours */}
+        <div className="dashboard-section-card">
+          <p className="dashboard-section-title">Топ задач по часам</p>
+          <div className="mt-3 space-y-2">
+            {data.topTasks.length === 0 && (
+              <p className="text-xs py-2" style={{ color: "var(--tracker-text-muted)" }}>Нет данных</p>
+            )}
+            {data.topTasks.map((task, i) => {
+              const factVal = evalExpr(task.factH);
+              const planVal = evalExpr(task.planH);
+              const isOver = planVal > 0 && factVal > planVal;
+              const maxFact = evalExpr(data.topTasks[0]?.factH || "0");
+              const barPct = maxFact > 0 ? (factVal / maxFact) * 100 : 0;
+              return (
+                <div key={task.id} className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold w-4 tabular-nums shrink-0" style={{ color: "var(--tracker-text-muted)" }}>
+                    {i + 1}
+                  </span>
+                  <span className="text-xs flex-1 truncate" style={{ color: "var(--tracker-text-main)" }} title={task.name}>
+                    {task.name || task.num || "—"}
+                  </span>
+                  <div className="w-14 h-1.5 rounded-full overflow-hidden shrink-0" style={{ background: "var(--tracker-border)" }}>
+                    <div className="h-full rounded-full" style={{ width: `${barPct}%`, background: isOver ? "#ef4444" : "var(--tracker-accent)" }} />
+                  </div>
+                  <span className="text-xs w-10 text-right font-medium tabular-nums shrink-0"
+                    style={{ color: isOver ? "#ef4444" : "var(--tracker-accent-fg-dark)" }}>
+                    {fmt2(factVal)}ч
+                  </span>
                 </div>
               );
             })}
           </div>
-          {Object.keys(data.statusCounts).length === 0 && (
-            <EmptyState type="dashboard" />
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      {/* ── Row 5: At-risk tasks ──────────────────────────────────── */}
+      {data.atRisk.length > 0 && (
+        <div className="dashboard-section-card border-l-[3px]" style={{ borderLeftColor: "#ef4444" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm">⚠️</span>
+            <p className="dashboard-section-title" style={{ color: "#ef4444" }}>
+              Зона риска — факт превышает план
+            </p>
+          </div>
+          <div className="space-y-2">
+            {data.atRisk.slice(0, 5).map(task => {
+              const plan = evalExpr(task.planH);
+              const fact = evalExpr(task.factH);
+              const over = R2(fact - plan);
+              const pct = Math.round((fact / plan) * 100);
+              return (
+                <div key={task.id} className="flex items-center gap-3 py-1.5 px-3 rounded-lg" style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: "var(--tracker-text-main)" }}>
+                      {task.name || task.num || "—"}
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+                      план {fmt2(plan)} ч → факт {fmt2(fact)} ч
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold" style={{ color: "#ef4444" }}>+{fmt2(over)} ч</p>
+                    <p className="text-[10px]" style={{ color: "#ef4444" }}>{pct}%</p>
+                  </div>
+                </div>
+              );
+            })}
+            {data.atRisk.length > 5 && (
+              <p className="text-xs px-3" style={{ color: "var(--tracker-text-muted)" }}>
+                и ещё {data.atRisk.length - 5} задач...
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {data.total === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <span className="text-5xl mb-4">📊</span>
+          <p className="text-base font-medium" style={{ color: "var(--tracker-text-main)" }}>Нет данных за этот месяц</p>
+          <p className="text-sm mt-1" style={{ color: "var(--tracker-text-muted)" }}>Добавьте задачи во вкладке «Задачи»</p>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -3834,159 +4629,439 @@ function DashboardView({ data, monthBudget, onBudgetChange }: DashboardViewProps
 interface QuestionsViewProps {
   questions: Question[];
   newQuestionText: string;
-  newQuestionAuthor: string;
   setNewQuestionText: (v: string) => void;
-  setNewQuestionAuthor: (v: string) => void;
   addQuestion: () => void;
   removeQuestion: (id: string) => void;
-  answeringId: string | null;
-  answerText: string;
-  setAnsweringId: (id: string | null) => void;
-  setAnswerText: (v: string) => void;
-  answerQuestion: (questionId: string, answer: string) => void;
+  answerQuestion: (questionId: string, answer: string, author: string) => void;
+  deleteAnswer: (questionId: string, answerId: string) => void;
+  currentUsername: string;
+  currentMonth: number;
+  addToBacklog: (task: Task) => void;
+  addToTable: (month: number, task: Task) => void;
+}
+
+interface QuestionToTaskDialog {
+  open: boolean;
+  questionId: string;
+  questionText: string;
+  num: string;
+  name: string;
+  planH: string;
+  month: number;
+  priority: Priority;
+  status: Status;
+  target: "backlog" | "table";
 }
 
 function QuestionsView({
   questions,
   newQuestionText,
-  newQuestionAuthor,
   setNewQuestionText,
-  setNewQuestionAuthor,
   addQuestion,
   removeQuestion,
-  answeringId,
-  answerText,
-  setAnsweringId,
-  setAnswerText,
   answerQuestion,
+  deleteAnswer,
+  currentUsername,
+  currentMonth,
+  addToBacklog,
+  addToTable,
 }: QuestionsViewProps) {
+  const [answeringId, setAnsweringId] = useState<string | null>(null);
+  const [answerDraft, setAnswerDraft] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [taskDialog, setTaskDialog] = useState<QuestionToTaskDialog>({
+    open: false, questionId: "", questionText: "", num: "", name: "",
+    planH: "", month: currentMonth, priority: PRIORITIES.MEDIUM, status: STATUSES.NEW, target: "backlog",
+  });
+
+  const openTaskDialog = useCallback((q: Question, target: "backlog" | "table") => {
+    setTaskDialog({
+      open: true,
+      questionId: q.id,
+      questionText: q.text,
+      num: "",
+      name: q.text.slice(0, 120),
+      planH: "",
+      month: currentMonth,
+      priority: PRIORITIES.MEDIUM,
+      status: target === "backlog" ? STATUSES.IDEA : STATUSES.NEW,
+      target,
+    });
+  }, [currentMonth]);
+
+  const handleCreateTask = useCallback(() => {
+    if (!taskDialog.name.trim()) return;
+    const task: Task = {
+      id: crypto.randomUUID(),
+      num: taskDialog.num,
+      name: taskDialog.name,
+      planH: taskDialog.planH,
+      factH: "0",
+      priority: taskDialog.priority,
+      status: taskDialog.status,
+      comment: `Создано из вопроса: ${taskDialog.questionText}`,
+      commentLog: [{ date: new Date().toLocaleDateString("ru-RU"), week: "0", text: `Создано из вопроса: "${taskDialog.questionText}"`, planH: "0", factH: "0", status: taskDialog.status }],
+      _ts: Date.now(),
+    };
+    if (taskDialog.target === "backlog") {
+      addToBacklog(task);
+    } else {
+      addToTable(taskDialog.month, task);
+    }
+    setTaskDialog(d => ({ ...d, open: false }));
+  }, [taskDialog, addToBacklog, addToTable]);
+
+  const statusValues = Object.values(STATUSES);
+  const priorityValues = Object.values(PRIORITIES);
+
+  const answered = questions.filter(q => (q.answers || []).length > 0);
+  const unanswered = questions.filter(q => !(q.answers || []).length);
+
+  const fmtDate = (iso?: string) => iso
+    ? new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : "";
+
   return (
     <div className="space-y-4">
-      {/* Add question form */}
+
+      {/* ── Create task from question dialog ──────────────────────── */}
+      <Dialog open={taskDialog.open} onOpenChange={open => { if (!open) setTaskDialog(d => ({ ...d, open: false })); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span>📋</span>
+              {taskDialog.target === "backlog" ? "Добавить в беклог" : "Добавить в таблицу"}
+            </DialogTitle>
+            <DialogDescription className="text-xs line-clamp-2">
+              Вопрос: «{taskDialog.questionText}»
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-1">
+            <div className="grid grid-cols-[90px_1fr] gap-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">№ задачи</label>
+                <Input value={taskDialog.num} onChange={e => setTaskDialog(d => ({ ...d, num: e.target.value }))} placeholder="—" className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Наименование</label>
+                <Input value={taskDialog.name} onChange={e => setTaskDialog(d => ({ ...d, name: e.target.value }))} placeholder="Название задачи" className="h-9 text-sm" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">План, ч</label>
+                <Input value={taskDialog.planH} onChange={e => setTaskDialog(d => ({ ...d, planH: e.target.value }))} placeholder="0" className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Приоритет</label>
+                <Select value={taskDialog.priority} onValueChange={v => setTaskDialog(d => ({ ...d, priority: v as Priority }))}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {priorityValues.map(p => <SelectItem key={p} value={p} className="text-sm"><span style={{ color: PCOL[p] }}>{p}</span></SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {taskDialog.target === "table" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Месяц</label>
+                  <Select value={String(taskDialog.month)} onValueChange={v => setTaskDialog(d => ({ ...d, month: Number(v) }))}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((m, i) => <SelectItem key={i} value={String(i)} className="text-sm">{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Статус</label>
+                  <Select value={taskDialog.status} onValueChange={v => setTaskDialog(d => ({ ...d, status: v as Status }))}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {statusValues.map(s => <SelectItem key={s} value={s} className="text-sm">{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTaskDialog(d => ({ ...d, open: false }))}>Отмена</Button>
+            <Button
+              disabled={!taskDialog.name.trim()}
+              onClick={handleCreateTask}
+              className="bg-[var(--tracker-accent)] text-white"
+            >
+              <Check className="size-4 mr-1.5" />
+              {taskDialog.target === "backlog" ? "В беклог" : "В таблицу"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add question form ──────────────────────────────────────── */}
       <Card className="py-4">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            Добавить вопрос
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="px-4 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Новый вопрос</span>
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>
+              {currentUsername}
+            </span>
+          </div>
           <Textarea
-            placeholder="Текст вопроса..."
+            placeholder="Введите вопрос для команды..."
             value={newQuestionText}
-            onChange={(e) => setNewQuestionText(e.target.value)}
-            className="min-h-[60px] resize-y"
+            onChange={e => setNewQuestionText(e.target.value)}
+            className="min-h-[60px] resize-none text-sm"
+            onKeyDown={e => { if (e.key === "Enter" && e.ctrlKey) addQuestion(); }}
           />
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="Ваше имя"
-              value={newQuestionAuthor}
-              onChange={(e) =>
-                setNewQuestionAuthor(e.target.value)
-              }
-              className="h-8 w-48"
-            />
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Ctrl+Enter — отправить</span>
             <Button
               size="sm"
-              className="h-8 gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
+              disabled={!newQuestionText.trim()}
+              className="h-8 gap-1.5 bg-[var(--tracker-accent)] text-white"
               onClick={addQuestion}
             >
               <Plus className="size-3.5" />
-              Отправить
+              Задать вопрос
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Questions list */}
-      <div className="space-y-2">
-        {questions.map((q) => (
-          <Card key={q.id} className="py-3">
-            <CardContent className="px-4 py-0">
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 text-lg">❓</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{q.text}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    — {q.author}
-                    {q.questionDate && (
-                      <span className="ml-2">
-                        {new Date(q.questionDate).toLocaleDateString("ru-RU", {
-                          day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
-                        })}
+      {/* ── Stats ─────────────────────────────────────────────────── */}
+      {questions.length > 0 && (
+        <div className="flex items-center gap-3 text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+          <span>Всего: <b style={{ color: "var(--tracker-text-main)" }}>{questions.length}</b></span>
+          <span className="w-px h-3" style={{ background: "var(--tracker-border)" }} />
+          <span>Открытых: <b style={{ color: "#f59e0b" }}>{unanswered.length}</b></span>
+          <span className="w-px h-3" style={{ background: "var(--tracker-border)" }} />
+          <span>Отвеченных: <b style={{ color: "#22c55e" }}>{answered.length}</b></span>
+        </div>
+      )}
+
+      {/* ── Questions list ─────────────────────────────────────────── */}
+      <div className="space-y-3">
+        {questions.length === 0 && <EmptyState type="questions" />}
+
+        {questions.map(q => {
+          const answers = q.answers || [];
+          const isAnswered = answers.length > 0;
+          const isExpanded = expandedId === q.id;
+          const isAnswering = answeringId === q.id;
+
+          return (
+            <div
+              key={q.id}
+              className="rounded-xl border overflow-hidden transition-shadow"
+              style={{
+                borderColor: isAnswered ? "var(--tracker-border)" : "color-mix(in srgb, #f59e0b 35%, var(--tracker-border))",
+                background: "var(--tracker-bg-card)",
+                borderLeft: isAnswered ? `3px solid #22c55e` : `3px solid #f59e0b`,
+              }}
+            >
+              {/* Question header */}
+              <div className="px-4 py-3">
+                <div className="flex items-start gap-3">
+                  {/* Avatar */}
+                  <div
+                    className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
+                    style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}
+                  >
+                    {(q.author || "?")[0].toUpperCase()}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    {/* Author + date */}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold" style={{ color: "var(--tracker-accent-fg-dark)" }}>
+                        {q.author}
                       </span>
-                    )}
-                  </p>
-                  {q.answer && (
-                    <div className="mt-2 rounded-lg bg-muted/50 px-3 py-2">
-                      <p className="text-sm text-foreground">{q.answer}</p>
-                      {q.answerDate && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {new Date(q.answerDate).toLocaleDateString("ru-RU", {
-                            day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
-                          })}
-                        </p>
+                      {q.questionDate && (
+                        <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+                          {fmtDate(q.questionDate)}
+                        </span>
                       )}
+                      {isAnswered
+                        ? <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}>✓ {answers.length} {answers.length === 1 ? "ответ" : "ответа"}</span>
+                        : <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b" }}>⏳ Открытый</span>
+                      }
                     </div>
-                  )}
-                  {answeringId === q.id ? (
-                    <div className="mt-2 space-y-2">
-                      <Textarea
-                        placeholder="Ваш ответ..."
-                        value={answerText}
-                        onChange={(e) => setAnswerText(e.target.value)}
-                        className="min-h-[50px] resize-y"
-                      />
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          className="h-7 gap-1 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-                          onClick={() => answerQuestion(q.id, answerText)}
-                          disabled={!answerText.trim()}
+
+                    {/* Question text */}
+                    <p className="text-sm leading-relaxed" style={{ color: "var(--tracker-text-main)" }}>
+                      {q.text}
+                    </p>
+
+                    {/* Actions row */}
+                    <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                      {/* Answer */}
+                      <button
+                        onClick={() => { setAnsweringId(isAnswering ? null : q.id); setAnswerDraft(""); }}
+                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-colors hover:bg-[var(--tracker-accent-bg)]"
+                        style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-muted)" }}
+                      >
+                        <MessageSquare className="size-3" />
+                        Ответить
+                      </button>
+
+                      {/* Show answers history */}
+                      {isAnswered && (
+                        <button
+                          onClick={() => setExpandedId(isExpanded ? null : q.id)}
+                          className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-colors hover:bg-[var(--tracker-accent-bg)]"
+                          style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-muted)" }}
                         >
-                          <Send className="size-3" />
-                          Ответить
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7"
-                          onClick={() => setAnsweringId(null)}
-                        >
-                          Отмена
-                        </Button>
-                      </div>
+                          {isExpanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+                          {isExpanded ? "Скрыть" : `История (${answers.length})`}
+                        </button>
+                      )}
+
+                      {/* Create task dropdown */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-colors hover:bg-[var(--tracker-accent-bg)]"
+                            style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-muted)" }}
+                          >
+                            <Plus className="size-3" />
+                            Создать задачу
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-48">
+                          <DropdownMenuItem onClick={() => openTaskDialog(q, "backlog")} className="gap-2 text-sm">
+                            <span>📦</span> В беклог
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openTaskDialog(q, "table")} className="gap-2 text-sm">
+                            <span>📋</span> В таблицу задач
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      {/* Delete question */}
+                      <button
+                        onClick={() => removeQuestion(q.id)}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors hover:bg-red-50 hover:text-red-500 ml-auto"
+                        style={{ color: "var(--tracker-text-muted)" }}
+                        title="Удалить вопрос"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
                     </div>
-                  ) : !q.answer && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-2 h-7 gap-1 text-xs"
-                      onClick={() => { setAnsweringId(q.id); setAnswerText(""); }}
-                    >
-                      <MessageSquare className="size-3" />
-                      Ответить
-                    </Button>
-                  )}
+                  </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="mt-0.5 h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => removeQuestion(q.id)}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
+
+                {/* Answer form */}
+                {isAnswering && (
+                  <div className="mt-3 ml-11 space-y-2">
+                    <Textarea
+                      placeholder={`Ответ от ${currentUsername}...`}
+                      value={answerDraft}
+                      onChange={e => setAnswerDraft(e.target.value)}
+                      className="min-h-[70px] resize-none text-sm"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        disabled={!answerDraft.trim()}
+                        className="h-7 gap-1 bg-[var(--tracker-accent)] text-white text-xs"
+                        onClick={() => {
+                          answerQuestion(q.id, answerDraft, currentUsername);
+                          setAnsweringId(null);
+                          setAnswerDraft("");
+                          setExpandedId(q.id); // auto-expand after answering
+                        }}
+                      >
+                        <Send className="size-3" />
+                        Отправить ответ
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setAnsweringId(null)}>
+                        Отмена
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </CardContent>
-          </Card>
-        ))}
-        {questions.length === 0 && (
-          <EmptyState type="questions" />
-        )}
+
+              {/* Answers history */}
+              {isExpanded && answers.length > 0 && (
+                <div
+                  className="border-t divide-y"
+                  style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }}
+                >
+                  {answers.map((ans, ai) => (
+                    <div key={ans.id} className="px-4 py-3 flex gap-3 items-start group">
+                      {/* Avatar */}
+                      <div
+                        className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold"
+                        style={{ background: "color-mix(in srgb, #22c55e 15%, var(--tracker-accent-bg))", color: "#22c55e" }}
+                      >
+                        {(ans.author || "?")[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold" style={{ color: "var(--tracker-text-main)" }}>
+                            {ans.author}
+                          </span>
+                          <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+                            {fmtDate(ans.date)}
+                          </span>
+                          {ai === answers.length - 1 && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>
+                              последний
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "var(--tracker-text-main)" }}>
+                          {ans.text}
+                        </p>
+                      </div>
+                      {/* Delete answer */}
+                      <button
+                        onClick={() => deleteAnswer(q.id, ans.id)}
+                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 hover:text-red-500"
+                        style={{ color: "var(--tracker-text-muted)" }}
+                        title="Удалить ответ"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Latest answer preview (when collapsed) */}
+              {isAnswered && !isExpanded && answers.length > 0 && (
+                <div
+                  className="px-4 py-2.5 border-t flex items-start gap-3"
+                  style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }}
+                >
+                  <div
+                    className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold mt-0.5"
+                    style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}
+                  >
+                    {(answers[answers.length - 1].author || "?")[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] font-semibold mr-1.5" style={{ color: "#22c55e" }}>
+                      {answers[answers.length - 1].author}
+                    </span>
+                    <span className="text-xs line-clamp-1" style={{ color: "var(--tracker-text-muted)" }}>
+                      {answers[answers.length - 1].text}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
+
 
 /* ================================================================ */
 /*  SLIDES VIEW                                                      */
@@ -4687,12 +5762,14 @@ ${emojiLayerCSS.css}
 }
 
 /* ================================================================ */
-/*  CHAT VIEW COMPONENT                                                */
+/*  CHAT VIEW COMPONENT                                              */
 /* ================================================================ */
 
 interface ChatMessage {
-  role: "user" | "gemini" | "error";
+  role: "user" | "ai" | "error" | "system";
   text: string;
+  timestamp?: number;
+  suggestedQuestions?: string[];
 }
 
 interface ChatViewProps {
@@ -4706,6 +5783,45 @@ interface ChatViewProps {
   allData: Record<number, Task[]>;
   backlog: Task[];
   totalFactMap: Record<string, number>;
+  questions: Question[];
+  addQuestion: (text: string, author: string) => void;
+  isDark: boolean;
+}
+
+/* Minimal markdown renderer: bold, bullets, headers */
+function AiText({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <div className="space-y-1 text-sm leading-relaxed">
+      {lines.map((line, i) => {
+        if (line.startsWith("### ")) {
+          return <p key={i} className="font-bold text-sm mt-2 mb-0.5" style={{ color: "var(--tracker-accent-fg-dark)" }}>{line.slice(4)}</p>;
+        }
+        if (line.startsWith("## ")) {
+          return <p key={i} className="font-bold text-base mt-2" style={{ color: "var(--tracker-accent-fg-dark)" }}>{line.slice(3)}</p>;
+        }
+        if (line.startsWith("- ") || line.startsWith("• ")) {
+          const content = line.slice(2);
+          return (
+            <div key={i} className="flex gap-2 items-start">
+              <span className="mt-[3px] shrink-0 w-1.5 h-1.5 rounded-full inline-block" style={{ background: "var(--tracker-accent)", marginTop: "6px" }} />
+              <span>{renderBold(content)}</span>
+            </div>
+          );
+        }
+        if (line.startsWith("**") && line.endsWith("**") && line.length > 4) {
+          return <p key={i} className="font-semibold">{line.slice(2, -2)}</p>;
+        }
+        if (line === "") return <div key={i} className="h-1" />;
+        return <p key={i}>{renderBold(line)}</p>;
+      })}
+    </div>
+  );
+}
+
+function renderBold(text: string): React.ReactNode {
+  const parts = text.split(/\*\*(.*?)\*\*/g);
+  return parts.map((p, i) => i % 2 === 1 ? <strong key={i}>{p}</strong> : p);
 }
 
 function ChatView({
@@ -4719,165 +5835,194 @@ function ChatView({
   allData,
   backlog,
   totalFactMap,
+  questions,
+  addQuestion,
+  isDark,
 }: ChatViewProps) {
   const [input, setInput] = useState("");
   const [log, setLog] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
-  const [includeData, setIncludeData] = useState(true);
-  const [compareMonth, setCompareMonth] = useState(-1);
-  const endRef = useRef<HTMLDivElement>(null);
   const [apiKeyInput, setApiKeyInput] = useState("");
+  const [creatingQuestion, setCreatingQuestion] = useState<string | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  /* Auto-scroll to bottom */
+  /* Auto-scroll */
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [log, busy]);
 
-  /* Build context data for AI */
-  const buildMonthBlock = useCallback(
-    (mi: number, mRows: Task[]) => {
-      const tasks = (mRows || []).filter((r) => r.num || r.name);
-      if (!tasks.length) return `[${MONTHS[mi]}: нет данных]`;
-      const { totPlan: totP, totFact: totF } = getRowsMetrics(tasks, null);
-      const done = tasks.filter(
-        (r) => r.status === STATUSES.DONE || r.status === STATUSES.COMPLETED
-      ).length;
-      const lines = tasks
-        .map((r) => {
-          const { plan, fact } = getTaskMetrics(r, null);
-          return `  №${r.num || "—"} "${r.name}" план:${plan}ч факт:${fact}ч статус:${r.status} приоритет:${r.priority}${r.comment ? ` коммент:"${r.comment}"` : ""}`;
-        })
-        .join("\n");
-      return `[${MONTHS[mi]}] Задач: ${tasks.length}, завершено: ${done}, план: ${totP}ч, факт: ${totF}ч\nЗадачи:\n${lines}`;
-    },
-    []
-  );
+  /* ── Build rich system context ───────────────────────────────── */
+  const buildContext = useCallback((): string => {
+    const now = new Date();
+    const lines: string[] = [];
 
-  const buildContext = useCallback(() => {
-    if (!includeData) return "";
-    const curRows = rows || [];
-    const tasks = curRows.filter((r) => r.num || r.name);
-    if (!tasks.length && compareMonth < 0) return "";
+    lines.push(`Дата: ${now.toLocaleDateString("ru-RU")}, текущий месяц трекера: ${MONTHS[month]}`);
+    lines.push("");
 
-    let ctx = "\n\n[КОНТЕКСТ — ДАННЫЕ ТРЕКЕРА]\n";
+    // All 12 months summary table
+    lines.push("=== ГОД — СВОДКА ПО ВСЕМ МЕСЯЦАМ ===");
+    for (let mi = 0; mi < 12; mi++) {
+      const mRows = (allData[mi] || []).filter(r => !r._deleted && (r.name || r.num));
+      if (!mRows.length) continue;
+      const done = mRows.filter(r => r.status === STATUSES.DONE || r.status === STATUSES.COMPLETED).length;
+      const planH = R2(mRows.reduce((s, r) => s + evalExpr(r.planH), 0));
+      const factH = R2(mRows.reduce((s, r) => s + evalExpr(r.factH), 0));
+      const overBudget = mRows.filter(r => evalExpr(r.factH) > evalExpr(r.planH) && evalExpr(r.planH) > 0).length;
+      lines.push(`${MONTHS[mi]}: задач=${mRows.length} завершено=${done} план=${planH}ч факт=${factH}ч превышений=${overBudget}`);
+    }
+    lines.push("");
 
-    if (compareMonth >= 0 && compareMonth !== month) {
-      ctx += "Режим: сравнение двух месяцев\n\n";
-      ctx += buildMonthBlock(month, rows) + "\n\n";
-      ctx += buildMonthBlock(compareMonth, allData[compareMonth]) + "\n";
-    } else {
-      const rm = getRowsMetrics(tasks, totalFactMap);
-      const done = tasks.filter(
-        (r) => r.status === STATUSES.DONE || r.status === STATUSES.COMPLETED
-      ).length;
-      const taskLines = tasks
-        .map((r) => {
-          const m = getTaskMetrics(r, totalFactMap);
-          return `  №${r.num || "—"} "${r.name}" план:${m.plan}ч факт:${m.fact}ч итого:${fmt2(m.totalH)}ч статус:${r.status} приоритет:${r.priority}${r.comment ? ` коммент:"${r.comment}"` : ""}`;
-        })
-        .join("\n");
-      ctx += `Текущий месяц: ${MONTHS[month]}\nЗадач: ${tasks.length}, завершено: ${done}, план: ${rm.totPlan}ч, факт: ${rm.totFact}ч\n\nЗадачи ${MONTHS[month]}:\n${taskLines}`;
-      if (backlog && backlog.length > 0) {
-        ctx += `\n\nБеклог (${backlog.length} задач):\n${backlog
-          .slice(0, 10)
-          .map(
-            (r) =>
-              `  №${r.num || "—"} "${r.name}" статус:${r.status} приоритет:${r.priority}`
-          )
-          .join("\n")}${backlog.length > 10 ? `\n  ...и ещё ${backlog.length - 10}` : ""}`;
+    // Current month detailed
+    const curRows = (allData[month] || []).filter(r => !r._deleted && (r.name || r.num));
+    lines.push(`=== ДЕТАЛИ: ${MONTHS[month].toUpperCase()} ===`);
+    lines.push(`Всего задач: ${curRows.length}`);
+    if (curRows.length) {
+      lines.push("Список задач:");
+      for (const r of curRows) {
+        const plan = evalExpr(r.planH);
+        const fact = evalExpr(r.factH);
+        const over = plan > 0 && fact > plan ? ` ПРЕВЫШЕНИЕ+${R2(fact-plan)}ч` : "";
+        lines.push(`  №${r.num||"—"} "${r.name}" | статус:${r.status} приоритет:${r.priority} план:${plan}ч факт:${fact}ч${over}${r.comment ? ` | коммент:"${r.comment}"` : ""}`);
       }
-      let totalAll = 0;
-      let factAll = 0;
-      let doneAll = 0;
-      for (let mi = 0; mi < 12; mi++) {
-        const mr = allData[mi] || [];
-        const t = mr.filter((r) => r.num || r.name);
-        totalAll += t.length;
-        const _yrm = getRowsMetrics(t, null);
-        factAll += _yrm.totFact;
-        doneAll += t.filter(
-          (r) => r.status === STATUSES.DONE || r.status === STATUSES.COMPLETED
-        ).length;
-      }
-      ctx += `\n\nИтого по году: ${totalAll} задач, ${doneAll} завершено, ${fmt2(factAll)}ч факт.`;
+    }
+    lines.push("");
+
+    // Priority distribution
+    const prioCounts: Record<string, number> = {};
+    curRows.forEach(r => { prioCounts[r.priority] = (prioCounts[r.priority] || 0) + 1; });
+    lines.push("Приоритеты: " + Object.entries(prioCounts).map(([p, c]) => `${p}:${c}`).join(", "));
+
+    // Status distribution
+    const statCounts: Record<string, number> = {};
+    curRows.forEach(r => { statCounts[r.status] = (statCounts[r.status] || 0) + 1; });
+    lines.push("Статусы: " + Object.entries(statCounts).map(([s, c]) => `${s}:${c}`).join(", "));
+    lines.push("");
+
+    // Backlog
+    const bl = (backlog || []).filter(r => !r._deleted);
+    if (bl.length) {
+      lines.push(`=== БЕКЛОГ (${bl.length} задач) ===`);
+      bl.slice(0, 15).forEach((r, i) => {
+        lines.push(`  ${i+1}. №${r.num||"—"} "${r.name}" план:${evalExpr(r.planH)}ч приоритет:${r.priority}${r.comment ? ` | "${r.comment}"` : ""}`);
+      });
+      if (bl.length > 15) lines.push(`  ...и ещё ${bl.length - 15} задач`);
+      lines.push("");
     }
 
-    ctx += "\n[/КОНТЕКСТ]";
-    return ctx;
-  }, [includeData, rows, month, allData, backlog, totalFactMap, compareMonth, buildMonthBlock]);
+    // Questions
+    if (questions && questions.length) {
+      lines.push(`=== ВОПРОСЫ/ПРОБЛЕМЫ (${questions.length}) ===`);
+      questions.slice(0, 10).forEach((q, i) => {
+        lines.push(`  ${i+1}. [${(q.answers||[]).length > 0 ? "✅ отвечен" : "⏳ открытый"}] "${q.text}" — автор: ${q.author || "аноним"}`);
+        if (q.answer) lines.push(`     Ответ: "${q.answer}"`);
+      });
+      if (questions.length > 10) lines.push(`  ...и ещё ${questions.length - 10} вопросов`);
+      lines.push("");
+    }
 
-  /* Send message */
-  const send = useCallback(async () => {
-    if (!input.trim() || busy) return;
+    // At-risk tasks across all months
+    const atRisk: string[] = [];
+    for (let mi = 0; mi < 12; mi++) {
+      const mRows = (allData[mi] || []).filter(r => !r._deleted);
+      mRows.forEach(r => {
+        const p = evalExpr(r.planH), f = evalExpr(r.factH);
+        if (p > 0 && f > p && r.status !== STATUSES.DONE && r.status !== STATUSES.COMPLETED) {
+          atRisk.push(`${MONTHS[mi]}: №${r.num||"—"} "${r.name}" план:${p}ч факт:${f}ч (+${R2(f-p)}ч)`);
+        }
+      });
+    }
+    if (atRisk.length) {
+      lines.push(`=== ЗОНА РИСКА (${atRisk.length} задач по всем месяцам) ===`);
+      atRisk.slice(0, 10).forEach(l => lines.push("  " + l));
+      if (atRisk.length > 10) lines.push(`  ...и ещё ${atRisk.length - 10}`);
+    }
+
+    return lines.join("\n");
+  }, [allData, month, backlog, questions, totalFactMap]);
+
+  const buildSystemPrompt = useCallback((): string => {
+    const ctx = buildContext();
+    return `Ты — AI-ассистент менеджера проектов в трекере задач. Отвечай ТОЛЬКО на русском языке.
+
+Твои возможности:
+- Анализировать задачи любого месяца и сравнивать периоды
+- Выявлять проблемы: превышение плана, накопленный беклог, незакрытые вопросы
+- Давать конкретные рекомендации с цифрами из данных
+- Предлагать вопросы для команды на основе анализа (формат: "Вопросы для команды: ...")
+- Составлять краткие отчёты по месяцу
+
+Правила ответов:
+- Всегда опирайся на конкретные данные — числа, названия задач, статусы
+- Используй **жирный** для ключевых цифр и выводов
+- Структурируй длинные ответы через заголовки ### и списки -
+- Если предлагаешь вопросы для команды, выдели их блоком "### Предлагаемые вопросы:"
+- Будь кратким, избегай воды
+
+--- ДАННЫЕ ТРЕКЕРА ---
+${ctx}
+--- /ДАННЫЕ ---`;
+  }, [buildContext]);
+
+  /* ── Parse suggested questions from AI response ─────────────── */
+  const extractSuggestedQuestions = (text: string): string[] => {
+    const block = text.match(/###\s*Предлагаемые вопросы[:\s]*([\s\S]*?)(?:\n###|\n---|\n\n\n|$)/i);
+    if (!block) return [];
+    return block[1]
+      .split("\n")
+      .map(l => l.replace(/^[-•\d.]\s*/, "").trim())
+      .filter(l => l.length > 10 && l.length < 200)
+      .slice(0, 5);
+  };
+
+  /* ── Send message ────────────────────────────────────────────── */
+  const send = useCallback(async (overrideText?: string) => {
+    const msg = (overrideText ?? input).trim();
+    if (!msg || busy) return;
     const apiKey = apiKeyRef.current;
-    if (!apiKey) {
-      setApiKeyDialogOpen(true);
-      return;
-    }
+    if (!apiKey) { setApiKeyDialogOpen(true); return; }
 
-    const msg = input.trim();
-    setInput("");
-    const newLog: ChatMessage[] = [...log, { role: "user", text: msg }];
+    if (!overrideText) setInput("");
+
+    const newLog: ChatMessage[] = [...log, { role: "user", text: msg, timestamp: Date.now() }];
     setLog(newLog);
     setBusy(true);
 
     try {
-      const ctx = buildContext();
-      const sysPrompt = ctx
-        ? `Ты — AI-помощник менеджера проектов. Отвечай на русском. У тебя есть доступ к данным трекера задач. Используй эти данные для ответов, анализа и рекомендаций. Будь конкретен, приводи цифры из данных.${compareMonth >= 0 && compareMonth !== month ? " При сравнении месяцев выделяй ключевые отличия в нагрузке, прогрессе и статусах задач." : ""}${ctx}`
-        : "";
+      const sysPrompt = buildSystemPrompt();
 
-      /* Build multi-turn contents */
+      // Build Gemini contents with full system context injected into first user message
       const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
-      const prev = newLog.filter(
-        (m) => m.role === "user" || m.role === "gemini"
-      );
-      prev.forEach((m) => {
+      newLog.filter(m => m.role === "user" || m.role === "ai").forEach((m, idx) => {
         if (m.role === "user") {
-          const isFirst = !contents.length;
-          const text = isFirst && sysPrompt
-            ? sysPrompt + "\n\nВопрос пользователя: " + m.text
-            : m.text;
+          const text = idx === 0 ? sysPrompt + "\n\nПервый вопрос пользователя: " + m.text : m.text;
           contents.push({ role: "user", parts: [{ text }] });
-        } else if (m.role === "gemini") {
+        } else {
           contents.push({ role: "model", parts: [{ text: m.text }] });
         }
       });
-      if (!contents.length) {
-        contents.push({ role: "user", parts: [{ text: msg }] });
-      }
 
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: contents,
-          apiKey,
-          model: chatModel,
-        }),
+        body: JSON.stringify({ messages: contents, apiKey, model: chatModel }),
       });
-
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
       const aiText = (data.text || "").trim();
-      setLog((l) => [...l, { role: "gemini", text: aiText }]);
+      const suggested = extractSuggestedQuestions(aiText);
+      setLog(l => [...l, { role: "ai", text: aiText, timestamp: Date.now(), suggestedQuestions: suggested }]);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Неизвестная ошибка";
-      setLog((l) => [...l, { role: "error", text: message }]);
+      setLog(l => [...l, { role: "error", text: message, timestamp: Date.now() }]);
     }
     setBusy(false);
-  }, [input, busy, apiKeyRef, chatModel, buildContext, log, setApiKeyDialogOpen]);
+  }, [input, busy, log, apiKeyRef, chatModel, buildSystemPrompt, setApiKeyDialogOpen]);
 
-  const onKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        send();
-      }
-    },
-    [send]
-  );
+  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  }, [send]);
 
   const handleSaveApiKey = useCallback(() => {
     if (apiKeyInput.trim()) {
@@ -4887,12 +6032,30 @@ function ChatView({
     }
   }, [apiKeyInput, apiKeyRef, setApiKeyDialogOpen]);
 
-  const taskCount = (rows || []).filter((r) => r.num || r.name).length;
-  const isComparing = compareMonth >= 0 && compareMonth !== month;
+  /* ── Quick actions ───────────────────────────────────────────── */
+  const quickActions = useMemo(() => {
+    const curRows = (allData[month] || []).filter(r => !r._deleted && (r.name || r.num));
+    const atRiskCount = curRows.filter(r => evalExpr(r.factH) > evalExpr(r.planH) && evalExpr(r.planH) > 0).length;
+    const backlogCount = (backlog || []).filter(r => !r._deleted).length;
+    const unansweredCount = questions.filter(q => !(q.answers || []).length).length;
+    return [
+      { label: "📊 Отчёт за месяц", text: `Составь краткий отчёт по задачам за ${MONTHS[month]}: выполнение, ключевые результаты, проблемы.` },
+      { label: "⚠️ Зона риска" + (atRiskCount > 0 ? ` (${atRiskCount})` : ""), text: `Проанализируй задачи которые превышают план по часам в ${MONTHS[month]}. Что может быть причиной и как скорректировать?` },
+      { label: "💡 Предложи вопросы для команды", text: `На основе данных трекера за ${MONTHS[month]} предложи 5 ключевых вопросов для обсуждения с командой. Оформи их в блоке "### Предлагаемые вопросы:".` },
+      ...(backlogCount > 0 ? [{ label: `📦 Беклог (${backlogCount})`, text: `Проанализируй беклог. Какие задачи приоритетнее всего перенести в следующий месяц? Почему?` }] : []),
+      ...(unansweredCount > 0 ? [{ label: `❓ Открытые вопросы (${unansweredCount})`, text: `Посмотри на открытые вопросы в трекере. Какие из них наиболее критичны для команды, исходя из задач?` }] : []),
+      { label: "📅 Сравни два месяца", text: `Сравни ${MONTHS[month]} с предыдущим месяцем: загрузка, выполнение задач, динамика часов.` },
+      { label: "🎯 Рекомендации", text: `Какие 3-5 конкретных улучшений ты бы порекомендовал на основе данных трекера?` },
+    ];
+  }, [allData, month, backlog, questions]);
+
+  const taskCount = (rows || []).filter(r => r.name || r.num).length;
+  const hasKey = !!apiKeyRef.current;
 
   return (
-    <div className="flex flex-col gap-4" style={{ height: "calc(100vh - 220px)", minHeight: 400 }}>
-      {/* API Key Dialog */}
+    <div className="flex flex-col gap-3" style={{ height: "calc(100vh - 200px)", minHeight: 500 }}>
+
+      {/* ── API Key Dialog ──────────────────────────────────────── */}
       <Dialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -4901,856 +6064,265 @@ function ChatView({
               Gemini API ключ
             </DialogTitle>
             <DialogDescription>
-              Введите ваш API ключ Google Gemini для доступа к AI-помощнику. Ключ хранится только в памяти сессии и не сохраняется.
+              Введите ваш API ключ Google Gemini. Хранится только в памяти сессии.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
+          <div className="space-y-3 pt-1">
             <Input
               value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
+              onChange={e => setApiKeyInput(e.target.value)}
               placeholder="AIzaSy..."
               className="font-mono text-sm"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSaveApiKey();
-              }}
+              onKeyDown={e => { if (e.key === "Enter") handleSaveApiKey(); }}
+              autoFocus
             />
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Модель</label>
+              <label className="text-sm font-medium whitespace-nowrap">Модель</label>
               <Select value={chatModel} onValueChange={setChatModel}>
-                <SelectTrigger className="h-9 flex-1 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger className="h-9 flex-1 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="gemini-2.0-flash">gemini-2.0-flash</SelectItem>
-                  <SelectItem value="gemini-2.5-flash-preview-05-20">gemini-2.5-flash</SelectItem>
-                  <SelectItem value="gemini-2.5-pro-preview-05-06">gemini-2.5-pro</SelectItem>
+                  <SelectItem value="gemini-2.0-flash">gemini-2.0-flash (быстрая)</SelectItem>
+                  <SelectItem value="gemini-2.5-flash-preview-05-20">gemini-2.5-flash (умная)</SelectItem>
+                  <SelectItem value="gemini-2.5-pro-preview-05-06">gemini-2.5-pro (лучшая)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Получить ключ: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="underline" style={{ color: "var(--tracker-accent)" }}>aistudio.google.com/apikey</a>
+            </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApiKeyDialogOpen(false)}>
-              Отмена
-            </Button>
-            <Button
-              onClick={handleSaveApiKey}
-              disabled={!apiKeyInput.trim()}
-              className="bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-            >
-              <Check className="size-4 mr-1.5" />
-              Сохранить
+            <Button variant="outline" onClick={() => setApiKeyDialogOpen(false)}>Отмена</Button>
+            <Button onClick={handleSaveApiKey} disabled={!apiKeyInput.trim()} className="bg-[var(--tracker-accent)] text-white">
+              <Check className="size-4 mr-1.5" />Сохранить
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 shrink-0">
-        <Button
-          variant="outline"
-          size="sm"
-          className={`gap-1.5 h-8 ${includeData ? "border-[var(--tracker-accent)] bg-[var(--tracker-accent-soft)] text-[var(--tracker-accent-fg)]" : ""}`}
-          onClick={() => setIncludeData((d) => !d)}
-        >
-          <MessageSquare className="size-3.5" />
-          {includeData ? "Данные: ВКЛ" : "Данные: ВЫКЛ"}
-          {includeData && taskCount > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-[var(--tracker-accent)]/20 text-[var(--tracker-accent-fg)]">
-              {taskCount}
-            </Badge>
-          )}
-        </Button>
-
-        {includeData && (
-          <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1">
-            <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">
-              ⇄ Сравнить с:
-            </span>
-            <Select
-              value={String(compareMonth)}
-              onValueChange={(v) => {
-                setCompareMonth(Number(v));
-                setLog([]);
+      {/* ── Create question dialog ──────────────────────────────── */}
+      <Dialog open={!!creatingQuestion} onOpenChange={open => { if (!open) setCreatingQuestion(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>❓ Создать вопрос</DialogTitle>
+            <DialogDescription>Вопрос будет добавлен в список вопросов команды</DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Textarea
+              value={creatingQuestion || ""}
+              onChange={e => setCreatingQuestion(e.target.value)}
+              rows={3}
+              className="text-sm resize-none"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreatingQuestion(null)}>Отмена</Button>
+            <Button
+              onClick={() => {
+                if (creatingQuestion?.trim()) {
+                  addQuestion(creatingQuestion.trim(), "AI-ассистент");
+                  setCreatingQuestion(null);
+                }
               }}
+              className="bg-[var(--tracker-accent)] text-white"
             >
-              <SelectTrigger className="h-7 w-auto text-xs">
-                <SelectValue placeholder="— нет —" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="-1">— нет —</SelectItem>
-                {MONTHS.map((m, i) => (
-                  <SelectItem key={i} value={String(i)} disabled={i === month}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {isComparing && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => {
-                  setCompareMonth(-1);
-                  setLog([]);
-                }}
-              >
-                <X className="size-3" />
-              </Button>
+              <Check className="size-4 mr-1.5" />Добавить вопрос
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Top bar ─────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>
+            <span className="font-semibold">✦ AI</span>
+            <span className="opacity-60">·</span>
+            <span>{MONTHS[month]}</span>
+            <span className="opacity-60">·</span>
+            <span>{taskCount} задач</span>
+            {(backlog || []).filter(r => !r._deleted).length > 0 && (
+              <><span className="opacity-60">·</span><span>беклог: {(backlog || []).filter(r => !r._deleted).length}</span></>
+            )}
+            {questions.length > 0 && (
+              <><span className="opacity-60">·</span><span>вопросы: {questions.length}</span></>
             )}
           </div>
-        )}
-
-        {/* Settings key button */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 h-8 ml-auto"
-          onClick={() => setApiKeyDialogOpen(true)}
-        >
-          <KeyRound className="size-3.5" />
-          API ключ
-        </Button>
-
-        {log.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 h-8 text-muted-foreground"
-            onClick={() => setLog([])}
-          >
-            <Trash2 className="size-3.5" />
-            Очистить
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Select value={chatModel} onValueChange={setChatModel}>
+            <SelectTrigger className="h-7 w-auto text-[11px] px-2 gap-1 border-[var(--tracker-border)]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gemini-2.0-flash" className="text-xs">Flash 2.0</SelectItem>
+              <SelectItem value="gemini-2.5-flash-preview-05-20" className="text-xs">Flash 2.5</SelectItem>
+              <SelectItem value="gemini-2.5-pro-preview-05-06" className="text-xs">Pro 2.5</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" className="h-7 gap-1 text-xs px-2" onClick={() => setApiKeyDialogOpen(true)}>
+            <KeyRound className="size-3" />
+            {hasKey ? "Ключ ✓" : "API ключ"}
           </Button>
-        )}
+          {log.length > 0 && (
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground" onClick={() => setLog([])} title="Очистить чат">
+              <Trash2 className="size-3.5" />
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Context info banner */}
-      {includeData && (taskCount > 0 || isComparing) && (
-        <div
-          className={`rounded-lg px-4 py-2 text-xs leading-relaxed shrink-0 ${
-            isComparing
-              ? "bg-[var(--tracker-accent-soft)] border border-[var(--tracker-accent)]/40 text-[var(--tracker-accent-fg)]"
-              : "bg-muted/60 text-muted-foreground"
-          }`}
-        >
-          {isComparing ? (
-            <>
-              ⇄ Режим сравнения:{" "}
-              <b>{MONTHS[month]}</b> vs <b>{MONTHS[compareMonth]}</b>.
-              Спросите: «Сравни загрузку», «Что изменилось?»
-            </>
-          ) : (
-            <>
-              📋 AI видит данные <b>{MONTHS[month]}</b>: {taskCount} задач,{" "}
-              {(rows || []).filter(
-                (r) => r.status === STATUSES.DONE || r.status === STATUSES.COMPLETED
-              ).length}{" "}
-              завершено
-              {backlog && backlog.length > 0 && (
-                <>, 📦 беклог: {backlog.length}</>
-              )}
-            </>
-          )}
+      {/* ── Quick action chips ───────────────────────────────────── */}
+      {log.length === 0 && (
+        <div className="flex gap-2 flex-wrap shrink-0">
+          {quickActions.map((qa, i) => (
+            <button
+              key={i}
+              onClick={() => { if (hasKey) send(qa.text); else setApiKeyDialogOpen(true); }}
+              disabled={busy}
+              className="text-xs px-3 py-1.5 rounded-full border transition-colors hover:border-[var(--tracker-accent)] hover:bg-[var(--tracker-accent-bg)] disabled:opacity-50"
+              style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)", background: "var(--tracker-bg-card)" }}
+            >
+              {qa.label}
+            </button>
+          ))}
         </div>
       )}
 
-      {/* Chat messages */}
-      <div className="flex-1 flex flex-col gap-3 overflow-y-auto rounded-xl border border-border bg-card p-4 min-h-0">
+      {/* ── Messages ─────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col gap-3 overflow-y-auto rounded-xl border p-4 min-h-0"
+        style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }}>
+
+        {/* Empty state */}
         {!log.length && !busy && (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-            <div className="text-5xl mb-3">💬</div>
-            <div className="text-lg font-medium mb-2">
-              Чат с AI — задайте вопрос
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+              style={{ background: "var(--tracker-accent-bg)" }}>
+              <span className="text-2xl">✦</span>
             </div>
-            {includeData && taskCount > 0 && (
-              <div className="text-sm text-center max-w-md leading-relaxed">
-                AI знает ваши задачи за {MONTHS[month]}. Попробуйте: «Какие задачи в зоне
-                риска?», «Составь отчёт», «Что можно оптимизировать?»
-              </div>
-            )}
+            <p className="text-base font-semibold mb-1" style={{ color: "var(--tracker-text-main)" }}>
+              AI-ассистент менеджера
+            </p>
+            <p className="text-sm max-w-sm" style={{ color: "var(--tracker-text-muted)" }}>
+              {hasKey
+                ? `Знаю все данные трекера. Нажмите быстрое действие или задайте свой вопрос.`
+                : "Нажмите «API ключ» чтобы подключить Gemini."}
+            </p>
           </div>
         )}
 
         {log.map((m, i) => (
-          <div
-            key={i}
-            className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
-          >
-            <div className="text-xs text-muted-foreground mb-1">
-              {m.role === "user"
-                ? "Вы"
-                : m.role === "error"
-                  ? "⚠ Ошибка"
-                  : "✦ AI"}
-            </div>
+          <div key={i} className={`flex flex-col gap-1 ${m.role === "user" ? "items-end" : "items-start"}`}>
+            <span className="text-[10px] font-medium px-1" style={{ color: "var(--tracker-text-muted)" }}>
+              {m.role === "user" ? "Вы" : m.role === "error" ? "⚠ Ошибка" : "✦ AI-ассистент"}
+            </span>
             <div
-              className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words max-w-[75%] ${
+              className={`rounded-2xl px-4 py-3 max-w-[85%] ${
                 m.role === "user"
-                  ? "rounded-tr-sm bg-[var(--tracker-accent-soft)] text-foreground"
+                  ? "rounded-tr-sm"
                   : m.role === "error"
-                    ? "rounded-tl-sm bg-destructive/10 text-destructive border border-destructive/20"
-                    : "rounded-tl-sm bg-muted/50 text-foreground"
+                  ? "rounded-tl-sm border"
+                  : "rounded-tl-sm"
               }`}
+              style={
+                m.role === "user"
+                  ? { background: "var(--tracker-accent-bg)", color: "var(--tracker-text-main)", border: "1px solid var(--tracker-border)" }
+                  : m.role === "error"
+                  ? { background: "rgba(239,68,68,0.07)", color: "#ef4444", borderColor: "rgba(239,68,68,0.3)" }
+                  : { background: "var(--tracker-bg-card)", color: "var(--tracker-text-main)", border: "1px solid var(--tracker-border)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }
+              }
             >
-              {m.text}
+              {m.role === "ai" ? <AiText text={m.text} /> : (
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.text}</p>
+              )}
+
+              {/* Suggested questions buttons */}
+              {m.role === "ai" && m.suggestedQuestions && m.suggestedQuestions.length > 0 && (
+                <div className="mt-3 pt-3 border-t space-y-1.5" style={{ borderColor: "var(--tracker-border)" }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--tracker-text-muted)" }}>
+                    Добавить в вопросы команды:
+                  </p>
+                  {m.suggestedQuestions.map((q, qi) => (
+                    <button
+                      key={qi}
+                      onClick={() => setCreatingQuestion(q)}
+                      className="flex items-start gap-2 w-full text-left text-xs px-3 py-2 rounded-lg border transition-colors hover:bg-[var(--tracker-accent-bg)] group"
+                      style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}
+                    >
+                      <span className="shrink-0 mt-0.5" style={{ color: "var(--tracker-accent)" }}>+</span>
+                      <span className="flex-1">{q}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* "Create question" button for any AI response */}
+              {m.role === "ai" && (!m.suggestedQuestions || m.suggestedQuestions.length === 0) && (
+                <div className="mt-2.5 flex items-center gap-2">
+                  <button
+                    onClick={() => setCreatingQuestion(m.text.slice(0, 200))}
+                    className="text-[10px] flex items-center gap-1 transition-colors hover:opacity-80"
+                    style={{ color: "var(--tracker-text-muted)" }}
+                    title="Создать вопрос из этого ответа"
+                  >
+                    <span style={{ color: "var(--tracker-accent)" }}>+</span>
+                    создать вопрос
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
 
+        {/* Typing indicator */}
         {busy && (
-          <div className="flex items-center gap-2.5 px-1 py-2">
-            <div className="flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="size-2 rounded-full bg-[var(--tracker-accent)] animate-pulse"
-                  style={{ animationDelay: `${i * 150}ms`, opacity: 0.4 + i * 0.2 }}
-                />
-              ))}
+          <div className="flex items-start gap-1">
+            <div className="rounded-2xl rounded-tl-sm px-4 py-3 border" style={{ background: "var(--tracker-bg-card)", borderColor: "var(--tracker-border)" }}>
+              <div className="flex gap-1.5 items-center h-5">
+                {[0, 1, 2].map(i => (
+                  <span key={i} className="w-1.5 h-1.5 rounded-full animate-bounce"
+                    style={{ background: "var(--tracker-accent)", animationDelay: `${i * 120}ms`, opacity: 0.7 }} />
+                ))}
+              </div>
             </div>
-            <span className="text-xs text-muted-foreground">
-              Думает...
-            </span>
           </div>
         )}
         <div ref={endRef} />
       </div>
 
-      {/* Input area */}
-      <div className="flex gap-3 shrink-0">
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={
-            includeData && taskCount > 0
-              ? "Спросите о задачах..."
-              : "Введите запрос..."
-          }
-          rows={2}
-          className="flex-1 resize-none text-sm leading-relaxed"
-        />
-        <Button
-          onClick={send}
-          disabled={busy || !input.trim()}
-          className={`self-stretch min-w-[120px] gap-2 ${
-            busy || !input.trim()
-              ? "bg-muted text-muted-foreground"
-              : "bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-          }`}
-        >
-          {busy ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Send className="size-4" />
-          )}
-          Отправить
-        </Button>
-      </div>
-
-      {/* Footer hint */}
-      <div className="text-xs text-muted-foreground shrink-0">
-        Enter — отправить · Shift+Enter — перенос
-        {includeData ? " · 📊 Данные таблицы передаются AI" : ""}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Design View                                                        */
-/* ------------------------------------------------------------------ */
-
-interface DesignViewProps {
-  themeId: string;
-  customColor: string;
-  customDark: boolean;
-  accentHex: string;
-  onSetTheme: (hex: string) => void;
-  onSetCustomColor: (color: string, dark: boolean) => void;
-  presBg: PresBgSettings;
-  onSetPresBg: (bg: Partial<PresBgSettings>) => void;
-  toast: ReturnType<typeof useToast>["toast"];
-}
-
-function DesignView({
-  themeId,
-  customColor,
-  customDark,
-  accentHex,
-  onSetTheme,
-  onSetCustomColor,
-  presBg,
-  onSetPresBg,
-  toast,
-}: DesignViewProps) {
-  const [hexInput, setHexInput] = useState(accentHex);
-  const [localDark, setLocalDark] = useState(customDark);
-  const [colorInput, setColorInput] = useState(accentHex);
-  const [emojiCat, setEmojiCat] = useState(0);
-
-  // Sync local state when accentHex changes externally
-  useEffect(() => {
-    setHexInput(accentHex);
-    setColorInput(accentHex);
-  }, [accentHex]);
-
-  useEffect(() => {
-    setLocalDark(customDark);
-  }, [customDark]);
-
-  const isActivePreset = (hex: string) =>
-    themeId === hex && !customColor;
-
-  const handleToggleDark = (dark: boolean) => {
-    setLocalDark(dark);
-    const color = useTaskStore.getState().customColor || useTaskStore.getState().themeId || "#5B9BD5";
-    onSetCustomColor(color, dark);
-  };
-
-  const handleSelectPreset = (hex: string) => {
-    onSetTheme(hex);
-    setHexInput(hex);
-    setColorInput(hex);
-  };
-
-  // Only update local preview while dragging — do NOT apply theme
-  const handleNativeColorInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setColorInput(val);
-    setHexInput(val);
-  };
-
-  // Apply color to store only when user finishes picking (mouse up / blur)
-  const commitCustomColor = (val: string) => {
-    if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
-      const currentDark = useTaskStore.getState().customDark;
-      onSetCustomColor(val, currentDark);
-    }
-  };
-
-  const handleNativeColorMouseUp = (e: React.ChangeEvent<HTMLInputElement>) => {
-    commitCustomColor(e.target.value);
-  };
-  const handleNativeColorBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    commitCustomColor(e.target.value);
-  };
-
-  const handleHexInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setHexInput(val);
-  };
-
-  const handleHexInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    commitCustomColor(e.target.value);
-  };
-
-  const handleHexInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      commitCustomColor((e.target as HTMLInputElement).value);
-      (e.target as HTMLInputElement).blur();
-    }
-  };
-
-  // Derive palette colors from accent using full theme system
-  const derivedColors = useMemo(() => {
-    const th = createTheme(accentHex, localDark);
-    return [
-      { label: "Акцент", color: th.accent, textColor: "#ffffff" },
-      { label: "Мягкий", color: th.accentSoft, textColor: th.accent },
-      { label: "Фон", color: th.bgMain, textColor: th.textMain },
-      { label: "Карточка", color: th.bgCard, textColor: th.textMain },
-      { label: "Приглуш.", color: th.textMuted, textColor: th.bgMain },
-      { label: "Рамка", color: th.border, textColor: th.textMain },
-    ];
-  }, [accentHex, localDark]);
-
-  return (
-    <>
-    <div className="grid gap-6 md:grid-cols-2">
-      {/* ---- Left column ---- */}
-      <div className="space-y-6">
-        {/* Mode Toggle */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">🌓 Режим</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex gap-2">
-              <Button
-                variant={!localDark ? "default" : "outline"}
-                size="sm"
-                className="flex-1 gap-2"
-                onClick={() => handleToggleDark(false)}
-              >
-                <span className="size-4 rounded-full border-2 border-amber-300 bg-white" />
-                Светлая тема
-              </Button>
-              <Button
-                variant={localDark ? "default" : "outline"}
-                size="sm"
-                className="flex-1 gap-2"
-                onClick={() => handleToggleDark(true)}
-              >
-                <span className="size-4 rounded-full border-2 border-zinc-600 bg-zinc-900" />
-                Тёмная тема
-              </Button>
-            </div>
-            <Separator />
-            <p className="text-xs text-muted-foreground">Нейтральные серые пресеты</p>
-            <div className="flex gap-2">
-              {NEUTRAL_COLORS.map((c) => (
-                <button
-                  key={c.hex}
-                  title={c.label}
-                  onClick={() => handleSelectPreset(c.hex)}
-                  className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border transition-all hover:scale-[1.02] ${
-                    isActivePreset(c.hex)
-                      ? "border-foreground ring-2 ring-foreground/20"
-                      : "border-transparent hover:border-muted-foreground/30"
-                  }`}
-                  style={{ backgroundColor: c.hex + "18", color: c.hex }}
-                >
-                  <span className="size-3 rounded-full" style={{ backgroundColor: c.hex }} />
-                  {c.label}
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Color Picker */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">🎨 Свой цвет</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-3">
-              <input
-                type="color"
-                value={colorInput}
-                onInput={handleNativeColorInput}
-                onChange={handleNativeColorMouseUp}
-                onBlur={handleNativeColorBlur}
-                className="h-10 w-14 rounded-lg border cursor-pointer bg-transparent"
-              />
-              <Input
-                value={hexInput}
-                onChange={handleHexInputChange}
-                onBlur={handleHexInputBlur}
-                onKeyDown={handleHexInputKeyDown}
-                className="flex-1 h-10 font-mono text-sm"
-                placeholder="#RRGGBB"
-                maxLength={7}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Preset Palette */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">🎯 Палитра</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 gap-3">
-              {PALETTE_COLORS.map((c) => (
-                <button
-                  key={c.hex}
-                  onClick={() => handleSelectPreset(c.hex)}
-                  className={`group flex flex-col items-center gap-1.5 rounded-xl p-3 border-2 transition-all hover:scale-105 ${
-                    isActivePreset(c.hex)
-                      ? "border-foreground ring-2 ring-foreground/20 bg-muted/50"
-                      : "border-transparent hover:border-muted-foreground/20 hover:bg-muted/30"
-                  }`}
-                >
-                  <span
-                    className={`size-10 rounded-lg shadow-sm transition-transform ${
-                      isActivePreset(c.hex) ? "ring-2 ring-white scale-110" : ""
-                    }`}
-                    style={{ backgroundColor: c.hex }}
-                  />
-                  <span className="text-xs font-medium text-foreground/80 group-hover:text-foreground">
-                    {c.label}
-                  </span>
-                  <span className="text-[10px] font-mono text-muted-foreground">
-                    {c.hex}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ---- Right column ---- */}
-      <div className="space-y-6">
-        {/* Theme Preview - derived colors */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">✨ Производные цвета</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-3">
-              {derivedColors.map((item) => (
-                <div
-                  key={item.label}
-                  className="flex flex-col items-center gap-2 rounded-xl p-3 border transition-all hover:scale-[1.02]"
-                  style={{
-                    backgroundColor: item.color,
-                    color: item.textColor,
-                    borderColor: (item as { border?: string }).border || "transparent",
-                  }}
-                >
-                  <div
-                    className="size-12 rounded-lg w-full"
-                    style={{ backgroundColor: item.color, minHeight: 48 }}
-                  />
-                  <span className="text-xs font-semibold mt-1">{item.label}</span>
-                  <span
-                    className="text-[10px] font-mono opacity-60"
-                    style={{ color: item.textColor }}
-                  >
-                    {typeof item.color === "string" && item.color.startsWith("rgba")
-                      ? item.color
-                      : item.color}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Preview Card — mini task card */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">👁️ Предпросмотр</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className="rounded-xl border p-4 space-y-3"
-              style={{
-                backgroundColor: localDark ? "#18181b" : "#ffffff",
-                borderColor: localDark ? "#27272a" : "#e4e4e7",
-              }}
-            >
-              {/* Mini task row header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="size-2.5 rounded-full"
-                    style={{ backgroundColor: accentHex }}
-                  />
-                  <span
-                    className="text-sm font-semibold"
-                    style={{ color: localDark ? "#fafafa" : "#09090b" }}
-                  >
-                    Пример задачи
-                  </span>
-                </div>
-                <span
-                  className="rounded-md px-2 py-0.5 text-xs font-medium"
-                  style={{
-                    backgroundColor: accentHex + "20",
-                    color: accentHex,
-                  }}
-                >
-                  В работе
-                </span>
-              </div>
-
-              <div className="h-px" style={{ backgroundColor: localDark ? "#27272a" : "#e4e4e7" }} />
-
-              {/* Mini detail rows */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs" style={{ color: localDark ? "#a1a1aa" : "#71717a" }}>План (ч)</span>
-                  <span className="text-sm font-mono font-medium" style={{ color: localDark ? "#fafafa" : "#09090b" }}>24.0</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs" style={{ color: localDark ? "#a1a1aa" : "#71717a" }}>Факт (ч)</span>
-                  <span className="text-sm font-mono font-medium" style={{ color: accentHex }}>18.5</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs" style={{ color: localDark ? "#a1a1aa" : "#71717a" }}>Приоритет</span>
-                  <span
-                    className="rounded-md px-2 py-0.5 text-xs font-medium"
-                    style={{ backgroundColor: accentHex, color: "#ffffff" }}
-                  >
-                    Высокий
-                  </span>
-                </div>
-              </div>
-
-              {/* Mini progress bar */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs" style={{ color: localDark ? "#a1a1aa" : "#71717a" }}>Прогресс</span>
-                  <span className="text-xs font-mono" style={{ color: accentHex }}>77%</span>
-                </div>
-                <div
-                  className="h-2 rounded-full overflow-hidden"
-                  style={{ backgroundColor: accentHex + "20" }}
-                >
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: "77%", backgroundColor: accentHex }}
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-
-    {/* ---- Presentation Background Settings ---- */}
-    <Card className="mt-6">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">🎨 Фон презентации</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {/* Emoji Picker */}
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Эмодзи для фона</p>
-          <Input
-            value={presBg.emojis}
-            onChange={(e) => onSetPresBg({ emojis: e.target.value })}
-            className="text-sm font-mono"
-            placeholder="Вставьте эмодзи..."
+      {/* ── Input ────────────────────────────────────────────────── */}
+      <div className="flex gap-2 shrink-0">
+        <div className="flex-1 flex items-end gap-2 rounded-xl border px-3 py-2"
+          style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+          <Textarea
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={hasKey ? "Спросите что угодно о задачах, беклоге, вопросах..." : "Сначала введите API ключ →"}
+            rows={1}
+            className="flex-1 resize-none border-0 bg-transparent p-0 text-sm focus-visible:ring-0 shadow-none"
+            style={{ color: "var(--tracker-text-main)" }}
           />
-          {/* Category tabs */}
-          <div className="flex flex-wrap gap-1">
-            {EMOJI_CATS.map((cat, i) => (
-              <Button
-                key={cat.name}
-                variant={emojiCat === i ? "default" : "outline"}
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => setEmojiCat(i)}
-              >
-                {cat.name}
-              </Button>
-            ))}
-          </div>
-          {/* Emoji items from selected category */}
-          <div className="flex flex-wrap gap-1">
-            {EMOJI_CATS[emojiCat].items.split(" ").filter(Boolean).map((emoji) => {
-              const isSelected = presBg.emojis.includes(emoji);
-              return (
-                <button
-                  key={emoji}
-                  onClick={() => {
-                    const current = presBg.emojis;
-                    if (isSelected) {
-                      onSetPresBg({ emojis: current.replace(emoji, "").replace(/\s+/g, " ").trim() });
-                    } else {
-                      onSetPresBg({ emojis: (current + " " + emoji).trim() });
-                    }
-                  }}
-                  className={`size-8 flex items-center justify-center rounded-lg text-lg transition-all hover:scale-110 ${
-                    isSelected
-                      ? "bg-[var(--tracker-accent-soft)] ring-2 ring-[var(--tracker-accent)]"
-                      : "bg-muted/50 hover:bg-muted"
-                  }`}
-                >
-                  {emoji}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Pattern Selector */}
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Узор фона</p>
-          <div className="flex flex-wrap gap-1.5">
-            {PATTERN_OPTIONS.map((p) => (
-              <Button
-                key={p.key}
-                variant={presBg.pattern === p.key ? "default" : "outline"}
-                size="sm"
-                className="h-8 px-3 text-xs"
-                onClick={() => onSetPresBg({ pattern: p.key as PresBgSettings["pattern"] })}
-              >
-                {p.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Sliders */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          {/* Pattern Size */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Размер узора</p>
-              <span className="text-xs font-mono text-muted-foreground">{presBg.patternSize}px</span>
-            </div>
-            <Slider
-              value={[presBg.patternSize]}
-              onValueChange={([v]) => onSetPresBg({ patternSize: v })}
-              min={10}
-              max={100}
-              step={5}
-            />
-          </div>
-
-          {/* Pattern Opacity */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Прозрачность узора</p>
-              <span className="text-xs font-mono text-muted-foreground">{presBg.patternOpacity}%</span>
-            </div>
-            <Slider
-              value={[presBg.patternOpacity]}
-              onValueChange={([v]) => onSetPresBg({ patternOpacity: v })}
-              min={1}
-              max={30}
-              step={1}
-            />
-          </div>
-
-          {/* Emoji Count */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Количество эмодзи</p>
-              <span className="text-xs font-mono text-muted-foreground">{presBg.emojiCount}</span>
-            </div>
-            <Slider
-              value={[presBg.emojiCount]}
-              onValueChange={([v]) => onSetPresBg({ emojiCount: v })}
-              min={0}
-              max={60}
-              step={1}
-            />
-          </div>
-
-          {/* Emoji Min Size */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Мин. размер эмодзи</p>
-              <span className="text-xs font-mono text-muted-foreground">{presBg.emojiMinSize}px</span>
-            </div>
-            <Slider
-              value={[presBg.emojiMinSize]}
-              onValueChange={([v]) => onSetPresBg({ emojiMinSize: v })}
-              min={8}
-              max={60}
-              step={2}
-            />
-          </div>
-
-          {/* Emoji Max Size */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Макс. размер эмодзи</p>
-              <span className="text-xs font-mono text-muted-foreground">{presBg.emojiMaxSize}px</span>
-            </div>
-            <Slider
-              value={[presBg.emojiMaxSize]}
-              onValueChange={([v]) => onSetPresBg({ emojiMaxSize: v })}
-              min={12}
-              max={80}
-              step={2}
-            />
-          </div>
-        </div>
-
-        {/* Live Preview */}
-        <Separator />
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Предпросмотр фона</p>
-          <div
-            className="relative rounded-xl border overflow-hidden"
-            style={{ height: 160 }}
+          <Button
+            onClick={() => send()}
+            disabled={busy || !input.trim()}
+            size="icon"
+            className="h-8 w-8 shrink-0 rounded-lg"
+            style={{
+              background: busy || !input.trim() ? "var(--tracker-border)" : "var(--tracker-accent)",
+              color: "#fff"
+            }}
           >
-            <SlideBgPreview presBg={presBg} accentHex={accentHex} />
-          </div>
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+          </Button>
         </div>
-      </CardContent>
-    </Card>
-    </>
-  );
-}
+      </div>
 
-/* ------------------------------------------------------------------ */
-/*  Slide Background Preview (for DesignView)                           */
-/* ------------------------------------------------------------------ */
-
-function SlideBgPreview({ presBg, accentHex }: { presBg: PresBgSettings; accentHex: string }) {
-  const [r, g, b] = hexToRgb(accentHex);
-  const emojiStr = presBg.emojis;
-
-  const emojis = useMemo(() => {
-    if (!emojiStr || presBg.emojiCount === 0) return [];
-    const list = emojiStr.split(" ").filter(Boolean);
-    if (list.length === 0) return [];
-    const result: { emoji: string; x: number; y: number; size: number; opacity: number; rotate: number }[] = [];
-    let seed = 42;
-    const rand = () => {
-      seed = (seed * 16807 + 0) % 2147483647;
-      return (seed - 1) / 2147483646;
-    };
-    for (let i = 0; i < presBg.emojiCount; i++) {
-      result.push({
-        emoji: list[Math.floor(rand() * list.length)],
-        x: rand() * 100,
-        y: rand() * 100,
-        size: presBg.emojiMinSize + rand() * (presBg.emojiMaxSize - presBg.emojiMinSize),
-        opacity: 0.15 + rand() * 0.35,
-        rotate: Math.floor(rand() * 40 - 20),
-      });
-    }
-    return result;
-  }, [emojiStr, presBg.emojiCount, presBg.emojiMinSize, presBg.emojiMaxSize]);
-
-  const patternCSS = useMemo(() => {
-    if (presBg.pattern === "none") return {};
-    const sz = presBg.patternSize;
-    const op = presBg.patternOpacity / 100;
-    const col = `rgba(${r},${g},${b},${op})`;
-    switch (presBg.pattern) {
-      case "grid":
-        return { backgroundImage: `linear-gradient(${col} 1px, transparent 1px), linear-gradient(90deg, ${col} 1px, transparent 1px)`, backgroundSize: `${sz}px ${sz}px` };
-      case "diagonal":
-        return { backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent ${sz / 2}px, ${col} ${sz / 2}px, ${col} ${sz / 2 + 1}px)`, backgroundSize: `${sz}px ${sz}px` };
-      case "diamond":
-        return { backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent ${sz / 2 - 1}px, ${col} ${sz / 2 - 1}px, ${col} ${sz / 2 + 1}px), repeating-linear-gradient(-45deg, transparent, transparent ${sz / 2 - 1}px, ${col} ${sz / 2 - 1}px, ${col} ${sz / 2 + 1}px)`, backgroundSize: `${sz}px ${sz}px` };
-      case "waves":
-        return { backgroundImage: `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz / 2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz / 4} Q ${sz / 4} 0 ${sz / 2} ${sz / 4} T ${sz} ${sz / 4}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E")`, backgroundSize: `${sz}px ${sz / 2}px` };
-      case "zigzag":
-        return { backgroundImage: `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz / 2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz / 2} ${sz / 4},0 ${sz / 2},${sz / 2} ${sz * 3 / 4},0 ${sz},${sz / 2}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E")`, backgroundSize: `${sz}px ${sz / 2}px` };
-      default:
-        return {};
-    }
-  }, [presBg.pattern, presBg.patternSize, presBg.patternOpacity, r, g, b]);
-
-  return (
-    <div className="absolute inset-0 overflow-hidden rounded-xl" style={{ background: `linear-gradient(135deg, rgba(${r},${g},${b},0.04) 0%, rgba(${r},${g},${b},0.01) 100%)` }}>
-      {presBg.pattern !== "none" && (
-        <div className="absolute inset-0" style={patternCSS} />
-      )}
-      {emojis.map((e, i) => (
-        <span
-          key={i}
-          className="absolute pointer-events-none select-none"
-          style={{
-            left: `${e.x}%`,
-            top: `${e.y}%`,
-            fontSize: e.size,
-            opacity: e.opacity,
-            transform: `rotate(${e.rotate}deg)`,
-          }}
-        >
-          {e.emoji}
-        </span>
-      ))}
+      <p className="text-[10px] shrink-0 text-center" style={{ color: "var(--tracker-text-muted)" }}>
+        Enter — отправить · Shift+Enter — перенос · AI видит все 12 месяцев, беклог и вопросы
+      </p>
     </div>
   );
 }
+
