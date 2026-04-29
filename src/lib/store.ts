@@ -41,7 +41,103 @@ export interface PresBgSettings {
   pattern: "none" | "grid" | "diagonal" | "diamond" | "waves" | "zigzag";
   patternSize: number;
   patternOpacity: number;
+  styleId: "dark" | "spring" | "ocean" | "night" | "fire" | "minimal";
 }
+
+export interface PresStylePreset {
+  id: PresBgSettings["styleId"];
+  label: string;
+  emoji: string;
+  desc: string;
+  bodyBg: string;
+  overlayBg: string;
+  cardColors: string[];
+  defaultEmojis: string;
+  defaultPattern: PresBgSettings["pattern"];
+  textColor: string;
+  mutedColor: string;
+}
+
+export const PRES_STYLE_PRESETS: PresStylePreset[] = [
+  {
+    id: "dark",
+    label: "Тёмный",
+    emoji: "🌑",
+    desc: "Тёмный фон, яркий акцент",
+    bodyBg: "#0d1117",
+    overlayBg: "radial-gradient(ellipse 80% 60% at 20% 20%,rgba(91,155,213,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(91,155,213,.12),transparent 60%),linear-gradient(160deg,#080d14 0%,#111827 40%,#0d1117 100%)",
+    cardColors: ["rgba(30,50,80,.7)", "rgba(20,40,70,.6)", "rgba(15,35,65,.65)"],
+    defaultEmojis: "🚀 ✨ 💡 🎯",
+    defaultPattern: "grid",
+    textColor: "#e2e8f0",
+    mutedColor: "rgba(148,163,184,.55)",
+  },
+  {
+    id: "spring",
+    label: "Весна",
+    emoji: "🌿",
+    desc: "Зелёный, природа, свежесть",
+    bodyBg: "#0a1a0f",
+    overlayBg: "radial-gradient(ellipse 80% 60% at 20% 20%,rgba(52,211,153,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(134,239,172,.12),transparent 60%),linear-gradient(160deg,#071510 0%,#0d2118 40%,#081a10 100%)",
+    cardColors: ["rgba(4,108,78,.6)", "rgba(21,128,61,.5)", "rgba(63,98,18,.55)"],
+    defaultEmojis: "🌿 🍃 🌱 🌸 🍀",
+    defaultPattern: "grid",
+    textColor: "#d1fae5",
+    mutedColor: "rgba(167,243,208,.55)",
+  },
+  {
+    id: "ocean",
+    label: "Океан",
+    emoji: "🌊",
+    desc: "Глубокий синий, волны",
+    bodyBg: "#070e1a",
+    overlayBg: "radial-gradient(ellipse 80% 60% at 20% 20%,rgba(56,189,248,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(14,165,233,.12),transparent 60%),linear-gradient(160deg,#04090f 0%,#0c1829 40%,#060d1a 100%)",
+    cardColors: ["rgba(7,50,90,.65)", "rgba(10,70,130,.55)", "rgba(5,60,110,.6)"],
+    defaultEmojis: "🌊 💧 🐬 ⛵ 🐟",
+    defaultPattern: "waves",
+    textColor: "#e0f2fe",
+    mutedColor: "rgba(186,230,253,.55)",
+  },
+  {
+    id: "night",
+    label: "Ночь",
+    emoji: "🌙",
+    desc: "Фиолетовое небо, звёзды",
+    bodyBg: "#07050f",
+    overlayBg: "radial-gradient(ellipse 80% 60% at 20% 20%,rgba(139,92,246,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(167,139,250,.12),transparent 60%),linear-gradient(160deg,#05030c 0%,#0f0a1e 40%,#070510 100%)",
+    cardColors: ["rgba(50,20,90,.65)", "rgba(60,30,110,.55)", "rgba(40,15,80,.6)"],
+    defaultEmojis: "🌙 ⭐ ✨ 🔮 💫",
+    defaultPattern: "diamond",
+    textColor: "#ede9fe",
+    mutedColor: "rgba(221,214,254,.55)",
+  },
+  {
+    id: "fire",
+    label: "Огонь",
+    emoji: "🔥",
+    desc: "Янтарный, энергичный",
+    bodyBg: "#120800",
+    overlayBg: "radial-gradient(ellipse 80% 60% at 20% 20%,rgba(251,191,36,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(245,158,11,.12),transparent 60%),linear-gradient(160deg,#0d0500 0%,#1c0f00 40%,#100700 100%)",
+    cardColors: ["rgba(90,55,5,.65)", "rgba(120,70,5,.55)", "rgba(75,45,5,.6)"],
+    defaultEmojis: "🔥 ⚡ 💥 🎯 🏆",
+    defaultPattern: "zigzag",
+    textColor: "#fef3c7",
+    mutedColor: "rgba(253,230,138,.55)",
+  },
+  {
+    id: "minimal",
+    label: "Минимал",
+    emoji: "⬜",
+    desc: "Светлый, чистый, деловой",
+    bodyBg: "#f8fafc",
+    overlayBg: "linear-gradient(160deg,#f8fafc 0%,#f1f5f9 100%)",
+    cardColors: ["rgba(241,245,249,1)", "rgba(248,250,252,1)", "rgba(226,232,240,1)"],
+    defaultEmojis: "📊 📈 🎯 💡 ✅",
+    defaultPattern: "none",
+    textColor: "#1e293b",
+    mutedColor: "rgba(100,116,139,.7)",
+  },
+];
 
 export const DEFAULT_PRES_BG: PresBgSettings = {
   emojis: "🚀 ✨ 💡 🎯",
@@ -51,6 +147,7 @@ export const DEFAULT_PRES_BG: PresBgSettings = {
   pattern: "grid",
   patternSize: 40,
   patternOpacity: 5,
+  styleId: "dark",
 };
 
 /** Per-domain isolated data */

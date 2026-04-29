@@ -8,7 +8,7 @@ import React, {
   useRef,
   type KeyboardEvent,
 } from "react";
-import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, undoStore } from "@/lib/store";
+import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, PRES_STYLE_PRESETS, undoStore } from "@/lib/store";
 import {
   COLS,
   MONTHS,
@@ -671,7 +671,7 @@ function ThemePreview({ hex, isDark }: { hex: string; isDark: boolean }) {
   );
 }
 
-function DesignView({ themeId, customColor, customDark, accentHex, onSetTheme, onSetCustomColor }: DesignViewProps) {
+function DesignView({ themeId, customColor, customDark, accentHex, onSetTheme, onSetCustomColor, presBg, onSetPresBg }: DesignViewProps) {
   const [customInput, setCustomInput] = useState(customColor || themeId || "#9B72CF");
   const [darkMode, setDarkMode] = useState(customDark);
   const [previewHex, setPreviewHex] = useState(accentHex);
@@ -814,6 +814,82 @@ function DesignView({ themeId, customColor, customDark, accentHex, onSetTheme, o
           </div>
           <Switch checked={darkMode} onCheckedChange={handleDarkToggle} />
         </div>
+
+        {/* Section: Presentation style */}
+        <div>
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Стиль презентации</h3>
+            <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Задний фон, цветовая схема и эмодзи</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {PRES_STYLE_PRESETS.map(preset => {
+              const isActive = (presBg.styleId || "dark") === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => {
+                    onSetPresBg({
+                      styleId: preset.id,
+                      emojis: preset.defaultEmojis,
+                      pattern: preset.defaultPattern,
+                    });
+                  }}
+                  className="relative flex flex-col items-center gap-1.5 rounded-xl p-3 border-2 transition-all"
+                  style={{
+                    borderColor: isActive ? "var(--tracker-accent)" : "var(--tracker-border)",
+                    background: isActive ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)",
+                    boxShadow: isActive ? `0 0 0 3px var(--tracker-accent)22` : undefined,
+                  }}
+                >
+                  <div
+                    className="w-full h-10 rounded-lg flex items-center justify-center text-lg"
+                    style={{ background: preset.bodyBg }}
+                  >
+                    {preset.emoji}
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs font-semibold" style={{ color: isActive ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-main)" }}>
+                      {preset.label}
+                    </div>
+                    <div className="text-[9px] leading-tight" style={{ color: "var(--tracker-text-muted)" }}>
+                      {preset.desc}
+                    </div>
+                  </div>
+                  {isActive && (
+                    <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: "var(--tracker-accent)" }}>
+                      <Check className="w-2.5 h-2.5 text-white" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Emoji picker for presentation */}
+          <div className="mt-3 rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+            <p className="text-xs font-semibold" style={{ color: "var(--tracker-text-main)" }}>Эмодзи фона</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={presBg.emojis}
+                onChange={e => onSetPresBg({ emojis: e.target.value })}
+                className="flex-1 h-8 rounded-lg border px-2 text-sm bg-transparent outline-none"
+                style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}
+                placeholder="🚀 ✨ 💡"
+              />
+              <input
+                type="number"
+                min={0} max={40}
+                value={presBg.emojiCount}
+                onChange={e => onSetPresBg({ emojiCount: Number(e.target.value) })}
+                className="w-16 h-8 rounded-lg border px-2 text-sm bg-transparent outline-none text-center"
+                style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}
+              />
+            </div>
+            <p className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>Эмодзи через пробел · кол-во на слайде</p>
+          </div>
+        </div>
+
       </div>
 
       {/* ── Right: live preview ──────────────────────────────────── */}
@@ -1124,6 +1200,13 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   // Slide data
   const [slides, setSlides] = useState<SlideData[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [aiConclusion, setAiConclusion] = useState<{
+    achievements: string[];
+    risks: string[];
+    inProgress: string[];
+    nextSteps: string[];
+  } | null>(null);
+  const [aiConclusionBusy, setAiConclusionBusy] = useState(false);
 
   // Drag overlay
   const [dragOverlay, setDragOverlay] = useState(false);
@@ -1144,7 +1227,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
   // Chat state
   const apiKeyRef = useRef<string>("");
-  const [chatModel, setChatModel] = useState("gemini-2.0-flash");
+  const [chatModel, setChatModel] = useState("gemini-2.5-flash");
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
 
   const editRef = useRef<HTMLTextAreaElement>(null);
@@ -1177,6 +1260,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   const serverUpdatedAtRef = useRef<string>("");
   const lastPullAtRef = useRef(0);
   const lastLocalChangeRef = useRef(0);
+  const suppressNextPushRef = useRef(false);
 
   const pushToServer = useCallback(async () => {
     if (isSyncingRef.current) return;
@@ -1233,6 +1317,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       lastPullAtRef.current = Date.now();
 
       if (data.domainData && Object.keys(data.domainData).length > 0) {
+        suppressNextPushRef.current = true;
         s.setDomainData(data.domainData);
       }
       setLastSync(new Date());
@@ -1801,7 +1886,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
   const handleExportSlidesHTML = useCallback(() => {
     if (slides.length === 0) return;
-    const html = buildSlidesHTML(slides, presBg);
+    const html = buildSlidesHTML(slides, presBg, aiConclusion);
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1812,7 +1897,46 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toast({ title: "📥 Скачать HTML", description: "Презентация сохранена как HTML" });
-  }, [slides, currentMonth, toast, presBg]);
+  }, [slides, currentMonth, toast, presBg, aiConclusion]);
+
+  const handleAiAnalysis = useCallback(async () => {
+    const apiKey = apiKeyRef.current;
+    if (!apiKey) {
+      setApiKeyDialogOpen(true);
+      return;
+    }
+    const rows = (allData[currentMonth] || []).filter(r => r.name || r.num);
+    if (rows.length === 0) return;
+    setAiConclusionBusy(true);
+    try {
+      const summary = rows.map(r =>
+        `#${r.num} "${r.name}" — статус: ${r.status}, план: ${r.planH||"—"}ч, факт: ${r.factH||"—"}ч`
+      ).join("\n");
+      const prompt = `Ты аналитик проекта. На основе списка задач за ${MONTHS[currentMonth]} напиши краткие выводы на русском языке. Ответь строго в формате JSON без пояснений:
+{"achievements":["...","..."],"risks":["...","..."],"inProgress":["...","..."],"nextSteps":["...","..."]}
+Каждый массив — 2-3 пункта, лаконично, до 10 слов каждый.
+Задачи:\n${summary}`;
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", parts: [{ text: prompt }] }],
+          apiKey,
+          model: chatModel,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const text = (data.text || "").replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(text);
+      setAiConclusion(parsed);
+      toast({ title: "✨ AI анализ готов", description: "Выводы добавлены в слайд «Итоги». Можно редактировать." });
+    } catch (err) {
+      toast({ title: "Ошибка AI анализа", description: err instanceof Error ? err.message : "Неизвестная ошибка", variant: "destructive" });
+    } finally {
+      setAiConclusionBusy(false);
+    }
+  }, [allData, currentMonth, apiKeyRef, chatModel, setApiKeyDialogOpen, toast]);
 
   /* ---- Transfer ---- */
   const handleTransfer = useCallback(() => {
@@ -2307,6 +2431,10 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             onExportHTML={handleExportSlidesHTML}
             onCreateNew={handleCreatePresentation}
             hasData={(allData[currentMonth] || []).some((r) => r.name || r.num)}
+            onAiAnalysis={handleAiAnalysis}
+            aiAnalysisBusy={aiConclusionBusy}
+            aiConclusion={aiConclusion}
+            onSetAiConclusion={setAiConclusion}
           />
         )}
       </main>
@@ -2358,6 +2486,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             <DialogTitle className="text-base leading-tight" style={{ color: "#1a1a2e" }}>
               {monthBreakdown.taskName || "Задача"}
             </DialogTitle>
+            <DialogDescription>Разбивка часов по месяцам для задачи</DialogDescription>
           </DialogHeader>
 
           {monthBreakdown.rows.length === 0 ? (
@@ -2474,6 +2603,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             <span style={{ fontSize: "12px", color: "#94a3b8" }}>
               {commentArchiveDialog.taskName}
             </span>
+            <DialogDescription>История комментариев и статусов задачи по неделям</DialogDescription>
           </DialogHeader>
 
           {commentArchiveDialog.logs.length === 0 ? (
@@ -5076,6 +5206,10 @@ interface SlidesViewProps {
   onExportHTML: () => void;
   onCreateNew: () => void;
   hasData: boolean;
+  onAiAnalysis: () => void;
+  aiAnalysisBusy: boolean;
+  aiConclusion: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null;
+  onSetAiConclusion: (v: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null) => void;
 }
 
 function SlidesView({
@@ -5087,8 +5221,11 @@ function SlidesView({
   onExportHTML,
   onCreateNew,
   hasData,
+  onAiAnalysis,
+  aiAnalysisBusy,
+  aiConclusion,
+  onSetAiConclusion,
 }: SlidesViewProps) {
-  const { toast } = useToast();
 
   if (slides.length === 0) {
     return (
@@ -5120,7 +5257,7 @@ function SlidesView({
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -5151,15 +5288,13 @@ function SlidesView({
             variant="outline"
             size="sm"
             className="gap-1.5"
-            onClick={() => {
-              toast({
-                title: "✨ AI анализ",
-                description: "Функция будет доступна",
-              });
-            }}
+            onClick={onAiAnalysis}
+            disabled={aiAnalysisBusy}
           >
-            <Sparkles className="size-3.5" />
-            AI анализ
+            {aiAnalysisBusy
+              ? <><Loader2 className="size-3.5 animate-spin" /> Анализирую...</>
+              : <><Sparkles className="size-3.5" /> AI анализ</>
+            }
           </Button>
           <Button
             variant="outline"
@@ -5189,7 +5324,87 @@ function SlidesView({
       </div>
 
       {/* Slide preview */}
-      <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} />
+      <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} aiConclusion={aiConclusion} />
+
+      {/* AI Conclusion editor — shown when aiConclusion exists */}
+      {aiConclusion && (
+        <div
+          className="rounded-2xl border p-5 space-y-4 mt-2"
+          style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>
+                ✨ Выводы AI — слайд «Итоги»
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>
+                Редактируйте тезисы — они попадут в финальный слайд презентации
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onSetAiConclusion(null)}
+              className="text-muted-foreground"
+            >
+              Сбросить
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {(["achievements", "risks", "inProgress", "nextSteps"] as const).map(key => {
+              const labels: Record<string, string> = {
+                achievements: "✅ Достижения",
+                risks: "⚠️ Риски",
+                inProgress: "⚙️ В процессе",
+                nextSteps: "🎯 Следующие шаги",
+              };
+              return (
+                <div key={key} className="space-y-1.5">
+                  <p className="text-xs font-semibold" style={{ color: "var(--tracker-accent-fg-dark)" }}>
+                    {labels[key]}
+                  </p>
+                  {aiConclusion[key].map((item, i) => (
+                    <div key={i} className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={item}
+                        onChange={e => {
+                          const updated = [...aiConclusion[key]];
+                          updated[i] = e.target.value;
+                          onSetAiConclusion({ ...aiConclusion, [key]: updated });
+                        }}
+                        className="flex-1 h-8 rounded-lg border px-2 text-xs bg-transparent outline-none focus:ring-1"
+                        style={{
+                          borderColor: "var(--tracker-border)",
+                          color: "var(--tracker-text-main)",
+                          background: "var(--tracker-bg-main)",
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          const updated = aiConclusion[key].filter((_, j) => j !== i);
+                          onSetAiConclusion({ ...aiConclusion, [key]: updated });
+                        }}
+                        className="w-7 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors"
+                        style={{ color: "var(--tracker-text-muted)" }}
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => onSetAiConclusion({ ...aiConclusion, [key]: [...aiConclusion[key], ""] })}
+                    className="text-xs px-2 py-1 rounded-lg border border-dashed transition-colors hover:opacity-70"
+                    style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-muted)" }}
+                  >
+                    + добавить
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -5198,7 +5413,7 @@ function SlidesView({
 /*  Slide Preview Card                                                */
 /* ------------------------------------------------------------------ */
 
-function SlidePreview({ slide, accentHex, presBg }: { slide: SlideData; accentHex: string; presBg: PresBgSettings }) {
+function SlidePreview({ slide, accentHex, presBg, aiConclusion }: { slide: SlideData; accentHex: string; presBg: PresBgSettings; aiConclusion?: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null }) {
   const c = slide.content;
   const [r, g, b] = hexToRgb(accentHex);
   const accentSoft = `rgba(${r}, ${g}, ${b}, 0.08)`;
@@ -5539,63 +5754,46 @@ function SlidePreview({ slide, accentHex, presBg }: { slide: SlideData; accentHe
       )}
 
       {/* Summary slide */}
-      {slide.type === "summary" && (
-        <div className="space-y-6">
-          <h3 className="text-2xl font-bold" style={{ color: accentHex }}>
-            📝 Итоги
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div
-              className="rounded-xl p-5 border"
-              style={{ backgroundColor: accentSoft, borderColor: accentMed }}
-            >
-              <h4 className="font-semibold mb-2 flex items-center gap-2">
-                <span className="text-green-500">✅</span> Достижения
-              </h4>
-              <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                <li>Выполнен план задач на текущий период</li>
-                <li>Успешно завершены приоритетные задачи</li>
-              </ul>
-            </div>
-            <div
-              className="rounded-xl p-5 border"
-              style={{ backgroundColor: accentSoft, borderColor: accentMed }}
-            >
-              <h4 className="font-semibold mb-2 flex items-center gap-2">
-                <span className="text-amber-500">⚠️</span> Риски
-              </h4>
-              <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                <li>Некоторые задачи перевыполнены по часам</li>
-                <li>Необходима корректировка сроков</li>
-              </ul>
-            </div>
-            <div
-              className="rounded-xl p-5 border"
-              style={{ backgroundColor: accentSoft, borderColor: accentMed }}
-            >
-              <h4 className="font-semibold mb-2 flex items-center gap-2">
-                <span className="text-blue-500">🔄</span> В работе
-              </h4>
-              <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                <li>Задачи перенесены на следующий месяц</li>
-                <li>Беклог требует планирования</li>
-              </ul>
-            </div>
-            <div
-              className="rounded-xl p-5 border"
-              style={{ backgroundColor: accentSoft, borderColor: accentMed }}
-            >
-              <h4 className="font-semibold mb-2 flex items-center gap-2">
-                <span className="text-purple-500">➡️</span> Следующие шаги
-              </h4>
-              <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                <li>Распределить задачи из беклога</li>
-                <li>Скорректировать план часов</li>
-              </ul>
+      {slide.type === "summary" && (() => {
+        const items = aiConclusion ?? {
+          achievements: ["Выполнен план задач на текущий период", "Успешно завершены приоритетные задачи"],
+          risks: ["Некоторые задачи перевыполнены по часам", "Необходима корректировка сроков"],
+          inProgress: ["Задачи перенесены на следующий месяц", "Беклог требует планирования"],
+          nextSteps: ["Распределить задачи из беклога", "Скорректировать план часов"],
+        };
+        const sections = [
+          { key: "achievements" as const, icon: "✅", label: "Достижения", color: "#22c55e" },
+          { key: "risks" as const, icon: "⚠️", label: "Риски", color: "#f59e0b" },
+          { key: "inProgress" as const, icon: "⚙️", label: "В процессе", color: "#3b82f6" },
+          { key: "nextSteps" as const, icon: "🎯", label: "Следующие шаги", color: "#a78bfa" },
+        ];
+        return (
+          <div className="space-y-6">
+            <h3 className="text-2xl font-bold" style={{ color: accentHex }}>
+              📝 Итоги
+            </h3>
+            {aiConclusion && (
+              <p className="text-xs px-3 py-1.5 rounded-full inline-flex items-center gap-1.5"
+                style={{ background: `${accentHex}15`, color: accentHex }}>
+                <Sparkles className="size-3" /> Данные AI анализа
+              </p>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {sections.map(sec => (
+                <div key={sec.key} className="rounded-xl p-5 border" style={{ backgroundColor: accentSoft, borderColor: accentMed }}>
+                  <h4 className="font-semibold mb-2 flex items-center gap-2">
+                    <span>{sec.icon}</span>
+                    <span style={{ color: sec.color }}>{sec.label}</span>
+                  </h4>
+                  <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                    {(items[sec.key] || []).map((item, i) => <li key={i}>{item}</li>)}
+                  </ul>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   </div>
   );
@@ -5605,160 +5803,335 @@ function SlidePreview({ slide, accentHex, presBg }: { slide: SlideData; accentHe
 /*  Build standalone HTML from slides                                  */
 /* ------------------------------------------------------------------ */
 
-function buildSlidesHTML(slides: SlideData[], presBg: PresBgSettings): string {
+function buildSlidesHTML(
+  slides: SlideData[],
+  presBg: PresBgSettings,
+  aiConclusion?: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null
+): string {
   const accentHex = String(slides[0]?.content.accent || "#5B9BD5");
   const [r, g, b] = hexToRgb(accentHex);
+  const styleId = presBg.styleId || "dark";
 
-  // Build background CSS for slides
-  const bgCSS = (() => {
-    const sz = presBg.patternSize;
-    const op = (presBg.patternOpacity / 100).toFixed(2);
-    const col = `rgba(${r},${g},${b},${op})`;
-    switch (presBg.pattern) {
-      case "grid":
-        return `.slide .bg-pat{position:absolute;inset:0;pointer-events:none;border-radius:16px;background-image:linear-gradient(${col} 1px,transparent 1px),linear-gradient(90deg,${col} 1px,transparent 1px);background-size:${sz}px ${sz}px}`;
-      case "diagonal":
-        return `.slide .bg-pat{position:absolute;inset:0;pointer-events:none;border-radius:16px;background-image:repeating-linear-gradient(45deg,transparent,transparent ${sz / 2}px,${col} ${sz / 2}px,${col} ${sz / 2 + 1}px);background-size:${sz}px ${sz}px}`;
-      case "diamond":
-        return `.slide .bg-pat{position:absolute;inset:0;pointer-events:none;border-radius:16px;background-image:repeating-linear-gradient(45deg,transparent,transparent ${sz / 2 - 1}px,${col} ${sz / 2 - 1}px,${col} ${sz / 2 + 1}px),repeating-linear-gradient(-45deg,transparent,transparent ${sz / 2 - 1}px,${col} ${sz / 2 - 1}px,${col} ${sz / 2 + 1}px);background-size:${sz}px ${sz}px}`;
-      case "waves":
-        return `.slide .bg-pat{position:absolute;inset:0;pointer-events:none;border-radius:16px;background-image:url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz / 2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz / 4} Q ${sz / 4} 0 ${sz / 2} ${sz / 4} T ${sz} ${sz / 4}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E");background-size:${sz}px ${sz / 2}px}`;
-      case "zigzag":
-        return `.slide .bg-pat{position:absolute;inset:0;pointer-events:none;border-radius:16px;background-image:url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz / 2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz / 2} ${sz / 4},0 ${sz / 2},${sz / 2} ${sz * 3 / 4},0 ${sz},${sz / 2}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E");background-size:${sz}px ${sz / 2}px`;
-      default:
-        return "";
-    }
-  })();
+  // Resolve style preset
+  const PRESETS: Record<string, { bodyBg: string; overlayBg: string; textColor: string; mutedColor: string; cardColors: string[] }> = {
+    dark:    { bodyBg:"#0d1117", overlayBg:`radial-gradient(ellipse 80% 60% at 20% 20%,rgba(${r},${g},${b},.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(${r},${g},${b},.1),transparent 60%),linear-gradient(160deg,#080d14 0%,#111827 40%,#0d1117 100%)`, textColor:"#e2e8f0", mutedColor:"rgba(148,163,184,.55)", cardColors:[`rgba(${r},${g},${b},.12)`,`rgba(${r},${g},${b},.1)`,`rgba(${r},${g},${b},.08)`] },
+    spring:  { bodyBg:"#0a1a0f", overlayBg:"radial-gradient(ellipse 80% 60% at 20% 20%,rgba(52,211,153,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(134,239,172,.12),transparent 60%),linear-gradient(160deg,#071510 0%,#0d2118 40%,#081a10 100%)", textColor:"#d1fae5", mutedColor:"rgba(167,243,208,.55)", cardColors:["rgba(4,108,78,.6)","rgba(21,128,61,.5)","rgba(63,98,18,.55)"] },
+    ocean:   { bodyBg:"#070e1a", overlayBg:"radial-gradient(ellipse 80% 60% at 20% 20%,rgba(56,189,248,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(14,165,233,.12),transparent 60%),linear-gradient(160deg,#04090f 0%,#0c1829 40%,#060d1a 100%)", textColor:"#e0f2fe", mutedColor:"rgba(186,230,253,.55)", cardColors:["rgba(7,50,90,.65)","rgba(10,70,130,.55)","rgba(5,60,110,.6)"] },
+    night:   { bodyBg:"#07050f", overlayBg:"radial-gradient(ellipse 80% 60% at 20% 20%,rgba(139,92,246,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(167,139,250,.12),transparent 60%),linear-gradient(160deg,#05030c 0%,#0f0a1e 40%,#070510 100%)", textColor:"#ede9fe", mutedColor:"rgba(221,214,254,.55)", cardColors:["rgba(50,20,90,.65)","rgba(60,30,110,.55)","rgba(40,15,80,.6)"] },
+    fire:    { bodyBg:"#120800", overlayBg:"radial-gradient(ellipse 80% 60% at 20% 20%,rgba(251,191,36,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(245,158,11,.12),transparent 60%),linear-gradient(160deg,#0d0500 0%,#1c0f00 40%,#100700 100%)", textColor:"#fef3c7", mutedColor:"rgba(253,230,138,.55)", cardColors:["rgba(90,55,5,.65)","rgba(120,70,5,.55)","rgba(75,45,5,.6)"] },
+    minimal: { bodyBg:"#f8fafc", overlayBg:"linear-gradient(160deg,#f8fafc 0%,#f1f5f9 100%)", textColor:"#1e293b", mutedColor:"rgba(100,116,139,.7)", cardColors:["rgba(241,245,249,1)","rgba(248,250,252,1)","rgba(226,232,240,1)"] },
+  };
+  const preset = PRESETS[styleId] || PRESETS.dark;
+  const isLight = styleId === "minimal";
+  const tc = preset.textColor;
+  const mc = preset.mutedColor;
+  const cc = preset.cardColors;
 
-  // Build emoji CSS and HTML for slides
+  const acA = `rgba(${r},${g},${b},1)`;
+  const acB = `rgba(${r},${g},${b},.7)`;
+  const acC = `rgba(${r},${g},${b},.15)`;
+  const acD = `rgba(${r},${g},${b},.08)`;
+  const acGrad = `linear-gradient(135deg,${acA},rgba(${r},${g},${b},.6))`;
+
+  // Status colors (functional, style-agnostic)
+  const STATUS_COLS: Record<string, string> = {
+    "Завершено":"#34d399","Выполнено":"#34d399","Тестирование":"#38bdf8","Разработка":"#fbbf24","Анализ":"#a78bfa","В работе":"#60a5fa","Отменено":"#94a3b8","Идея":"#94a3b8"
+  };
+  function sCol(s: string) { return STATUS_COLS[s] || `rgba(${r},${g},${b},0.8)`; }
+  function sBg(s: string) { const c = sCol(s); return `background:${c}1a;color:${c};border:1px solid ${c}40`; }
+
+  // Build pattern CSS for body background
+  const sz = presBg.patternSize;
+  const op = (presBg.patternOpacity / 100).toFixed(2);
+  const pcol = `rgba(${r},${g},${b},${op})`;
+  let patternBodyCSS = "";
+  switch (presBg.pattern) {
+    case "grid":
+      patternBodyCSS = `background-image:linear-gradient(${pcol} 1px,transparent 1px),linear-gradient(90deg,${pcol} 1px,transparent 1px);background-size:${sz}px ${sz}px`;
+      break;
+    case "diagonal":
+      patternBodyCSS = `background-image:repeating-linear-gradient(45deg,transparent,transparent ${sz/2}px,${pcol} ${sz/2}px,${pcol} ${sz/2+1}px);background-size:${sz}px ${sz}px`;
+      break;
+    case "diamond":
+      patternBodyCSS = `background-image:repeating-linear-gradient(45deg,transparent,transparent ${sz/2-1}px,${pcol} ${sz/2-1}px,${pcol} ${sz/2+1}px),repeating-linear-gradient(-45deg,transparent,transparent ${sz/2-1}px,${pcol} ${sz/2-1}px,${pcol} ${sz/2+1}px);background-size:${sz}px ${sz}px`;
+      break;
+    case "waves":
+      patternBodyCSS = `background-image:url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz/4} Q ${sz/4} 0 ${sz/2} ${sz/4} T ${sz} ${sz/4}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E");background-size:${sz}px ${sz/2}px`;
+      break;
+    case "zigzag":
+      patternBodyCSS = `background-image:url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz/2} ${sz/4},0 ${sz/2},${sz/2} ${sz*3/4},0 ${sz},${sz/2}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E");background-size:${sz}px ${sz/2}px`;
+      break;
+  }
+
+  // Build emoji layer HTML
+  let emojiHTML = "";
   const emojiList = presBg.emojis.split(" ").filter(Boolean);
-  const emojiLayerCSS = (() => {
-    if (emojiList.length === 0 || presBg.emojiCount === 0) return { css: "", tags: "" };
+  if (emojiList.length > 0 && presBg.emojiCount > 0) {
     let seed = 42;
-    const rand = () => {
-      seed = (seed * 16807 + 0) % 2147483647;
-      return (seed - 1) / 2147483646;
-    };
-    let css = ".slide .bg-emoji{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:16px}\n";
-    const tags: string[] = [];
+    const rand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    const spans: string[] = [];
     for (let i = 0; i < presBg.emojiCount; i++) {
-      const emoji = emojiList[Math.floor(rand() * emojiList.length)];
+      const e = emojiList[Math.floor(rand() * emojiList.length)];
       const x = (rand() * 100).toFixed(1);
       const y = (rand() * 100).toFixed(1);
-      const size = Math.round(presBg.emojiMinSize + rand() * (presBg.emojiMaxSize - presBg.emojiMinSize));
-      const opacity = (0.12 + rand() * 0.25).toFixed(2);
-      const rotate = Math.floor(rand() * 40 - 20);
-      css += `.slide .bg-emoji .e${i}{position:absolute;left:${x}%;top:${y}%;font-size:${size}px;opacity:${opacity};transform:rotate(${rotate}deg)}\n`;
-      tags.push(`<span class="e${i}">${emoji}</span>`);
+      const fs = Math.round(presBg.emojiMinSize + rand() * (presBg.emojiMaxSize - presBg.emojiMinSize));
+      const opa = (0.1 + rand() * 0.2).toFixed(2);
+      const rot = Math.floor(rand() * 40 - 20);
+      spans.push(`<span style="position:fixed;left:${x}%;top:${y}%;font-size:${fs}px;opacity:${opa};transform:rotate(${rot}deg);pointer-events:none;z-index:0;user-select:none">${e}</span>`);
     }
-    return { css, tags: tags.join("") };
-  })();
+    emojiHTML = spans.join("");
+  }
 
-  const slidesHTML = slides.map((slide) => {
+  function esc(s: string) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+  // ── SLIDE RENDERERS ──
+  function renderTitle(c: Record<string,unknown>): string {
+    const pct = Number(c.pct) || 0;
+    const circ = 2 * Math.PI * 38;
+    const dash = circ * (1 - pct / 100);
+    return `
+    <div style="position:relative;z-index:1;text-align:center;max-width:900px;margin:0 auto">
+      <div style="display:inline-flex;align-items:center;gap:10px;background:${acC};border:1px solid ${acB};color:${acA};padding:10px 32px;border-radius:28px;font-size:18px;font-weight:600;margin-bottom:36px">
+        <span style="width:10px;height:10px;border-radius:50%;background:${acA};display:inline-block;animation:pulse 2s infinite"></span>
+        ${esc(String(c.month || ""))}
+      </div>
+      <h1 style="font-size:clamp(44px,6vw,72px);font-weight:900;line-height:1.1;letter-spacing:-2px;margin-bottom:24px;background:linear-gradient(135deg,${tc} 10%,${acA} 55%);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Отчёт по задачам</h1>
+      <div style="width:100px;height:4px;background:${acGrad};border-radius:2px;margin:0 auto 36px"></div>
+      <div style="display:flex;gap:40px;justify-content:center;align-items:center;flex-wrap:wrap">
+        <div style="text-align:center"><p style="font-size:56px;font-weight:900;color:${acA};line-height:1">${c.total}</p><p style="font-size:15px;color:${mc};margin-top:4px">Всего задач</p></div>
+        <div style="text-align:center"><p style="font-size:56px;font-weight:900;color:#34d399;line-height:1">${c.completed}</p><p style="font-size:15px;color:${mc};margin-top:4px">Завершено</p></div>
+        <div style="position:relative;width:96px;height:96px;display:flex;align-items:center;justify-content:center">
+          <svg width="96" height="96" style="transform:rotate(-90deg);position:absolute">
+            <circle cx="48" cy="48" r="38" fill="none" stroke="rgba(${r},${g},${b},.15)" stroke-width="7"/>
+            <circle cx="48" cy="48" r="38" fill="none" stroke="${acA}" stroke-width="7" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${dash.toFixed(1)}" stroke-linecap="round"/>
+          </svg>
+          <span style="font-size:22px;font-weight:900;color:${acA}">${pct}%</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function renderKpi(c: Record<string,unknown>): string {
+    const kpis = [
+      { i:"📋", l:"Всего задач",   v:String(c.total),    col:acA },
+      { i:"✅", l:"Завершено",     v:String(c.completed), col:"#34d399" },
+      { i:"📝", l:"План, часов",   v:String(c.planH)+"ч", col:acA },
+      { i:"⏱",  l:"Факт, часов",  v:String(c.factH)+"ч", col: Number(String(c.factH)) > Number(String(c.planH)) ? "#fb7185" : "#4ade80" },
+    ];
+    const cards = kpis.map((k,i) => `
+      <div style="border-radius:24px;padding:36px 28px;background:${cc[i%cc.length]};border:1px solid rgba(255,255,255,.08);position:relative;overflow:hidden">
+        <div style="position:absolute;width:120px;height:120px;border-radius:50%;top:-30px;right:-30px;background:${k.col};filter:blur(50px);opacity:.3"></div>
+        <div style="font-size:40px;margin-bottom:16px">${k.i}</div>
+        <p style="font-size:52px;font-weight:900;letter-spacing:-2px;color:${k.col};line-height:1">${k.v}</p>
+        <p style="font-size:16px;color:${mc};margin-top:10px">${k.l}</p>
+      </div>`).join("");
+    return `
+    <div style="position:relative;z-index:1;width:100%;max-width:1100px">
+      <h2 style="font-size:40px;font-weight:800;margin-bottom:36px;text-align:center"><em style="font-style:normal;background:linear-gradient(135deg,${tc},${acA});-webkit-background-clip:text;-webkit-text-fill-color:transparent">Ключевые показатели</em></h2>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px">${cards}</div>
+    </div>`;
+  }
+
+  function renderStatuses(c: Record<string,unknown>): string {
+    const sc = (c.statusCounts || {}) as Record<string,number>;
+    const entries = Object.entries(sc).sort((a,b) => b[1]-a[1]);
+    const maxV = Math.max(...entries.map(e=>e[1]),1);
+    const statusCardColors: Record<string,string> = {
+      "Завершено":"rgba(4,78,59,.6)","Выполнено":"rgba(4,78,59,.6)",
+      "Тестирование":"rgba(7,50,90,.6)","Разработка":"rgba(80,55,5,.6)",
+      "Анализ":"rgba(50,20,90,.6)","В работе":"rgba(30,50,120,.6)"
+    };
+    const stCards = entries.map(([s,cnt]) => {
+      const col = sCol(s);
+      const bg = statusCardColors[s] || cc[0];
+      return `
+      <div style="flex:1;border-radius:24px;padding:32px 20px;text-align:center;border:1px solid rgba(255,255,255,.07);background:${bg};position:relative;overflow:hidden">
+        <div style="position:absolute;width:100px;height:100px;border-radius:50%;bottom:-30px;right:-20px;background:${col};filter:blur(45px);opacity:.4"></div>
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;border-radius:24px 24px 0 0;background:${col}"></div>
+        <p style="font-size:60px;font-weight:900;letter-spacing:-2px;color:${col}">${cnt}</p>
+        <p style="font-size:15px;color:${mc};margin-top:8px;font-weight:600">${esc(s)}</p>
+        <div style="margin-top:16px;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden">
+          <div style="height:100%;border-radius:3px;background:${col};width:${Math.round(cnt/maxV*100)}%"></div>
+        </div>
+      </div>`;
+    }).join("");
+    return `
+    <div style="position:relative;z-index:1;width:100%;max-width:1200px">
+      <h2 style="font-size:40px;font-weight:800;margin-bottom:36px;text-align:center"><em style="font-style:normal;background:linear-gradient(135deg,${tc},${acA});-webkit-background-clip:text;-webkit-text-fill-color:transparent">Статусы задач</em></h2>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">${stCards}</div>
+    </div>`;
+  }
+
+  function renderTaskCards(tasks: Task[], title: string): string {
+    const cards = tasks.slice(0,9).map(t => {
+      const col = sCol(t.status);
+      const bg = cc[0];
+      const planN = Number(t.planH) || 0;
+      const factN = Number(t.factH) || 0;
+      const fCol = planN > 0 ? (factN > planN ? "#fb7185" : "#4ade80") : `rgba(${r},${g},${b},.6)`;
+      return `
+      <div style="border-radius:20px;padding:20px 22px;border:1px solid rgba(255,255,255,.07);background:${bg};display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:${col}"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span style="font-size:13px;color:${mc};font-weight:600">#${esc(t.num||"")}</span>
+          <span style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:10px;${sBg(t.status)}">${esc(t.status)}</span>
+        </div>
+        <p style="font-size:16px;color:${tc};font-weight:500;line-height:1.4">${esc(t.name||"")}</p>
+        <div style="display:flex;gap:20px">
+          <div><p style="font-size:22px;font-weight:800;color:${mc}">${t.planH||"—"}</p><p style="font-size:10px;color:${mc};text-transform:uppercase;letter-spacing:.6px">план</p></div>
+          <div><p style="font-size:22px;font-weight:800;color:${fCol}">${t.factH||"—"}</p><p style="font-size:10px;color:${mc};text-transform:uppercase;letter-spacing:.6px">факт</p></div>
+        </div>
+      </div>`;
+    }).join("");
+    return `
+    <div style="position:relative;z-index:1;width:100%;max-width:1260px">
+      <h2 style="font-size:40px;font-weight:800;margin-bottom:28px;text-align:center"><em style="font-style:normal;background:linear-gradient(135deg,${tc},${acA});-webkit-background-clip:text;-webkit-text-fill-color:transparent">${esc(title)}</em></h2>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">${cards}</div>
+    </div>`;
+  }
+
+  function renderTable(tasks: Task[]): string {
+    const rows = tasks.slice(0,15).map((t,i) => {
+      const planN = Number(t.planH)||0;
+      const factN = Number(t.factH)||0;
+      const fCol = planN>0 ? (factN>planN ? "#fb7185" : "#4ade80") : tc;
+      return `<tr style="background:${i%2===0?`rgba(${r},${g},${b},.04)`:"transparent"}">
+        <td style="padding:11px 16px;color:${mc};font-size:13px">${esc(t.num||"")}</td>
+        <td style="padding:11px 16px;color:${tc};max-width:260px">${esc(t.name||"")}</td>
+        <td style="padding:11px 16px;text-align:center;color:${mc}">${esc(String(t.planH||"—"))}</td>
+        <td style="padding:11px 16px;text-align:center;font-weight:700;color:${fCol}">${esc(String(t.factH||"—"))}</td>
+        <td style="padding:11px 16px"><span style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:10px;${sBg(t.status)}">${esc(t.status)}</span></td>
+      </tr>`;
+    }).join("");
+    return `
+    <div style="position:relative;z-index:1;width:100%;max-width:1260px">
+      <h2 style="font-size:40px;font-weight:800;margin-bottom:28px;text-align:center"><em style="font-style:normal;background:linear-gradient(135deg,${tc},${acA});-webkit-background-clip:text;-webkit-text-fill-color:transparent">Полный список задач</em></h2>
+      <div style="overflow:hidden;border-radius:20px;border:1px solid rgba(255,255,255,.07)">
+        <table style="width:100%;border-collapse:collapse;font-size:15px">
+          <thead><tr style="background:rgba(${r},${g},${b},.1)">
+            <th style="padding:13px 16px;text-align:left;color:${mc};font-size:12px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid rgba(${r},${g},${b},.12)">№</th>
+            <th style="padding:13px 16px;text-align:left;color:${mc};font-size:12px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid rgba(${r},${g},${b},.12)">Наименование</th>
+            <th style="padding:13px 16px;text-align:center;color:${mc};font-size:12px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid rgba(${r},${g},${b},.12)">План ч</th>
+            <th style="padding:13px 16px;text-align:center;color:${mc};font-size:12px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid rgba(${r},${g},${b},.12)">Факт ч</th>
+            <th style="padding:13px 16px;text-align:left;color:${mc};font-size:12px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid rgba(${r},${g},${b},.12)">Статус</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  function renderSummary(): string {
+    const con = aiConclusion ?? {
+      achievements:["Задачи выполнены в рамках плана","Приоритетные задачи закрыты"],
+      risks:["Перерасход часов по ряду задач","Требуется корректировка сроков"],
+      inProgress:["Задачи перенесены на следующий период","Беклог требует планирования"],
+      nextSteps:["Распределить задачи из беклога","Согласовать план на следующий месяц"],
+    };
+    const sections = [
+      { key:"achievements" as const, icon:"✅", label:"Достижения", col:"#34d399", bg:"rgba(4,78,59,.55)", border:"rgba(52,211,153,.2)", bullet:"#34d399" },
+      { key:"risks"        as const, icon:"⚠️", label:"Риски",      col:"#fb7185", bg:"rgba(120,10,40,.55)", border:"rgba(251,113,133,.2)", bullet:"#fb7185" },
+      { key:"inProgress"   as const, icon:"⚙️", label:"В процессе", col:"#fbbf24", bg:"rgba(80,55,5,.55)", border:"rgba(251,191,36,.2)", bullet:"#fbbf24" },
+      { key:"nextSteps"    as const, icon:"🎯", label:"Следующие шаги", col:"#a78bfa", bg:"rgba(50,20,90,.55)", border:"rgba(167,139,250,.2)", bullet:"#a78bfa" },
+    ];
+    const cards = sections.map(s => `
+      <div style="border-radius:22px;padding:28px 26px;background:${s.bg};border:1px solid ${s.border};position:relative;overflow:hidden">
+        <h4 style="font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:${s.col};margin-bottom:16px;display:flex;align-items:center;gap:8px">${s.icon} ${s.label}</h4>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:10px">
+          ${con[s.key].map(item => `<li style="font-size:15px;color:rgba(255,255,255,.82);padding-left:18px;position:relative;line-height:1.5"><span style="position:absolute;left:0;top:8px;width:7px;height:7px;border-radius:50%;background:${s.bullet};box-shadow:0 0 6px ${s.bullet};display:inline-block"></span>${esc(item)}</li>`).join("")}
+        </ul>
+      </div>`).join("");
+    return `
+    <div style="position:relative;z-index:1;width:100%;max-width:1200px">
+      <h2 style="font-size:40px;font-weight:800;margin-bottom:36px;text-align:center"><em style="font-style:normal;background:linear-gradient(135deg,${tc},${acA});-webkit-background-clip:text;-webkit-text-fill-color:transparent">Итоги и рекомендации</em></h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">${cards}</div>
+    </div>`;
+  }
+
+  // Render all slides
+  const slidesHTML = slides.map((slide, idx) => {
     const c = slide.content;
-    const accentSoft = `rgba(${r},${g},${b},0.08)`;
-    const accentMed = `rgba(${r},${g},${b},0.15)`;
-
     let inner = "";
-    if (slide.type === "title") {
-      const pct = Number(c.pct) || 0;
-      const circ = 2 * Math.PI * 34;
-      inner = `
-        <div class="slide-inner">
-          <div class="icon-box">📊</div>
-          <h2 style="color:${accentHex}">${c.month}</h2>
-          <p class="subtitle">Отчёт по задачам</p>
-          <div class="stats">
-            <div><p class="num" style="color:${accentHex}">${c.total}</p><p>Всего задач</p></div>
-            <div><p class="num" style="color:#30ab50">${c.completed}</p><p>Завершено</p></div>
-            <div class="circle-wrap">
-              <svg width="80" height="80" class="rot"><circle cx="40" cy="40" r="34" fill="none" stroke="#e0e0e0" stroke-width="6"/><circle cx="40" cy="40" r="34" fill="none" stroke="${accentHex}" stroke-width="6" stroke-dasharray="${circ}" stroke-dashoffset="${circ * (1 - pct / 100)}" stroke-linecap="round"/></svg>
-              <span class="pct" style="color:${accentHex}">${pct}%</span>
-            </div>
-          </div>
-        </div>`;
-    } else if (slide.type === "summary") {
-      inner = `
-        <div class="slide-inner summary">
-          <h3 style="color:${accentHex}">📝 Итоги</h3>
-          <div class="grid2">
-            <div class="card"><h4>✅ Достижения</h4><ul><li>Выполнен план задач</li></ul></div>
-            <div class="card"><h4>⚠️ Риски</h4><ul><li>Перерасход по часам</li></ul></div>
-            <div class="card"><h4>🔄 В работе</h4><ul><li>Задачи перенесены</li></ul></div>
-            <div class="card"><h4>➡️ Следующие шаги</h4><ul><li>Планирование беклога</li></ul></div>
-          </div>
-        </div>`;
-    } else if (slide.type === "kpi") {
-      const kpis = [
-        { l: "Всего задач", v: c.total, i: "📋" },
-        { l: "Завершено", v: c.completed, i: "✅" },
-        { l: "План, часов", v: c.planH, i: "📝" },
-        { l: "Факт, часов", v: c.factH, i: "⏱" },
-      ];
-      inner = `<div class="slide-inner"><h3 style="color:${accentHex}">Ключевые показатели</h3><div class="kpi-grid">${kpis.map(k => `<div class="kpi-card"><span class="kpi-icon">${k.i}</span><p class="kpi-label">${k.l}</p><p class="kpi-val" style="color:${accentHex}">${k.v}</p></div>`).join("")}</div></div>`;
-    } else if (slide.type === "table") {
-      const tasks = (c.tasks as Task[] || []).slice(0, 15);
-      inner = `<div class="slide-inner"><h3 style="color:${accentHex}">📋 Полный список</h3><table class="s-table"><thead><tr style="background:${accentHex}"><th>#</th><th>Наименование</th><th>План</th><th>Факт</th><th>Приоритет</th><th>Статус</th></tr></thead><tbody>${tasks.map((t, i) => `<tr style="background:${i % 2 ? accentSoft : "transparent"}"><td>${i + 1}</td><td>${t.name || "—"}</td><td>${t.planH || "—"}</td><td>${t.factH || "—"}</td><td style="color:${PCOL[t.priority] || "#888"}">${t.priority}</td><td style="color:${SCOL[t.status] || "#888"}">${t.status}</td></tr>`).join("")}</tbody></table></div>`;
-    } else if (slide.type === "statuses") {
-      const statusCounts = c.statusCounts as Record<string, number> || {};
-      const maxVal = Math.max(...Object.values(statusCounts), 1);
-      const rows = Object.entries(statusCounts).map(([status, count]) => {
-        const pct = Math.round((count / maxVal) * 100);
-        return `<div class="status-row"><span class="status-name">${status}</span><div class="status-bar-bg"><div class="status-bar" style="width:${pct}%;background:${accentHex}"></div></div><span class="status-count">${count}</span></div>`;
-      }).join("");
-      inner = `<div class="slide-inner"><h3 style="color:${accentHex}">📊 Статусы</h3><div class="status-list">${rows}</div></div>`;
-    } else if (slide.type === "completed" || slide.type === "inprogress") {
-      const tasks = (c.tasks as Task[] || []).slice(0, 10);
-      const title = slide.type === "completed" ? "✅ Завершённые задачи" : "🔄 Задачи в работе";
-      inner = `<div class="slide-inner"><h3 style="color:${accentHex}">${title}</h3><table class="s-table"><thead><tr style="background:${accentHex}"><th>#</th><th>Наименование</th><th>Приоритет</th></tr></thead><tbody>${tasks.map((t, i) => `<tr style="background:${i % 2 ? accentSoft : "transparent"}"><td>${i + 1}</td><td>${t.name || "—"}</td><td style="color:${PCOL[t.priority] || "#888"}">${t.priority}</td></tr>`).join("")}</tbody></table></div>`;
-    } else {
-      inner = `<div class="slide-inner"><h3 style="color:${accentHex}">${slide.type}</h3><p>Slide content</p></div>`;
-    }
+    if (slide.type === "title")      inner = renderTitle(c);
+    else if (slide.type === "kpi")   inner = renderKpi(c);
+    else if (slide.type === "statuses") inner = renderStatuses(c);
+    else if (slide.type === "completed") inner = renderTaskCards(c.tasks as Task[], "Завершённые задачи");
+    else if (slide.type === "inprogress") inner = renderTaskCards(c.tasks as Task[], "Задачи в работе");
+    else if (slide.type === "table") inner = renderTable((c.rows || c.tasks) as Task[]);
+    else if (slide.type === "summary") inner = renderSummary();
+    return `<div class="slide${idx===0?" active":""}" data-idx="${idx}">${inner}</div>`;
+  }).join("\n");
 
-    return `<div class="slide">${bgCSS ? '<div class="bg-pat"></div>' : ''}${emojiLayerCSS.tags ? `<div class="bg-emoji">${emojiLayerCSS.tags}</div>` : ''}${inner}</div>`;
-  }).join("");
+  const dotsHTML = slides.map((_,i) => `<button class="dot${i===0?" active":""}" data-idx="${i}"></button>`).join("");
 
-  return `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Презентация</title><style>
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Презентация</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8f9fa;color:#1a1a2e}
-.slide{width:960px;min-height:540px;margin:40px auto;padding:48px;border-radius:16px;border:1px solid rgba(${r},${g},${b},0.15);background:linear-gradient(135deg,rgba(${r},${g},${b},0.04),rgba(${r},${g},${b},0.01));box-shadow:0 4px 24px rgba(0,0,0,0.06)}
-.slide-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:440px}
-h2{font-size:2.5rem;font-weight:800;margin-bottom:4px}
-h3{font-size:1.5rem;font-weight:700;margin-bottom:24px}
-.subtitle{font-size:1rem;color:#888;margin-bottom:32px}
-.stats{display:flex;gap:32px}
-.stats>div{text-align:center}
-.num{font-size:2rem;font-weight:800}
-.stats p:last-child{font-size:0.85rem;color:#888}
-.icon-box{width:64px;height:64px;border-radius:16px;background:rgba(${r},${g},${b},0.08);display:flex;align-items:center;justify-content:center;font-size:2rem;margin-bottom:24px}
-.circle-wrap{position:relative;display:flex;align-items:center;justify-content:center}
-.rot{transform:rotate(-90deg)}
-.pct{position:absolute;font-size:1.1rem;font-weight:700}
-.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%}
-.kpi-card{padding:20px;border-radius:12px;border:1px solid rgba(${r},${g},${b},0.15);background:rgba(${r},${g},${b},0.08)}
-.kpi-icon{font-size:1.5rem}
-.kpi-label{font-size:0.85rem;color:#888;margin-top:8px}
-.kpi-val{font-size:1.8rem;font-weight:800;margin-top:4px}
-.s-table{width:100%;border-collapse:collapse;font-size:0.85rem}
-.s-table th{padding:8px 12px;text-align:left;color:#fff;font-weight:600}
-.s-table td{padding:8px 12px}
-.card{padding:20px;border-radius:12px;border:1px solid rgba(${r},${g},${b},0.15);background:rgba(${r},${g},${b},0.08)}
-.card h4{margin-bottom:8px}
-.card ul{padding-left:20px;color:#888;font-size:0.9rem}
-.card li{margin-bottom:4px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%}
-.status-list{width:100%;max-width:600px}
-.status-row{display:flex;align-items:center;gap:12px;margin-bottom:8px}
-.status-name{min-width:120px;font-size:0.9rem}
-.status-bar-bg{flex:1;height:20px;background:rgba(0,0,0,0.06);border-radius:4px;overflow:hidden}
-.status-bar{height:100%;border-radius:4px}
-.status-count{min-width:30px;font-size:0.9rem;font-weight:600;text-align:right}
-.summary .slide-inner{justify-content:flex-start;align-items:flex-start}
-.slide-inner{position:relative;z-index:1}
-${bgCSS}
-${emojiLayerCSS.css}
-@media print{.slide{box-shadow:none;border:1px solid #ddd;margin:0;page-break-after:always}}
-</style></head><body>${slidesHTML}</body></html>`;
+body{font-family:'Inter',system-ui,sans-serif;background:${preset.bodyBg};color:${tc};height:100vh;overflow:hidden}
+.bg-overlay{position:fixed;inset:0;z-index:0;pointer-events:none;background:${preset.overlayBg}}
+.bg-pattern{position:fixed;inset:0;z-index:0;pointer-events:none;${patternBodyCSS}}
+.deck{width:100%;height:100vh;position:relative;z-index:1}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:56px 80px 100px;opacity:0;transform:translateX(60px) scale(.98);transition:all .55s cubic-bezier(.4,0,.2,1);pointer-events:none}
+.slide.active{opacity:1;transform:none;pointer-events:all}
+.slide.prev{opacity:0;transform:translateX(-60px) scale(.98)}
+.nav{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;z-index:100;background:rgba(${r},${g},${b},.08);border:1px solid rgba(${r},${g},${b},.25);backdrop-filter:blur(20px);border-radius:40px;padding:10px 24px}
+.nav button.arrow{background:none;border:none;color:rgba(${r},${g},${b},.7);cursor:pointer;font-size:20px;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:.2s}
+.nav button.arrow:hover{background:rgba(${r},${g},${b},.15);color:${acA}}
+.dots{display:flex;gap:6px;align-items:center}
+.dot{width:8px;height:8px;border-radius:4px;border:none;background:rgba(${r},${g},${b},.2);cursor:pointer;transition:all .3s}
+.dot.active{width:28px;background:${acGrad}}
+.counter{font-size:14px;color:rgba(${r},${g},${b},.4);min-width:44px;text-align:center}
+em{font-style:normal}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.6)}}
+@keyframes shimmer{0%{background-position:0%}100%{background-position:200%}}
+</style>
+</head>
+<body>
+<div class="bg-overlay"></div>
+${patternBodyCSS ? '<div class="bg-pattern"></div>' : ''}
+${emojiHTML}
+<div class="deck">
+${slidesHTML}
+</div>
+<div class="nav">
+  <button class="arrow" id="prevBtn">&#8592;</button>
+  <div class="dots" id="dots">${dotsHTML}</div>
+  <span class="counter" id="counter">1 / ${slides.length}</span>
+  <button class="arrow" id="nextBtn">&#8594;</button>
+</div>
+<script>
+const slides=document.querySelectorAll('.slide');
+const dots=document.querySelectorAll('.dot');
+const counter=document.getElementById('counter');
+let cur=0;
+function goTo(n){
+  slides[cur].classList.remove('active');
+  slides[cur].classList.add('prev');
+  setTimeout(()=>slides[cur].classList.remove('prev'),500);
+  cur=(n+slides.length)%slides.length;
+  slides[cur].classList.add('active');
+  dots.forEach((d,i)=>d.classList.toggle('active',i===cur));
+  counter.textContent=(cur+1)+' / '+slides.length;
+}
+document.getElementById('prevBtn').onclick=()=>goTo(cur-1);
+document.getElementById('nextBtn').onclick=()=>goTo(cur+1);
+dots.forEach(d=>d.onclick=()=>goTo(Number(d.dataset.idx)));
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' ')goTo(cur+1);
+  if(e.key==='ArrowLeft')goTo(cur-1);
+});
+counter.textContent='1 / '+slides.length;
+</script>
+</body>
+</html>`;
 }
 
 /* ================================================================ */
@@ -6081,9 +6454,10 @@ ${ctx}
               <Select value={chatModel} onValueChange={setChatModel}>
                 <SelectTrigger className="h-9 flex-1 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="gemini-2.0-flash">gemini-2.0-flash (быстрая)</SelectItem>
-                  <SelectItem value="gemini-2.5-flash-preview-05-20">gemini-2.5-flash (умная)</SelectItem>
-                  <SelectItem value="gemini-2.5-pro-preview-05-06">gemini-2.5-pro (лучшая)</SelectItem>
+                  <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                  <SelectItem value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</SelectItem>
+                  <SelectItem value="gemini-3-flash-preview">Gemini 3 Flash</SelectItem>
+                  <SelectItem value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -6155,9 +6529,10 @@ ${ctx}
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="gemini-2.0-flash" className="text-xs">Flash 2.0</SelectItem>
-              <SelectItem value="gemini-2.5-flash-preview-05-20" className="text-xs">Flash 2.5</SelectItem>
-              <SelectItem value="gemini-2.5-pro-preview-05-06" className="text-xs">Pro 2.5</SelectItem>
+              <SelectItem value="gemini-2.5-flash" className="text-xs">2.5 Flash</SelectItem>
+              <SelectItem value="gemini-2.5-flash-lite" className="text-xs">2.5 Flash Lite</SelectItem>
+              <SelectItem value="gemini-3-flash-preview" className="text-xs">3 Flash</SelectItem>
+              <SelectItem value="gemini-3.1-flash-lite-preview" className="text-xs">3.1 Flash Lite</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" className="h-7 gap-1 text-xs px-2" onClick={() => setApiKeyDialogOpen(true)}>
