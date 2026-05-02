@@ -1208,6 +1208,12 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     inProgress: string[];
     nextSteps: string[];
   } | null>(null);
+  const [aiDraft, setAiDraft] = useState<{
+    achievements: string[];
+    risks: string[];
+    inProgress: string[];
+    nextSteps: string[];
+  } | null>(null);
   const [aiConclusionBusy, setAiConclusionBusy] = useState(false);
 
   // Drag overlay
@@ -1937,8 +1943,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       if (data.error) throw new Error(data.error);
       const text = (data.text || "").replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(text);
-      setAiConclusion(parsed);
-      toast({ title: "✨ AI анализ готов", description: "Выводы добавлены в слайд «Итоги». Можно редактировать." });
+      // Route to draft buffer — user must approve before injecting into slides
+      setAiDraft(parsed);
+      toast({ title: "✨ AI черновик готов", description: "Проверьте тезисы и нажмите «Применить в презентацию»" });
     } catch (err) {
       toast({ title: "Ошибка AI анализа", description: err instanceof Error ? err.message : "Неизвестная ошибка", variant: "destructive" });
     } finally {
@@ -1947,6 +1954,21 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   }, [allData, currentMonth, apiKeyRef, chatModel, setApiKeyDialogOpen, toast]);
 
   /* ---- Transfer ---- */
+  const handleApproveDraft = useCallback(() => {
+    if (!aiDraft) return;
+    setAiConclusion(aiDraft);
+    setAiDraft(null);
+    toast({ title: "✅ AI анализ применён", description: "Тезисы добавлены в слайд «Итоги»" });
+  }, [aiDraft, toast]);
+
+  const handleDiscardDraft = useCallback(() => {
+    setAiDraft(null);
+  }, []);
+
+  const handleRemoveConclusion = useCallback(() => {
+    setAiConclusion(null);
+  }, []);
+
   const handleTransfer = useCallback(() => {
     if (transferTarget < 0 || transferTarget === currentMonth) return;
     const count = storeTransferIncomplete(currentMonth, transferTarget);
@@ -2442,7 +2464,12 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             hasData={(allData[currentMonth] || []).some((r) => r.name || r.num)}
             onAiAnalysis={handleAiAnalysis}
             aiAnalysisBusy={aiConclusionBusy}
+            aiDraft={aiDraft}
             aiConclusion={aiConclusion}
+            onSetAiDraft={setAiDraft}
+            onApproveDraft={handleApproveDraft}
+            onDiscardDraft={handleDiscardDraft}
+            onRemoveConclusion={handleRemoveConclusion}
             onSetAiConclusion={setAiConclusion}
           />
         )}
@@ -4348,6 +4375,10 @@ function BacklogView({
 /*  DASHBOARD VIEW                                                   */
 /* ================================================================ */
 
+/* ================================================================ */
+/*  DASHBOARD VIEW — REDESIGNED                                      */
+/* ================================================================ */
+
 interface DashboardViewProps {
   data: {
     total: number;
@@ -4370,226 +4401,219 @@ interface DashboardViewProps {
   isDark: boolean;
 }
 
-/* Mini SVG sparkline */
-function Sparkline({ values, color, height = 36, fill = false }: {
-  values: number[];
-  color: string;
-  height?: number;
-  fill?: boolean;
-}) {
-  if (!values.length) return null;
-  const max = Math.max(...values, 1);
-  const w = 160, h = height;
-  const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * w;
-    const y = h - (v / max) * (h - 4);
-    return [x, y] as [number, number];
-  });
-  const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
-  const fillPath = `${linePath} L${w},${h} L0,${h} Z`;
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full overflow-visible" style={{ height }}>
-      {fill && <path d={fillPath} fill={color} opacity={0.12} />}
-      <path d={linePath} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-      {/* Current month dot */}
-      <circle
-        cx={pts[pts.length - 1][0]}
-        cy={pts[pts.length - 1][1]}
-        r={3.5}
-        fill={color}
-        stroke="white"
-        strokeWidth={1.5}
-      />
-    </svg>
-  );
-}
-
 /* Radial progress ring */
-function RadialProgress({ pct, size = 72, stroke = 6, color }: { pct: number; size?: number; stroke?: number; color: string }) {
-  const r = (size - stroke) / 2;
-  const circ = 2 * Math.PI * r;
+function RadialProgress({ pct, size = 44, stroke = 4, color }: { pct: number; size?: number; stroke?: number; color: string }) {
+  const r2 = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r2;
   const dash = Math.min(pct / 100, 1) * circ;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-muted/40" />
-      <circle
-        cx={size/2} cy={size/2} r={r} fill="none"
-        stroke={color} strokeWidth={stroke}
-        strokeDasharray={`${dash.toFixed(1)} ${circ.toFixed(1)}`}
-        strokeLinecap="round"
-        style={{ transition: "stroke-dasharray 0.6s ease" }}
-      />
+      <circle cx={size/2} cy={size/2} r={r2} fill="none" stroke={color + "22"} strokeWidth={stroke} />
+      <circle cx={size/2} cy={size/2} r={r2} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={`${dash.toFixed(1)} ${circ.toFixed(1)}`} strokeLinecap="round"
+        style={{ transition: "stroke-dasharray 0.7s ease" }} />
     </svg>
   );
 }
 
-/* Horizontal segmented status bar */
+/* Single horizontal status bar */
 function StatusBar({ statusCounts, total }: { statusCounts: Record<string, number>; total: number }) {
-  if (total === 0) return <div className="h-3 rounded-full bg-muted/40" />;
-  const ordered = Object.values(STATUSES).filter(s => statusCounts[s] > 0);
+  if (total === 0) return <div className="h-2 rounded-full" style={{ background: "var(--tracker-border)" }} />;
+  const ordered = Object.values(STATUSES).filter(s => (statusCounts[s] || 0) > 0);
   return (
-    <div className="flex h-3 w-full overflow-hidden rounded-full gap-px">
+    <div className="flex h-2 w-full overflow-hidden rounded-full gap-px">
       {ordered.map(s => {
         const pct = ((statusCounts[s] || 0) / total) * 100;
         return (
-          <div
-            key={s}
-            title={`${s}: ${statusCounts[s]}`}
-            className="h-full transition-all duration-500"
-            style={{ width: `${pct}%`, background: SCOL[s] || "#ccc", minWidth: pct > 0 ? "3px" : undefined }}
-          />
+          <div key={s} title={`${s}: ${statusCounts[s]}`} className="h-full transition-all duration-500"
+            style={{ width: `${pct}%`, background: SCOL[s] || "#ccc", minWidth: pct > 0 ? "3px" : undefined }} />
         );
       })}
     </div>
   );
 }
 
-function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, backlogCount, isDark }: DashboardViewProps) {
+/* Delta badge */
+function DeltaBadge({ pct }: { pct: number }) {
+  const good = pct >= 80;
+  const warn = pct >= 50 && pct < 80;
+  const color = good ? "#0F6E56" : warn ? "#854F0B" : "#A32D2D";
+  const bg    = good ? "#E1F5EE"  : warn ? "#FAEEDA"  : "#FCEBEB";
+  return (
+    <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full tabular-nums"
+      style={{ background: bg, color }}>
+      {pct}%
+    </span>
+  );
+}
+
+/* Inline sparkline — pure SVG, no deps */
+function MiniSparkline({ values, color, height = 40 }: { values: number[]; color: string; height?: number }) {
+  const nonZero = values.filter(v => v > 0);
+  if (!nonZero.length) return null;
+  const max = Math.max(...values, 1);
+  const W = 200, H = height;
+  const pts = values.map((v, i) => [
+    (i / Math.max(values.length - 1, 1)) * W,
+    H - (v / max) * (H - 6),
+  ] as [number, number]);
+  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  const area = `${line} L${W},${H} L0,${H} Z`;
+  const last = pts[pts.length - 1];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height, overflow: "visible" }}>
+      <path d={area} fill={color} opacity={0.1} />
+      <path d={line} fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={last[0]} cy={last[1]} r={3.5} fill={color} stroke="white" strokeWidth={1.5} />
+    </svg>
+  );
+}
+
+function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, backlogCount }: DashboardViewProps) {
   const budget = evalExpr(monthBudget);
   const budgetH = isNaN(budget) || budget <= 0 ? 0 : budget;
   const completionRate = data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0;
   const planExec = data.planH > 0 ? Math.round((data.factH / data.planH) * 100) : 0;
   const budgetUsed = budgetH > 0 ? Math.round((data.factH / budgetH) * 100) : 0;
   const isOverBudget = budgetUsed > 100;
+  const budgetFree = budgetH > 0 ? R2(budgetH - data.factH) : 0;
 
-  /* Accent from CSS var */
-  const accent = "var(--tracker-accent)";
   const accentDark = "var(--tracker-accent-fg-dark)";
-
-  /* Priority order */
-  const priorityOrder = Object.values(PRIORITIES);
-
   const monthName = MONTHS[currentMonth];
+  const yearTotalFact = R2(data.monthlyFact.reduce((a, b) => a + b, 0));
+  const yearPeakFact  = R2(Math.max(...data.monthlyFact));
+
+  const completionColor = completionRate >= 80 ? "#1D9E75" : completionRate >= 50 ? "#BA7517" : "#E24B4A";
+  const planColor = planExec > 110 ? "#E24B4A" : planExec >= 90 ? "#1D9E75" : "var(--tracker-accent)";
+  const budgetColor = isOverBudget ? "#E24B4A" : budgetUsed >= 85 ? "#BA7517" : "#1D9E75";
+
+  const MONTHS_SHORT = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
 
-      {/* ── Row 1: Month summary header ────────────────────────────── */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* ── HEADER ── */}
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold tracking-tight" style={{ color: accentDark }}>
-            {monthName}
-          </h2>
-          <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>
-            {data.total} задач · {data.completed} завершено · {data.atRisk.length} в риске
+          <h2 className="text-xl font-semibold tracking-tight" style={{ color: accentDark }}>{monthName}</h2>
+          <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>
+            {data.total} задач · {data.completed} завершено
+            {data.atRisk.length > 0 && (
+              <> · <span style={{ color: "#E24B4A", fontWeight: 600 }}>⚠ {data.atRisk.length} в риске</span></>
+            )}
           </p>
         </div>
-        {/* Budget input */}
-        <div className="flex items-center gap-2 text-sm">
-          <span style={{ color: "var(--tracker-text-muted)" }} className="text-xs whitespace-nowrap">Бюджет ч/мес:</span>
-          <input
-            className="w-24 h-8 text-sm text-center rounded-lg border px-2 bg-transparent outline-none focus:ring-2"
-            style={{
-              borderColor: "var(--tracker-border)",
-              color: "var(--tracker-text-main)",
-              boxShadow: undefined,
-            }}
-            value={monthBudget}
-            onChange={e => onBudgetChange(e.target.value)}
+        <div className="flex items-center gap-2.5">
+          <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Бюджет ч/мес:</label>
+          <input type="text" value={monthBudget} onChange={e => onBudgetChange(e.target.value)}
             placeholder="160"
-          />
+            className="h-8 w-20 text-center text-sm rounded-lg border bg-transparent outline-none"
+            style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }} />
           {budgetH > 0 && (
-            <span className="text-xs font-medium whitespace-nowrap" style={{ color: accentDark }}>
-              = {fmt2(budgetH)} ч
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full"
+              style={{ background: "var(--tracker-accent-bg)", color: accentDark }}>
+              {fmt2(budgetH)} ч
             </span>
           )}
         </div>
       </div>
 
-      {/* ── Row 2: KPI cards ───────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* ── ALERT BANNER ── */}
+      {data.atRisk.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm"
+          style={{ background: "rgba(226,75,74,0.07)", border: "1px solid rgba(226,75,74,0.2)", color: "#A32D2D" }}>
+          <span className="text-base shrink-0">⚠</span>
+          <span className="flex-1 text-xs">
+            {data.atRisk.length} {data.atRisk.length === 1 ? "задача превышает" : "задачи превышают"} плановые часы
+          </span>
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+            style={{ background: "#E24B4A", color: "#fff" }}>
+            {data.atRisk.length} в риске
+          </span>
+        </div>
+      )}
+
+      {/* ── KPI CARDS ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
         {/* Completion */}
-        <div className="dashboard-kpi-card relative overflow-hidden">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="dashboard-kpi-label">Выполнение</p>
-              <p className="dashboard-kpi-value" style={{ color: completionRate >= 80 ? "#22c55e" : completionRate >= 50 ? "#f59e0b" : "var(--tracker-accent-fg-dark)" }}>
-                {completionRate}%
-              </p>
-            </div>
-            <div className="shrink-0">
-              <RadialProgress pct={completionRate} size={52} stroke={5} color={completionRate >= 80 ? "#22c55e" : completionRate >= 50 ? "#f59e0b" : "var(--tracker-accent)"} />
-            </div>
+        <div className="dash-kpi-card relative overflow-hidden" style={{ borderColor: completionColor + "30" }}>
+          <div className="absolute top-3 right-3">
+            <RadialProgress pct={completionRate} size={44} stroke={4} color={completionColor} />
           </div>
-          <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-            {data.completed} из {data.total} задач
-          </p>
+          <p className="dash-kpi-label">Выполнение</p>
+          <p className="dash-kpi-value mt-1" style={{ color: completionColor }}>{completionRate}%</p>
+          <p className="text-[11px] mt-1.5" style={{ color: "var(--tracker-text-muted)" }}>{data.completed} из {data.total} задач</p>
+          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${Math.min(completionRate, 100)}%`, background: completionColor }} />
+          </div>
         </div>
-
-        {/* Plan vs Fact */}
-        <div className="dashboard-kpi-card">
-          <p className="dashboard-kpi-label">План / Факт</p>
-          <div className="flex items-end gap-1.5 my-1">
-            <span className="dashboard-kpi-value" style={{ color: accentDark }}>
-              {fmt2(data.factH)}
-            </span>
-            <span className="text-sm mb-1" style={{ color: "var(--tracker-text-muted)" }}>/ {fmt2(data.planH)} ч</span>
+        {/* Fact / Plan */}
+        <div className="dash-kpi-card" style={{ borderColor: "var(--tracker-accent)" + "30" }}>
+          <p className="dash-kpi-label">Факт / План</p>
+          <div className="flex items-baseline gap-1.5 mt-1">
+            <span className="dash-kpi-value" style={{ color: accentDark }}>{fmt2(data.factH)}</span>
+            <span className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>/ {fmt2(data.planH)} ч</span>
           </div>
-          <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
-            <div className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${Math.min(planExec, 100)}%`,
-                background: planExec > 110 ? "#ef4444" : planExec >= 90 ? "#22c55e" : "var(--tracker-accent)",
-              }}
-            />
+          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${Math.min(planExec, 100)}%`, background: planColor }} />
           </div>
-          <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>{planExec}% от плана</p>
+          <div className="flex items-center gap-2 mt-1.5">
+            <DeltaBadge pct={planExec} />
+            <span className="text-[11px]" style={{ color: "var(--tracker-text-muted)" }}>от плана</span>
+          </div>
         </div>
-
         {/* Budget */}
-        <div className="dashboard-kpi-card">
-          <p className="dashboard-kpi-label">Бюджет</p>
-          <div className="flex items-end gap-1.5 my-1">
-            <span className="dashboard-kpi-value" style={{ color: isOverBudget ? "#ef4444" : accentDark }}>
-              {budgetH > 0 ? `${budgetUsed}%` : "—"}
-            </span>
-            {budgetH > 0 && <span className="text-sm mb-1" style={{ color: "var(--tracker-text-muted)" }}>использовано</span>}
-          </div>
+        <div className="dash-kpi-card" style={{ borderColor: budgetColor + "30" }}>
+          <p className="dash-kpi-label">Бюджет</p>
           {budgetH > 0 ? (
             <>
-              <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(budgetUsed, 100)}%`,
-                    background: isOverBudget ? "#ef4444" : budgetUsed >= 80 ? "#f59e0b" : "#22c55e",
-                  }}
-                />
+              <p className="dash-kpi-value mt-1" style={{ color: budgetColor }}>{budgetUsed}%</p>
+              <p className="text-[11px] mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>{fmt2(data.factH)} / {fmt2(budgetH)} ч</p>
+              <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+                <div className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${Math.min(budgetUsed, 100)}%`, background: budgetColor }} />
               </div>
-              <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>
-                {fmt2(data.factH)} / {fmt2(budgetH)} ч
+              <p className="text-[11px] mt-1.5" style={{ color: budgetColor }}>
+                {isOverBudget ? `+${fmt2(R2(data.factH - budgetH))} ч перебор` : `${fmt2(budgetFree)} ч свободно`}
               </p>
             </>
           ) : (
-            <p className="text-xs mt-2" style={{ color: "var(--tracker-text-muted)" }}>Введите бюджет выше</p>
+            <>
+              <p className="dash-kpi-value mt-1" style={{ color: "var(--tracker-text-muted)" }}>—</p>
+              <p className="text-[11px] mt-1.5" style={{ color: "var(--tracker-text-muted)" }}>Введите бюджет</p>
+            </>
           )}
         </div>
-
         {/* Backlog */}
-        <div className="dashboard-kpi-card">
-          <p className="dashboard-kpi-label">Беклог</p>
-          <p className="dashboard-kpi-value" style={{ color: accentDark }}>{backlogCount}</p>
-          <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>
+        <div className="dash-kpi-card">
+          <p className="dash-kpi-label">Беклог</p>
+          <p className="dash-kpi-value mt-1" style={{ color: accentDark }}>{backlogCount}</p>
+          <p className="text-[11px] mt-1.5" style={{ color: "var(--tracker-text-muted)" }}>
             {data.atRisk.length > 0
-              ? <span style={{ color: "#ef4444" }}>⚠ {data.atRisk.length} в риске</span>
+              ? <span style={{ color: "#E24B4A" }}>⚠ {data.atRisk.length} в риске</span>
               : "задач в очереди"}
           </p>
+          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+            <div className="h-full rounded-full"
+              style={{ width: `${Math.min(backlogCount * 7, 100)}%`, background: "var(--tracker-accent)" }} />
+          </div>
         </div>
       </div>
 
-      {/* ── Row 3: Status bar + sparkline ─────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-
-        {/* Status distribution */}
-        <div className="dashboard-section-card">
-          <p className="dashboard-section-title">Статусы</p>
-          <div className="mt-3">
+      {/* ── STATUS + SPARKLINE ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        <div className="dash-section">
+          <p className="dash-section-title">Статусы задач</p>
+          <div className="mt-2.5">
             <StatusBar statusCounts={data.statusCounts} total={data.total} />
           </div>
-          <div className="mt-3 space-y-1.5">
+          <div className="mt-3 space-y-2">
             {Object.values(STATUSES)
               .filter(s => (data.statusCounts[s] || 0) > 0)
               .sort((a, b) => (data.statusCounts[b] || 0) - (data.statusCounts[a] || 0))
-              .slice(0, 6)
+              .slice(0, 7)
               .map(s => {
                 const count = data.statusCounts[s] || 0;
                 const pct = data.total > 0 ? Math.round((count / data.total) * 100) : 0;
@@ -4597,85 +4621,122 @@ function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, backlo
                   <div key={s} className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: SCOL[s] || "#ccc" }} />
                     <span className="text-xs flex-1 truncate" style={{ color: "var(--tracker-text-main)" }}>{s}</span>
-                    <div className="w-16 h-1.5 rounded-full overflow-hidden shrink-0" style={{ background: "var(--tracker-border)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SCOL[s] || "#ccc" }} />
+                    <div className="w-16 h-1 rounded-full overflow-hidden shrink-0" style={{ background: "var(--tracker-border)" }}>
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: SCOL[s] || "#ccc" }} />
                     </div>
-                    <span className="text-xs w-6 text-right font-medium tabular-nums" style={{ color: "var(--tracker-text-muted)" }}>{count}</span>
+                    <span className="text-[11px] w-5 text-right font-medium tabular-nums" style={{ color: "var(--tracker-text-muted)" }}>{count}</span>
                   </div>
                 );
-              })
-            }
+              })}
           </div>
         </div>
-
-        {/* Monthly sparkline */}
-        <div className="dashboard-section-card">
-          <p className="dashboard-section-title">Динамика по месяцам</p>
-          <div className="mt-3 relative">
-            <Sparkline values={data.monthlyFact} color="var(--tracker-accent)" height={48} fill />
-            {/* Month labels */}
-            <div className="flex justify-between mt-1">
-              {MONTHS_SHORT.map((m, i) => (
-                <span
-                  key={m}
-                  className="text-[9px] tabular-nums"
-                  style={{
-                    color: i === currentMonth ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
-                    fontWeight: i === currentMonth ? 700 : 400,
-                  }}
-                >
-                  {m}
-                </span>
-              ))}
-            </div>
+        <div className="dash-section">
+          <p className="dash-section-title">Динамика факт-часов</p>
+          <div className="mt-2.5">
+            <MiniSparkline values={data.monthlyFact} color="var(--tracker-accent)" height={52} />
           </div>
-          <div className="mt-3 flex items-center gap-4 text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-0.5 rounded" style={{ background: "var(--tracker-accent)" }} />
-              Факт-часы
-            </span>
-            <span>Пик: {fmt2(Math.max(...data.monthlyFact))} ч</span>
-            <span>Итого за год: {fmt2(data.monthlyFact.reduce((a, b) => a + b, 0))} ч</span>
+          <div className="flex justify-between mt-1 px-0.5">
+            {MONTHS_SHORT.map((m, i) => (
+              <span key={m} className="text-[9px] tabular-nums"
+                style={{ color: i === currentMonth ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
+                  fontWeight: i === currentMonth ? 700 : 400 }}>
+                {m}
+              </span>
+            ))}
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {[
+              { label: "Текущий", val: fmt2(data.factH) + " ч" },
+              { label: "Пик за год", val: fmt2(yearPeakFact) + " ч" },
+              { label: "Итого за год", val: fmt2(yearTotalFact) + " ч" },
+            ].map(item => (
+              <div key={item.label} className="rounded-lg px-2.5 py-2 text-center" style={{ background: "var(--tracker-accent-bg)" }}>
+                <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--tracker-text-muted)" }}>{item.label}</p>
+                <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--tracker-accent-fg-dark)" }}>{item.val}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* ── Row 4: Priority + Top tasks ───────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* ── ANNUAL CHART ── */}
+      <div className="dash-section">
+        <div className="flex items-center justify-between mb-2">
+          <p className="dash-section-title">Годовая динамика</p>
+          <div className="flex items-center gap-4 text-[11px]" style={{ color: "var(--tracker-text-muted)" }}>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-[2px] rounded" style={{ background: "var(--tracker-accent)" }} />Факт
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-[2px] rounded opacity-50" style={{ background: "var(--tracker-accent)" }} />План
+            </span>
+          </div>
+        </div>
+        {(() => {
+          const maxH = Math.max(...data.monthlyFact, ...data.monthlyPlan, 1);
+          const maxT = Math.max(...data.monthlyTotal, 1);
+          const W = 700, H = 80, cols = 12;
+          const colW = W / cols;
+          const barW = colW * 0.4;
+          const factPts = data.monthlyFact.map((v, i) => [i * colW + colW / 2, H - (v / maxH) * (H - 4)] as [number, number]);
+          const planPts = data.monthlyPlan.map((v, i) => [i * colW + colW / 2, H - (v / maxH) * (H - 4)] as [number, number]);
+          const factLine = factPts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+          const planLine = planPts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+          return (
+            <svg viewBox={`0 0 ${W} ${H + 18}`} style={{ width: "100%", height: "auto", overflow: "visible" }}>
+              {data.monthlyTotal.map((t, i) => {
+                if (t === 0) return null;
+                const bH = (t / maxT) * (H - 4);
+                return <rect key={i} x={i * colW + colW / 2 - barW / 2} y={H - bH} width={barW} height={bH} rx="2"
+                  fill={i === currentMonth ? "rgba(29,158,117,0.3)" : "rgba(29,158,117,0.12)"} />;
+              })}
+              <path d={planLine} fill="none" stroke="var(--tracker-accent)" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.4" />
+              <path d={factLine} fill="none" stroke="var(--tracker-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              {factPts.map((p, i) => (
+                data.monthlyFact[i] > 0 && (
+                  <circle key={i} cx={p[0]} cy={p[1]} r={i === currentMonth ? 4 : 2}
+                    fill="var(--tracker-accent)" stroke="white" strokeWidth="1.5"
+                    opacity={i === currentMonth ? 1 : 0.7} />
+                )
+              ))}
+              {MONTHS_SHORT.map((m, i) => (
+                <text key={i} x={i * colW + colW / 2} y={H + 14} textAnchor="middle" fontSize="9"
+                  fill={i === currentMonth ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)"}
+                  fontWeight={i === currentMonth ? "700" : "400"}>
+                  {m}
+                </text>
+              ))}
+            </svg>
+          );
+        })()}
+      </div>
 
-        {/* Priority breakdown */}
-        <div className="dashboard-section-card">
-          <p className="dashboard-section-title">Приоритеты</p>
-          <div className="mt-3 space-y-2">
-            {priorityOrder
+      {/* ── PRIORITIES + TOP TASKS ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        <div className="dash-section">
+          <p className="dash-section-title">Приоритеты</p>
+          <div className="mt-3 space-y-2.5">
+            {Object.values(PRIORITIES)
               .filter(p => (data.priorityCounts[p] || 0) > 0)
               .map(p => {
                 const count = data.priorityCounts[p] || 0;
                 const pct = data.total > 0 ? (count / data.total) * 100 : 0;
+                const color = PCOL[p as Priority];
                 return (
-                  <div key={p} className="flex items-center gap-2">
-                    <span className="text-xs w-24 shrink-0" style={{ color: PCOL[p as Priority] }}>{p}</span>
-                    <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${pct}%`, background: PCOL[p as Priority] + "cc" }}
-                      />
+                  <div key={p} className="flex items-center gap-2.5">
+                    <span className="text-xs w-24 shrink-0 truncate" style={{ color }}>{p}</span>
+                    <div className="flex-1 h-[5px] rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color + "cc" }} />
                     </div>
-                    <span className="text-xs w-5 text-right font-semibold tabular-nums" style={{ color: PCOL[p as Priority] }}>{count}</span>
+                    <span className="text-xs w-4 text-right font-semibold tabular-nums shrink-0" style={{ color }}>{count}</span>
                   </div>
                 );
-              })
-            }
-            {Object.keys(data.priorityCounts).length === 0 && (
-              <p className="text-xs py-2" style={{ color: "var(--tracker-text-muted)" }}>Нет данных</p>
-            )}
+              })}
           </div>
         </div>
-
-        {/* Top tasks by fact hours */}
-        <div className="dashboard-section-card">
-          <p className="dashboard-section-title">Топ задач по часам</p>
-          <div className="mt-3 space-y-2">
+        <div className="dash-section">
+          <p className="dash-section-title">Топ задач по часам</p>
+          <div className="mt-3">
             {data.topTasks.length === 0 && (
               <p className="text-xs py-2" style={{ color: "var(--tracker-text-muted)" }}>Нет данных</p>
             )}
@@ -4685,19 +4746,22 @@ function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, backlo
               const isOver = planVal > 0 && factVal > planVal;
               const maxFact = evalExpr(data.topTasks[0]?.factH || "0");
               const barPct = maxFact > 0 ? (factVal / maxFact) * 100 : 0;
+              const barColor = isOver ? "#E24B4A" : "var(--tracker-accent)";
               return (
-                <div key={task.id} className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold w-4 tabular-nums shrink-0" style={{ color: "var(--tracker-text-muted)" }}>
-                    {i + 1}
-                  </span>
-                  <span className="text-xs flex-1 truncate" style={{ color: "var(--tracker-text-main)" }} title={task.name}>
-                    {task.name || task.num || "—"}
-                  </span>
-                  <div className="w-14 h-1.5 rounded-full overflow-hidden shrink-0" style={{ background: "var(--tracker-border)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${barPct}%`, background: isOver ? "#ef4444" : "var(--tracker-accent)" }} />
+                <div key={task.id} className="flex items-center gap-2 py-2 border-b last:border-b-0"
+                  style={{ borderColor: "var(--tracker-border)" }}>
+                  <span className="text-[10px] font-semibold w-3.5 shrink-0 tabular-nums" style={{ color: "var(--tracker-text-muted)" }}>{i + 1}</span>
+                  <span className="text-xs flex-1 truncate" style={{ color: "var(--tracker-text-main)" }} title={task.name}>{task.name || task.num || "—"}</span>
+                  {isOver && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full shrink-0" style={{ background: "#FCEBEB", color: "#A32D2D" }}>
+                      +{fmt2(R2(factVal - planVal))}ч
+                    </span>
+                  )}
+                  <div className="w-12 h-1 rounded-full overflow-hidden shrink-0" style={{ background: "var(--tracker-border)" }}>
+                    <div className="h-full rounded-full" style={{ width: `${barPct}%`, background: barColor }} />
                   </div>
-                  <span className="text-xs w-10 text-right font-medium tabular-nums shrink-0"
-                    style={{ color: isOver ? "#ef4444" : "var(--tracker-accent-fg-dark)" }}>
+                  <span className="text-[11px] w-9 text-right font-medium tabular-nums shrink-0"
+                    style={{ color: isOver ? "#E24B4A" : "var(--tracker-accent-fg-dark)" }}>
                     {fmt2(factVal)}ч
                   </span>
                 </div>
@@ -4707,50 +4771,41 @@ function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, backlo
         </div>
       </div>
 
-      {/* ── Row 5: At-risk tasks ──────────────────────────────────── */}
+      {/* ── RISK ZONE ── */}
       {data.atRisk.length > 0 && (
-        <div className="dashboard-section-card border-l-[3px]" style={{ borderLeftColor: "#ef4444" }}>
+        <div className="dash-section" style={{ borderLeftWidth: "3px", borderLeftColor: "#E24B4A", borderRadius: "14px" }}>
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm">⚠️</span>
-            <p className="dashboard-section-title" style={{ color: "#ef4444" }}>
-              Зона риска — факт превышает план
-            </p>
+            <p className="dash-section-title" style={{ color: "#A32D2D" }}>⚠ Зона риска — факт превышает план</p>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {data.atRisk.slice(0, 5).map(task => {
               const plan = evalExpr(task.planH);
               const fact = evalExpr(task.factH);
               const over = R2(fact - plan);
               const pct = Math.round((fact / plan) * 100);
               return (
-                <div key={task.id} className="flex items-center gap-3 py-1.5 px-3 rounded-lg" style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                <div key={task.id} className="flex items-center gap-3 py-2 px-3 rounded-xl"
+                  style={{ background: "rgba(226,75,74,0.05)", border: "1px solid rgba(226,75,74,0.15)" }}>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "var(--tracker-text-main)" }}>
-                      {task.name || task.num || "—"}
-                    </p>
-                    <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-                      план {fmt2(plan)} ч → факт {fmt2(fact)} ч
-                    </p>
+                    <p className="text-xs font-medium truncate" style={{ color: "var(--tracker-text-main)" }}>{task.name || task.num || "—"}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>план {fmt2(plan)} ч → факт {fmt2(fact)} ч</p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-bold" style={{ color: "#ef4444" }}>+{fmt2(over)} ч</p>
-                    <p className="text-[10px]" style={{ color: "#ef4444" }}>{pct}%</p>
-                  </div>
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                    style={{ background: "#FCEBEB", color: "#A32D2D" }}>{pct}%</span>
+                  <p className="text-sm font-semibold shrink-0" style={{ color: "#E24B4A" }}>+{fmt2(over)} ч</p>
                 </div>
               );
             })}
             {data.atRisk.length > 5 && (
-              <p className="text-xs px-3" style={{ color: "var(--tracker-text-muted)" }}>
-                и ещё {data.atRisk.length - 5} задач...
-              </p>
+              <p className="text-xs px-3 pt-1" style={{ color: "var(--tracker-text-muted)" }}>и ещё {data.atRisk.length - 5} задач...</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Empty state */}
+      {/* ── EMPTY STATE ── */}
       {data.total === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="flex flex-col items-center justify-center py-20 text-center">
           <span className="text-5xl mb-4">📊</span>
           <p className="text-base font-medium" style={{ color: "var(--tracker-text-main)" }}>Нет данных за этот месяц</p>
           <p className="text-sm mt-1" style={{ color: "var(--tracker-text-muted)" }}>Добавьте задачи во вкладке «Задачи»</p>
@@ -4760,6 +4815,7 @@ function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, backlo
     </div>
   );
 }
+
 
 /* ================================================================ */
 /*  QUESTIONS VIEW                                                   */
@@ -5206,6 +5262,10 @@ function QuestionsView({
 /*  SLIDES VIEW                                                      */
 /* ================================================================ */
 
+/* ================================================================ */
+/*  SLIDES VIEW — REDESIGNED                                         */
+/* ================================================================ */
+
 interface SlidesViewProps {
   slides: SlideData[];
   currentSlide: number;
@@ -5217,7 +5277,13 @@ interface SlidesViewProps {
   hasData: boolean;
   onAiAnalysis: () => void;
   aiAnalysisBusy: boolean;
+  // NEW: two-stage AI flow
+  aiDraft: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null;
   aiConclusion: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null;
+  onSetAiDraft: (v: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null) => void;
+  onApproveDraft: () => void;
+  onDiscardDraft: () => void;
+  onRemoveConclusion: () => void;
   onSetAiConclusion: (v: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null) => void;
 }
 
@@ -5232,30 +5298,34 @@ function SlidesView({
   hasData,
   onAiAnalysis,
   aiAnalysisBusy,
+  aiDraft,
   aiConclusion,
+  onSetAiDraft,
+  onApproveDraft,
+  onDiscardDraft,
+  onRemoveConclusion,
   onSetAiConclusion,
 }: SlidesViewProps) {
+
+  const AI_SECTION_LABELS: Record<string, string> = {
+    achievements: "✅ Достижения",
+    risks: "⚠️ Риски",
+    inProgress: "⚙️ В процессе",
+    nextSteps: "🎯 Следующие шаги",
+  };
 
   if (slides.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 space-y-4">
         <Presentation className="size-16 text-muted-foreground/30" />
-        <p className="text-lg text-muted-foreground">
-          Презентация не создана
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Перейдите в таблицу и нажмите «Презентация» для создания
-        </p>
-        <div className="flex gap-2">
-          <Button
-            onClick={onCreateNew}
-            className="gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-            disabled={!hasData}
-          >
-            <Presentation className="size-4" />
-            Создать презентацию
-          </Button>
-        </div>
+        <p className="text-lg text-muted-foreground">Презентация не создана</p>
+        <p className="text-sm text-muted-foreground">Перейдите в таблицу и нажмите «Презентация» для создания</p>
+        <Button onClick={onCreateNew}
+          className="gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
+          disabled={!hasData}>
+          <Presentation className="size-4" />
+          Создать презентацию
+        </Button>
       </div>
     );
   }
@@ -5265,157 +5335,153 @@ function SlidesView({
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
+
+      {/* ── TOOLBAR ── */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
+          <Button variant="outline" size="sm"
             onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
-            disabled={currentSlide === 0}
-            className="gap-1.5"
-          >
-            <ChevronLeft className="size-4" />
-            Назад
+            disabled={currentSlide === 0} className="gap-1.5">
+            <ChevronLeft className="size-4" />Назад
           </Button>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-muted-foreground tabular-nums">
             {currentSlide + 1} / {slides.length}
           </span>
-          <Button
-            variant="outline"
-            size="sm"
+          <Button variant="outline" size="sm"
             onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))}
-            disabled={currentSlide === slides.length - 1}
-            className="gap-1.5"
-          >
-            Далее
-            <ChevronRight className="size-4" />
+            disabled={currentSlide === slides.length - 1} className="gap-1.5">
+            Далее<ChevronRight className="size-4" />
           </Button>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={onAiAnalysis}
-            disabled={aiAnalysisBusy}
-          >
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={onAiAnalysis} disabled={aiAnalysisBusy}>
             {aiAnalysisBusy
-              ? <><Loader2 className="size-3.5 animate-spin" /> Анализирую...</>
-              : <><Sparkles className="size-3.5" /> AI анализ</>
-            }
+              ? <><Loader2 className="size-3.5 animate-spin" />Анализирую...</>
+              : <><Sparkles className="size-3.5" />AI анализ</>}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={onExportHTML}
-          >
-            <Download className="size-3.5" />
-            Скачать HTML
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={onExportHTML}>
+            <Download className="size-3.5" />Скачать HTML
           </Button>
         </div>
       </div>
 
-      {/* Slide indicators */}
-      <div className="flex gap-1.5 justify-center">
+      {/* ── SLIDE DOTS ── */}
+      <div className="flex gap-1.5 justify-center flex-wrap">
         {slides.map((s, i) => (
-          <button
-            key={i}
-            onClick={() => setCurrentSlide(i)}
-            className={`size-2 rounded-full transition-colors ${
-              i === currentSlide
-                ? "bg-[var(--tracker-accent)]"
-                : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
-            }`}
-          />
+          <button key={i} onClick={() => setCurrentSlide(i)} title={s.type}
+            className={`h-2 rounded-full transition-all ${
+              i === currentSlide ? "w-7 bg-[var(--tracker-accent)]" : "w-2 bg-muted-foreground/25 hover:bg-muted-foreground/40"
+            }`} />
         ))}
       </div>
 
-      {/* Slide preview */}
+      {/* ── SLIDE PREVIEW ── */}
       <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} aiConclusion={aiConclusion} />
 
-      {/* AI Conclusion editor — shown when aiConclusion exists */}
-      {aiConclusion && (
-        <div
-          className="rounded-2xl border p-5 space-y-4 mt-2"
-          style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}
-        >
-          <div className="flex items-center justify-between">
+      {/* ── AI DRAFT PANEL (Step 2 — editable buffer) ── */}
+      {aiDraft && (
+        <div className="rounded-2xl border-2 p-5 space-y-4"
+          style={{ borderColor: "var(--tracker-accent)", background: "var(--tracker-accent-bg)" }}>
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <p className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>
-                ✨ Выводы AI — слайд «Итоги»
+              <p className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--tracker-accent-fg-dark)" }}>
+                <Sparkles className="size-4" />AI черновик
               </p>
               <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>
-                Редактируйте тезисы — они попадут в финальный слайд презентации
+                Проверьте и отредактируйте тезисы перед добавлением в презентацию
               </p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onSetAiConclusion(null)}
-              className="text-muted-foreground"
-            >
-              Сбросить
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={onDiscardDraft}>
+                <X className="size-3" />Отклонить
+              </Button>
+              <Button size="sm" className="h-8 gap-1.5 text-xs bg-[var(--tracker-accent)] text-white" onClick={onApproveDraft}>
+                <Check className="size-3" />Применить в презентацию
+              </Button>
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {(["achievements", "risks", "inProgress", "nextSteps"] as const).map(key => {
-              const labels: Record<string, string> = {
-                achievements: "✅ Достижения",
-                risks: "⚠️ Риски",
-                inProgress: "⚙️ В процессе",
-                nextSteps: "🎯 Следующие шаги",
-              };
-              return (
-                <div key={key} className="space-y-1.5">
-                  <p className="text-xs font-semibold" style={{ color: "var(--tracker-accent-fg-dark)" }}>
-                    {labels[key]}
-                  </p>
-                  {aiConclusion[key].map((item, i) => (
-                    <div key={i} className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={item}
-                        onChange={e => {
-                          const updated = [...aiConclusion[key]];
-                          updated[i] = e.target.value;
-                          onSetAiConclusion({ ...aiConclusion, [key]: updated });
-                        }}
-                        className="flex-1 h-8 rounded-lg border px-2 text-xs bg-transparent outline-none focus:ring-1"
-                        style={{
-                          borderColor: "var(--tracker-border)",
-                          color: "var(--tracker-text-main)",
-                          background: "var(--tracker-bg-main)",
-                        }}
-                      />
-                      <button
-                        onClick={() => {
-                          const updated = aiConclusion[key].filter((_, j) => j !== i);
-                          onSetAiConclusion({ ...aiConclusion, [key]: updated });
-                        }}
-                        className="w-7 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors"
-                        style={{ color: "var(--tracker-text-muted)" }}
-                      >
-                        <Trash2 className="size-3" />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => onSetAiConclusion({ ...aiConclusion, [key]: [...aiConclusion[key], ""] })}
-                    className="text-xs px-2 py-1 rounded-lg border border-dashed transition-colors hover:opacity-70"
-                    style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-muted)" }}
-                  >
-                    + добавить
-                  </button>
-                </div>
-              );
-            })}
+            {(["achievements", "risks", "inProgress", "nextSteps"] as const).map(key => (
+              <div key={key} className="space-y-1.5">
+                <p className="text-xs font-semibold" style={{ color: "var(--tracker-accent-fg-dark)" }}>
+                  {AI_SECTION_LABELS[key]}
+                </p>
+                {aiDraft[key].map((item, i) => (
+                  <div key={i} className="flex gap-1.5">
+                    <input type="text" value={item}
+                      onChange={e => {
+                        const updated = [...aiDraft[key]];
+                        updated[i] = e.target.value;
+                        onSetAiDraft({ ...aiDraft, [key]: updated });
+                      }}
+                      className="flex-1 h-8 rounded-lg border px-2 text-xs bg-transparent outline-none focus:ring-1"
+                      style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)", background: "var(--tracker-bg-card)" }} />
+                    <button onClick={() => {
+                      const updated = aiDraft[key].filter((_, j) => j !== i);
+                      onSetAiDraft({ ...aiDraft, [key]: updated });
+                    }} className="w-7 h-8 flex items-center justify-center rounded-lg" style={{ color: "var(--tracker-text-muted)" }}>
+                      <Trash2 className="size-3" />
+                    </button>
+                  </div>
+                ))}
+                <button onClick={() => onSetAiDraft({ ...aiDraft, [key]: [...aiDraft[key], ""] })}
+                  className="text-xs px-2 py-1 rounded-lg border border-dashed transition-colors"
+                  style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-muted)" }}>
+                  + добавить
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}
+
+      {/* ── APPROVED AI PANEL (Step 3 — injected) ── */}
+      {aiConclusion && !aiDraft && (
+        <div className="rounded-2xl border p-4 space-y-3"
+          style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--tracker-text-main)" }}>
+                <Check className="size-4 text-green-600" />AI анализ применён
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>
+                Тезисы включены в слайд «Итоги»
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
+                onClick={() => onSetAiDraft({ ...aiConclusion })}>
+                <span className="text-xs">✏️</span>Редактировать
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 text-xs text-muted-foreground"
+                onClick={onRemoveConclusion}>
+                Удалить
+              </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {(["achievements", "risks", "inProgress", "nextSteps"] as const).map(key => (
+              <div key={key}>
+                <p className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--tracker-text-muted)" }}>
+                  {AI_SECTION_LABELS[key]}
+                </p>
+                <ul className="space-y-0.5">
+                  {(aiConclusion[key] || []).map((item, i) => (
+                    <li key={i} className="text-xs flex gap-1.5 items-start" style={{ color: "var(--tracker-text-main)" }}>
+                      <span style={{ color: "var(--tracker-accent)", marginTop: "2px" }}>·</span>{item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
     </div>
   );
+}
+
 }
 
 /* ------------------------------------------------------------------ */
