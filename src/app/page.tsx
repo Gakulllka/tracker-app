@@ -10,6 +10,14 @@ import React, {
 } from "react";
 import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, PRES_STYLE_PRESETS, undoStore } from "@/lib/store";
 import {
+  PresentationSlide,
+  PresentationBgLayer,
+  buildTheme,
+  type SlideData,
+  type AiConclusion,
+} from "@/lib/presentation-renderer";
+import { renderPresentationHtml } from "@/lib/presentation-export";
+import {
   COLS,
   MONTHS,
   MONTHS_SHORT,
@@ -159,10 +167,7 @@ interface Question {
   answerDate?: string;
 }
 
-interface SlideData {
-  type: "title" | "kpi" | "statuses" | "completed" | "inprogress" | "table" | "summary";
-  content: Record<string, unknown>;
-}
+// SlideData импортируется из @/lib/presentation-renderer (см. импорты сверху)
 
 /* ------------------------------------------------------------------ */
 /*  Planfix Integration                                                 */
@@ -1900,7 +1905,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
   const handleExportSlidesHTML = useCallback(() => {
     if (slides.length === 0) return;
-    const html = buildSlidesHTML(slides, presBg, aiConclusion);
+    const html = renderPresentationHtml(slides, presBg, aiConclusion);
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -5483,728 +5488,55 @@ function SlidesView({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Slide Preview Card                                                */
+/*  Slide Preview Card — тонкий wrapper над единым рендером         */
 /* ------------------------------------------------------------------ */
+/*
+ *  Phase 1 (WYSIWYG): теперь и превью, и экспорт используют ОДИН и
+ *  тот же React-компонент <PresentationSlide /> из
+ *  src/lib/presentation-renderer.tsx. Старые ~720 строк дублей
+ *  удалены — buildSlidesHTML заменён renderPresentationHtml.
+ */
 
-function SlidePreview({ slide, accentHex, presBg, aiConclusion }: { slide: SlideData; accentHex: string; presBg: PresBgSettings; aiConclusion?: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null }) {
-  const c = slide.content;
-  const [r, g, b] = hexToRgb(accentHex);
-  const accentSoft = `rgba(${r}, ${g}, ${b}, 0.08)`;
-  const accentMed = `rgba(${r}, ${g}, ${b}, 0.15)`;
-
-  // Generate deterministic emoji positions for slide background
-  const emojiStr = presBg.emojis;
-  const bgEmojis = useMemo(() => {
-    if (!emojiStr || presBg.emojiCount === 0) return [];
-    const list = emojiStr.split(" ").filter(Boolean);
-    if (list.length === 0) return [];
-    const result: { emoji: string; x: number; y: number; size: number; opacity: number; rotate: number }[] = [];
-    let seed = 42;
-    const rand = () => {
-      seed = (seed * 16807 + 0) % 2147483647;
-      return (seed - 1) / 2147483646;
-    };
-    for (let i = 0; i < presBg.emojiCount; i++) {
-      result.push({
-        emoji: list[Math.floor(rand() * list.length)],
-        x: rand() * 100,
-        y: rand() * 100,
-        size: presBg.emojiMinSize + rand() * (presBg.emojiMaxSize - presBg.emojiMinSize),
-        opacity: 0.12 + rand() * 0.25,
-        rotate: Math.floor(rand() * 40 - 20),
-      });
-    }
-    return result;
-  }, [emojiStr, presBg.emojiCount, presBg.emojiMinSize, presBg.emojiMaxSize]);
-
-  const patternCSS = useMemo(() => {
-    if (presBg.pattern === "none") return {};
-    const sz = presBg.patternSize;
-    const op = presBg.patternOpacity / 100;
-    const col = `rgba(${r},${g},${b},${op})`;
-    switch (presBg.pattern) {
-      case "grid":
-        return { backgroundImage: `linear-gradient(${col} 1px, transparent 1px), linear-gradient(90deg, ${col} 1px, transparent 1px)`, backgroundSize: `${sz}px ${sz}px` };
-      case "diagonal":
-        return { backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent ${sz / 2}px, ${col} ${sz / 2}px, ${col} ${sz / 2 + 1}px)`, backgroundSize: `${sz}px ${sz}px` };
-      case "diamond":
-        return { backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent ${sz / 2 - 1}px, ${col} ${sz / 2 - 1}px, ${col} ${sz / 2 + 1}px), repeating-linear-gradient(-45deg, transparent, transparent ${sz / 2 - 1}px, ${col} ${sz / 2 - 1}px, ${col} ${sz / 2 + 1}px)`, backgroundSize: `${sz}px ${sz}px` };
-      case "waves":
-        return { backgroundImage: `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz / 2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz / 4} Q ${sz / 4} 0 ${sz / 2} ${sz / 4} T ${sz} ${sz / 4}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E")`, backgroundSize: `${sz}px ${sz / 2}px` };
-      case "zigzag":
-        return { backgroundImage: `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz / 2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz / 2} ${sz / 4},0 ${sz / 2},${sz / 2} ${sz * 3 / 4},0 ${sz},${sz / 2}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E")`, backgroundSize: `${sz}px ${sz / 2}px` };
-      default:
-        return {};
-    }
-  }, [presBg.pattern, presBg.patternSize, presBg.patternOpacity, r, g, b]);
-
-  const hasBg = presBg.pattern !== "none" || bgEmojis.length > 0;
+function SlidePreview({
+  slide,
+  accentHex,
+  presBg,
+  aiConclusion,
+}: {
+  slide: SlideData;
+  accentHex: string;
+  presBg: PresBgSettings;
+  aiConclusion?: AiConclusion | null;
+}) {
+  const theme = useMemo(() => buildTheme(accentHex, presBg), [accentHex, presBg]);
+  const [r, g, b] = theme.rgb;
 
   return (
     <div
-      className="mx-auto w-full max-w-[960px] rounded-2xl border p-8 shadow-lg min-h-[480px] relative overflow-hidden"
+      className="mx-auto w-full max-w-[1200px] rounded-2xl border shadow-lg relative overflow-hidden"
       style={{
-        background: `linear-gradient(135deg, rgba(${r},${g},${b},0.04) 0%, rgba(${r},${g},${b},0.01) 100%)`,
-        borderColor: accentSoft,
+        background: theme.bodyBg,
+        borderColor: `rgba(${r},${g},${b},.15)`,
+        aspectRatio: "16 / 9",
       }}
     >
-      {/* Background decorations */}
-      {hasBg && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
-          {presBg.pattern !== "none" && (
-            <div className="absolute inset-0" style={patternCSS} />
-          )}
-          {bgEmojis.map((e, i) => (
-            <span
-              key={i}
-              className="absolute pointer-events-none select-none"
-              style={{
-                left: `${e.x}%`,
-                top: `${e.y}%`,
-                fontSize: e.size,
-                opacity: e.opacity,
-                transform: `rotate(${e.rotate}deg)`,
-              }}
-            >
-              {e.emoji}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Slide content (above background) */}
-      <div className="relative z-10">
-      {/* Title slide */}
-      {slide.type === "title" && (
-        <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center">
-          <div
-            className="mb-6 size-16 rounded-2xl flex items-center justify-center text-3xl"
-            style={{ backgroundColor: accentSoft }}
-          >
-            📊
-          </div>
-          <h2
-            className="text-4xl font-bold mb-2"
-            style={{ color: accentHex }}
-          >
-            {String(c.month)}
-          </h2>
-          <p className="text-lg text-muted-foreground mb-8">
-            Отчёт по задачам
-          </p>
-          <div className="flex gap-8">
-            <div className="text-center">
-              <p className="text-3xl font-bold" style={{ color: accentHex }}>
-                {Number(c.total)}
-              </p>
-              <p className="text-sm text-muted-foreground">Всего задач</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {Number(c.completed)}
-              </p>
-              <p className="text-sm text-muted-foreground">Завершено</p>
-            </div>
-            <div className="text-center">
-              <div className="relative">
-                <svg width="80" height="80" className="transform -rotate-90">
-                  <circle
-                    cx="40"
-                    cy="40"
-                    r="34"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="6"
-                    className="text-muted/30"
-                  />
-                  <circle
-                    cx="40"
-                    cy="40"
-                    r="34"
-                    fill="none"
-                    stroke={accentHex}
-                    strokeWidth="6"
-                    strokeDasharray={`${2 * Math.PI * 34}`}
-                    strokeDashoffset={`${2 * Math.PI * 34 * (1 - Number(c.pct) / 100)}`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-lg font-bold" style={{ color: accentHex }}>
-                  {Number(c.pct)}%
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground">Выполнение</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* KPI slide */}
-      {slide.type === "kpi" && (
-        <div className="space-y-6">
-          <h3 className="text-2xl font-bold" style={{ color: accentHex }}>
-            Ключевые показатели
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              { label: "Всего задач", value: String(c.total), icon: "📋" },
-              { label: "Завершено", value: String(c.completed), icon: "✅" },
-              { label: "План, часов", value: String(c.planH), icon: "📝" },
-              { label: "Факт, часов", value: String(c.factH), icon: "⏱" },
-            ].map((kpi) => (
-              <div
-                key={kpi.label}
-                className="rounded-xl p-5 border"
-                style={{
-                  backgroundColor: accentSoft,
-                  borderColor: accentMed,
-                }}
-              >
-                <span className="text-2xl">{kpi.icon}</span>
-                <p className="text-sm text-muted-foreground mt-2">{kpi.label}</p>
-                <p className="text-3xl font-bold mt-1" style={{ color: accentHex }}>
-                  {kpi.value}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Statuses slide */}
-      {slide.type === "statuses" && (
-        <div className="space-y-6">
-          <h3 className="text-2xl font-bold" style={{ color: accentHex }}>
-            Распределение по статусам
-          </h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {Object.entries(c.statusCounts as Record<string, number>).map(([status, count]) => (
-              <div
-                key={status}
-                className="rounded-xl p-4 border"
-                style={{ backgroundColor: accentSoft, borderColor: accentMed }}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span
-                    className="size-3 rounded-full"
-                    style={{ backgroundColor: SCOL[status as keyof typeof SCOL] || "#888" }}
-                  />
-                  <span className="text-sm font-medium truncate">{status}</span>
-                </div>
-                <p className="text-2xl font-bold" style={{ color: accentHex }}>{count}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Completed tasks slide */}
-      {slide.type === "completed" && (
-        <div className="space-y-6">
-          <h3 className="text-2xl font-bold" style={{ color: accentHex }}>
-            ✅ Завершённые задачи {Number(c.total) > 8 ? `(показано 8 из ${c.total})` : ""}
-          </h3>
-          <div className="grid gap-3">
-            {(c.tasks as Task[]).map((task) => (
-              <div
-                key={task.id}
-                className="rounded-xl p-4 border flex items-start gap-3"
-                style={{ backgroundColor: accentSoft, borderColor: accentMed }}
-              >
-                <span
-                  className="size-2 rounded-full mt-2 shrink-0"
-                  style={{ backgroundColor: "#30ab50" }}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{task.name || "Без названия"}</p>
-                  <div className="flex gap-3 mt-1 text-sm text-muted-foreground">
-                    {task.num && <span>#{task.num}</span>}
-                    <span>{task.priority}</span>
-                  </div>
-                </div>
-                <Badge
-                  className="shrink-0 text-xs"
-                  style={{
-                    backgroundColor: `${SCOL[task.status] || "#888"}20`,
-                    color: SCOL[task.status] || "#888",
-                    borderColor: `${SCOL[task.status] || "#888"}40`,
-                  }}
-                >
-                  {task.status}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* In-progress tasks slide */}
-      {slide.type === "inprogress" && (
-        <div className="space-y-6">
-          <h3 className="text-2xl font-bold" style={{ color: accentHex }}>
-            🔄 В работе {Number(c.total) > 8 ? `(показано 8 из ${c.total})` : ""}
-          </h3>
-          <div className="grid gap-3">
-            {(c.tasks as Task[]).map((task) => (
-              <div
-                key={task.id}
-                className="rounded-xl p-4 border flex items-start gap-3"
-                style={{ backgroundColor: accentSoft, borderColor: accentMed }}
-              >
-                <span
-                  className="size-2 rounded-full mt-2 shrink-0"
-                  style={{ backgroundColor: SCOL[task.status] || "#888" }}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{task.name || "Без названия"}</p>
-                  <div className="flex gap-3 mt-1 text-sm text-muted-foreground">
-                    {task.num && <span>#{task.num}</span>}
-                    <span>{task.priority}</span>
-                    {task.planH && <span>План: {task.planH} ч</span>}
-                  </div>
-                </div>
-                <Badge
-                  className="shrink-0 text-xs"
-                  style={{
-                    backgroundColor: `${SCOL[task.status] || "#888"}20`,
-                    color: SCOL[task.status] || "#888",
-                    borderColor: `${SCOL[task.status] || "#888"}40`,
-                  }}
-                >
-                  {task.status}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Table slide */}
-      {slide.type === "table" && (
-        <div className="space-y-4">
-          <h3 className="text-2xl font-bold" style={{ color: accentHex }}>
-            📋 Полный список задач
-          </h3>
-          <div className="overflow-x-auto rounded-xl border" style={{ borderColor: accentMed }}>
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ backgroundColor: accentHex }}>
-                  <th className="px-3 py-2 text-left text-white font-medium text-xs">#</th>
-                  <th className="px-3 py-2 text-left text-white font-medium text-xs">Наименование</th>
-                  <th className="px-3 py-2 text-right text-white font-medium text-xs">План</th>
-                  <th className="px-3 py-2 text-right text-white font-medium text-xs">Факт</th>
-                  <th className="px-3 py-2 text-center text-white font-medium text-xs">Приоритет</th>
-                  <th className="px-3 py-2 text-center text-white font-medium text-xs">Статус</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(c.rows as Task[]).map((task, idx) => (
-                  <tr
-                    key={task.id}
-                    style={{ backgroundColor: idx % 2 === 0 ? "transparent" : accentSoft }}
-                  >
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{idx + 1}</td>
-                    <td className="px-3 py-2 text-xs max-w-[260px] truncate">{task.name || "—"}</td>
-                    <td className="px-3 py-2 text-xs text-right">{task.planH || "—"}</td>
-                    <td className="px-3 py-2 text-xs text-right">{task.factH || "—"}</td>
-                    <td className="px-3 py-2 text-xs text-center" style={{ color: PCOL[task.priority] }}>
-                      {task.priority}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-center" style={{ color: SCOL[task.status] || "#888" }}>
-                      {task.status}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {Number(c.total) > 15 && (
-            <p className="text-xs text-muted-foreground text-center">
-              Показано 15 из {c.total} задач
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Summary slide */}
-      {slide.type === "summary" && (() => {
-        const items = aiConclusion ?? {
-          achievements: ["Выполнен план задач на текущий период", "Успешно завершены приоритетные задачи"],
-          risks: ["Некоторые задачи перевыполнены по часам", "Необходима корректировка сроков"],
-          inProgress: ["Задачи перенесены на следующий месяц", "Беклог требует планирования"],
-          nextSteps: ["Распределить задачи из беклога", "Скорректировать план часов"],
-        };
-        const sections = [
-          { key: "achievements" as const, icon: "✅", label: "Достижения", color: "#22c55e" },
-          { key: "risks" as const, icon: "⚠️", label: "Риски", color: "#f59e0b" },
-          { key: "inProgress" as const, icon: "⚙️", label: "В процессе", color: "#3b82f6" },
-          { key: "nextSteps" as const, icon: "🎯", label: "Следующие шаги", color: "#a78bfa" },
-        ];
-        return (
-          <div className="space-y-6">
-            <h3 className="text-2xl font-bold" style={{ color: accentHex }}>
-              📝 Итоги
-            </h3>
-            {aiConclusion && (
-              <p className="text-xs px-3 py-1.5 rounded-full inline-flex items-center gap-1.5"
-                style={{ background: `${accentHex}15`, color: accentHex }}>
-                <Sparkles className="size-3" /> Данные AI анализа
-              </p>
-            )}
-            <div className="grid gap-4 sm:grid-cols-2">
-              {sections.map(sec => (
-                <div key={sec.key} className="rounded-xl p-5 border" style={{ backgroundColor: accentSoft, borderColor: accentMed }}>
-                  <h4 className="font-semibold mb-2 flex items-center gap-2">
-                    <span>{sec.icon}</span>
-                    <span style={{ color: sec.color }}>{sec.label}</span>
-                  </h4>
-                  <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                    {(items[sec.key] || []).map((item, i) => <li key={i}>{item}</li>)}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
+      <PresentationBgLayer theme={theme} />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "32px 48px",
+          zIndex: 1,
+        }}
+      >
+        <PresentationSlide slide={slide} theme={theme} aiConclusion={aiConclusion} />
+      </div>
     </div>
-  </div>
   );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Build standalone HTML from slides                                  */
-/* ------------------------------------------------------------------ */
-
-function buildSlidesHTML(
-  slides: SlideData[],
-  presBg: PresBgSettings,
-  aiConclusion?: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null
-): string {
-  const accentHex = String(slides[0]?.content.accent || "#5B9BD5");
-  const [r, g, b] = hexToRgb(accentHex);
-  const styleId = presBg.styleId || "dark";
-
-  // Resolve style preset
-  const PRESETS: Record<string, { bodyBg: string; overlayBg: string; textColor: string; mutedColor: string; cardColors: string[] }> = {
-    dark:    { bodyBg:"#0d1117", overlayBg:`radial-gradient(ellipse 80% 60% at 20% 20%,rgba(${r},${g},${b},.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(${r},${g},${b},.1),transparent 60%),linear-gradient(160deg,#080d14 0%,#111827 40%,#0d1117 100%)`, textColor:"#e2e8f0", mutedColor:"rgba(148,163,184,.55)", cardColors:[`rgba(${r},${g},${b},.12)`,`rgba(${r},${g},${b},.1)`,`rgba(${r},${g},${b},.08)`] },
-    spring:  { bodyBg:"#0a1a0f", overlayBg:"radial-gradient(ellipse 80% 60% at 20% 20%,rgba(52,211,153,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(134,239,172,.12),transparent 60%),linear-gradient(160deg,#071510 0%,#0d2118 40%,#081a10 100%)", textColor:"#d1fae5", mutedColor:"rgba(167,243,208,.55)", cardColors:["rgba(4,108,78,.6)","rgba(21,128,61,.5)","rgba(63,98,18,.55)"] },
-    ocean:   { bodyBg:"#070e1a", overlayBg:"radial-gradient(ellipse 80% 60% at 20% 20%,rgba(56,189,248,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(14,165,233,.12),transparent 60%),linear-gradient(160deg,#04090f 0%,#0c1829 40%,#060d1a 100%)", textColor:"#e0f2fe", mutedColor:"rgba(186,230,253,.55)", cardColors:["rgba(7,50,90,.65)","rgba(10,70,130,.55)","rgba(5,60,110,.6)"] },
-    night:   { bodyBg:"#07050f", overlayBg:"radial-gradient(ellipse 80% 60% at 20% 20%,rgba(139,92,246,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(167,139,250,.12),transparent 60%),linear-gradient(160deg,#05030c 0%,#0f0a1e 40%,#070510 100%)", textColor:"#ede9fe", mutedColor:"rgba(221,214,254,.55)", cardColors:["rgba(50,20,90,.65)","rgba(60,30,110,.55)","rgba(40,15,80,.6)"] },
-    fire:    { bodyBg:"#120800", overlayBg:"radial-gradient(ellipse 80% 60% at 20% 20%,rgba(251,191,36,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(245,158,11,.12),transparent 60%),linear-gradient(160deg,#0d0500 0%,#1c0f00 40%,#100700 100%)", textColor:"#fef3c7", mutedColor:"rgba(253,230,138,.55)", cardColors:["rgba(90,55,5,.65)","rgba(120,70,5,.55)","rgba(75,45,5,.6)"] },
-    minimal: { bodyBg:"#f8fafc", overlayBg:"linear-gradient(160deg,#f8fafc 0%,#f1f5f9 100%)", textColor:"#1e293b", mutedColor:"rgba(100,116,139,.7)", cardColors:["rgba(241,245,249,1)","rgba(248,250,252,1)","rgba(226,232,240,1)"] },
-  };
-  const preset = PRESETS[styleId] || PRESETS.dark;
-  const isLight = styleId === "minimal";
-  const tc = preset.textColor;
-  const mc = preset.mutedColor;
-  const cc = preset.cardColors;
-
-  const acA = `rgba(${r},${g},${b},1)`;
-  const acB = `rgba(${r},${g},${b},.7)`;
-  const acC = `rgba(${r},${g},${b},.15)`;
-  const acD = `rgba(${r},${g},${b},.08)`;
-  const acGrad = `linear-gradient(135deg,${acA},rgba(${r},${g},${b},.6))`;
-
-  // Status colors (functional, style-agnostic)
-  const STATUS_COLS: Record<string, string> = {
-    "Завершено":"#34d399","Выполнено":"#34d399","Тестирование":"#38bdf8","Разработка":"#fbbf24","Анализ":"#a78bfa","В работе":"#60a5fa","Отменено":"#94a3b8","Идея":"#94a3b8"
-  };
-  function sCol(s: string) { return STATUS_COLS[s] || `rgba(${r},${g},${b},0.8)`; }
-  function sBg(s: string) { const c = sCol(s); return `background:${c}1a;color:${c};border:1px solid ${c}40`; }
-
-  // Build pattern CSS for body background
-  const sz = presBg.patternSize;
-  const op = (presBg.patternOpacity / 100).toFixed(2);
-  const pcol = `rgba(${r},${g},${b},${op})`;
-  let patternBodyCSS = "";
-  switch (presBg.pattern) {
-    case "grid":
-      patternBodyCSS = `background-image:linear-gradient(${pcol} 1px,transparent 1px),linear-gradient(90deg,${pcol} 1px,transparent 1px);background-size:${sz}px ${sz}px`;
-      break;
-    case "diagonal":
-      patternBodyCSS = `background-image:repeating-linear-gradient(45deg,transparent,transparent ${sz/2}px,${pcol} ${sz/2}px,${pcol} ${sz/2+1}px);background-size:${sz}px ${sz}px`;
-      break;
-    case "diamond":
-      patternBodyCSS = `background-image:repeating-linear-gradient(45deg,transparent,transparent ${sz/2-1}px,${pcol} ${sz/2-1}px,${pcol} ${sz/2+1}px),repeating-linear-gradient(-45deg,transparent,transparent ${sz/2-1}px,${pcol} ${sz/2-1}px,${pcol} ${sz/2+1}px);background-size:${sz}px ${sz}px`;
-      break;
-    case "waves":
-      patternBodyCSS = `background-image:url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz/4} Q ${sz/4} 0 ${sz/2} ${sz/4} T ${sz} ${sz/4}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E");background-size:${sz}px ${sz/2}px`;
-      break;
-    case "zigzag":
-      patternBodyCSS = `background-image:url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz/2} ${sz/4},0 ${sz/2},${sz/2} ${sz*3/4},0 ${sz},${sz/2}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E");background-size:${sz}px ${sz/2}px`;
-      break;
-  }
-
-  // Build emoji layer HTML
-  let emojiHTML = "";
-  const emojiList = presBg.emojis.split(" ").filter(Boolean);
-  if (emojiList.length > 0 && presBg.emojiCount > 0) {
-    let seed = 42;
-    const rand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
-    const spans: string[] = [];
-    for (let i = 0; i < presBg.emojiCount; i++) {
-      const e = emojiList[Math.floor(rand() * emojiList.length)];
-      const x = (rand() * 100).toFixed(1);
-      const y = (rand() * 100).toFixed(1);
-      const fs = Math.round(presBg.emojiMinSize + rand() * (presBg.emojiMaxSize - presBg.emojiMinSize));
-      const opa = (0.1 + rand() * 0.2).toFixed(2);
-      const rot = Math.floor(rand() * 40 - 20);
-      spans.push(`<span style="position:fixed;left:${x}%;top:${y}%;font-size:${fs}px;opacity:${opa};transform:rotate(${rot}deg);pointer-events:none;z-index:0;user-select:none">${e}</span>`);
-    }
-    emojiHTML = spans.join("");
-  }
-
-  function esc(s: string) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-
-  // ── SLIDE RENDERERS ──
-  function renderTitle(c: Record<string,unknown>): string {
-    const pct = Number(c.pct) || 0;
-    const circ = 2 * Math.PI * 38;
-    const dash = circ * (1 - pct / 100);
-    return `
-    <div style="position:relative;z-index:1;text-align:center;max-width:900px;margin:0 auto">
-      <div style="display:inline-flex;align-items:center;gap:10px;background:${acC};border:1px solid ${acB};color:${acA};padding:10px 32px;border-radius:28px;font-size:18px;font-weight:600;margin-bottom:36px">
-        <span style="width:10px;height:10px;border-radius:50%;background:${acA};display:inline-block;animation:pulse 2s infinite"></span>
-        ${esc(String(c.month || ""))}
-      </div>
-      <h1 style="font-size:clamp(44px,6vw,72px);font-weight:900;line-height:1.1;letter-spacing:-2px;margin-bottom:24px;background:linear-gradient(135deg,${tc} 10%,${acA} 55%);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Отчёт по задачам</h1>
-      <div style="width:100px;height:4px;background:${acGrad};border-radius:2px;margin:0 auto 36px"></div>
-      <div style="display:flex;gap:40px;justify-content:center;align-items:center;flex-wrap:wrap">
-        <div style="text-align:center"><p style="font-size:56px;font-weight:900;color:${acA};line-height:1">${c.total}</p><p style="font-size:15px;color:${mc};margin-top:4px">Всего задач</p></div>
-        <div style="text-align:center"><p style="font-size:56px;font-weight:900;color:#34d399;line-height:1">${c.completed}</p><p style="font-size:15px;color:${mc};margin-top:4px">Завершено</p></div>
-        <div style="position:relative;width:96px;height:96px;display:flex;align-items:center;justify-content:center">
-          <svg width="96" height="96" style="transform:rotate(-90deg);position:absolute">
-            <circle cx="48" cy="48" r="38" fill="none" stroke="rgba(${r},${g},${b},.15)" stroke-width="7"/>
-            <circle cx="48" cy="48" r="38" fill="none" stroke="${acA}" stroke-width="7" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${dash.toFixed(1)}" stroke-linecap="round"/>
-          </svg>
-          <span style="font-size:22px;font-weight:900;color:${acA}">${pct}%</span>
-        </div>
-      </div>
-    </div>`;
-  }
-
-  function renderKpi(c: Record<string,unknown>): string {
-    const kpis = [
-      { i:"📋", l:"Всего задач",   v:String(c.total),    col:acA },
-      { i:"✅", l:"Завершено",     v:String(c.completed), col:"#34d399" },
-      { i:"📝", l:"План, часов",   v:String(c.planH)+"ч", col:acA },
-      { i:"⏱",  l:"Факт, часов",  v:String(c.factH)+"ч", col: Number(String(c.factH)) > Number(String(c.planH)) ? "#fb7185" : "#4ade80" },
-    ];
-    const cards = kpis.map((k,i) => `
-      <div style="border-radius:24px;padding:36px 28px;background:${cc[i%cc.length]};border:1px solid rgba(255,255,255,.08);position:relative;overflow:hidden">
-        <div style="position:absolute;width:120px;height:120px;border-radius:50%;top:-30px;right:-30px;background:${k.col};filter:blur(50px);opacity:.3"></div>
-        <div style="font-size:40px;margin-bottom:16px">${k.i}</div>
-        <p style="font-size:52px;font-weight:900;letter-spacing:-2px;color:${k.col};line-height:1">${k.v}</p>
-        <p style="font-size:16px;color:${mc};margin-top:10px">${k.l}</p>
-      </div>`).join("");
-    return `
-    <div style="position:relative;z-index:1;width:100%;max-width:1100px">
-      <h2 style="font-size:40px;font-weight:800;margin-bottom:36px;text-align:center"><em style="font-style:normal;background:linear-gradient(135deg,${tc},${acA});-webkit-background-clip:text;-webkit-text-fill-color:transparent">Ключевые показатели</em></h2>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px">${cards}</div>
-    </div>`;
-  }
-
-  function renderStatuses(c: Record<string,unknown>): string {
-    const sc = (c.statusCounts || {}) as Record<string,number>;
-    const entries = Object.entries(sc).sort((a,b) => b[1]-a[1]);
-    const maxV = Math.max(...entries.map(e=>e[1]),1);
-    const statusCardColors: Record<string,string> = {
-      "Завершено":"rgba(4,78,59,.6)","Выполнено":"rgba(4,78,59,.6)",
-      "Тестирование":"rgba(7,50,90,.6)","Разработка":"rgba(80,55,5,.6)",
-      "Анализ":"rgba(50,20,90,.6)","В работе":"rgba(30,50,120,.6)"
-    };
-    const stCards = entries.map(([s,cnt]) => {
-      const col = sCol(s);
-      const bg = statusCardColors[s] || cc[0];
-      return `
-      <div style="flex:1;border-radius:24px;padding:32px 20px;text-align:center;border:1px solid rgba(255,255,255,.07);background:${bg};position:relative;overflow:hidden">
-        <div style="position:absolute;width:100px;height:100px;border-radius:50%;bottom:-30px;right:-20px;background:${col};filter:blur(45px);opacity:.4"></div>
-        <div style="position:absolute;top:0;left:0;right:0;height:3px;border-radius:24px 24px 0 0;background:${col}"></div>
-        <p style="font-size:60px;font-weight:900;letter-spacing:-2px;color:${col}">${cnt}</p>
-        <p style="font-size:15px;color:${mc};margin-top:8px;font-weight:600">${esc(s)}</p>
-        <div style="margin-top:16px;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden">
-          <div style="height:100%;border-radius:3px;background:${col};width:${Math.round(cnt/maxV*100)}%"></div>
-        </div>
-      </div>`;
-    }).join("");
-    return `
-    <div style="position:relative;z-index:1;width:100%;max-width:1200px">
-      <h2 style="font-size:40px;font-weight:800;margin-bottom:36px;text-align:center"><em style="font-style:normal;background:linear-gradient(135deg,${tc},${acA});-webkit-background-clip:text;-webkit-text-fill-color:transparent">Статусы задач</em></h2>
-      <div style="display:flex;gap:16px;flex-wrap:wrap">${stCards}</div>
-    </div>`;
-  }
-
-  function renderTaskCards(tasks: Task[], title: string): string {
-    const cards = tasks.slice(0,9).map(t => {
-      const col = sCol(t.status);
-      const bg = cc[0];
-      const planN = Number(t.planH) || 0;
-      const factN = Number(t.factH) || 0;
-      const fCol = planN > 0 ? (factN > planN ? "#fb7185" : "#4ade80") : `rgba(${r},${g},${b},.6)`;
-      return `
-      <div style="border-radius:20px;padding:20px 22px;border:1px solid rgba(255,255,255,.07);background:${bg};display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden">
-        <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:${col}"></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <span style="font-size:13px;color:${mc};font-weight:600">#${esc(t.num||"")}</span>
-          <span style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:10px;${sBg(t.status)}">${esc(t.status)}</span>
-        </div>
-        <p style="font-size:16px;color:${tc};font-weight:500;line-height:1.4">${esc(t.name||"")}</p>
-        <div style="display:flex;gap:20px">
-          <div><p style="font-size:22px;font-weight:800;color:${mc}">${t.planH||"—"}</p><p style="font-size:10px;color:${mc};text-transform:uppercase;letter-spacing:.6px">план</p></div>
-          <div><p style="font-size:22px;font-weight:800;color:${fCol}">${t.factH||"—"}</p><p style="font-size:10px;color:${mc};text-transform:uppercase;letter-spacing:.6px">факт</p></div>
-        </div>
-      </div>`;
-    }).join("");
-    return `
-    <div style="position:relative;z-index:1;width:100%;max-width:1260px">
-      <h2 style="font-size:40px;font-weight:800;margin-bottom:28px;text-align:center"><em style="font-style:normal;background:linear-gradient(135deg,${tc},${acA});-webkit-background-clip:text;-webkit-text-fill-color:transparent">${esc(title)}</em></h2>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">${cards}</div>
-    </div>`;
-  }
-
-  function renderTable(tasks: Task[]): string {
-    const rows = tasks.slice(0,15).map((t,i) => {
-      const planN = Number(t.planH)||0;
-      const factN = Number(t.factH)||0;
-      const fCol = planN>0 ? (factN>planN ? "#fb7185" : "#4ade80") : tc;
-      return `<tr style="background:${i%2===0?`rgba(${r},${g},${b},.04)`:"transparent"}">
-        <td style="padding:11px 16px;color:${mc};font-size:13px">${esc(t.num||"")}</td>
-        <td style="padding:11px 16px;color:${tc};max-width:260px">${esc(t.name||"")}</td>
-        <td style="padding:11px 16px;text-align:center;color:${mc}">${esc(String(t.planH||"—"))}</td>
-        <td style="padding:11px 16px;text-align:center;font-weight:700;color:${fCol}">${esc(String(t.factH||"—"))}</td>
-        <td style="padding:11px 16px"><span style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:10px;${sBg(t.status)}">${esc(t.status)}</span></td>
-      </tr>`;
-    }).join("");
-    return `
-    <div style="position:relative;z-index:1;width:100%;max-width:1260px">
-      <h2 style="font-size:40px;font-weight:800;margin-bottom:28px;text-align:center"><em style="font-style:normal;background:linear-gradient(135deg,${tc},${acA});-webkit-background-clip:text;-webkit-text-fill-color:transparent">Полный список задач</em></h2>
-      <div style="overflow:hidden;border-radius:20px;border:1px solid rgba(255,255,255,.07)">
-        <table style="width:100%;border-collapse:collapse;font-size:15px">
-          <thead><tr style="background:rgba(${r},${g},${b},.1)">
-            <th style="padding:13px 16px;text-align:left;color:${mc};font-size:12px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid rgba(${r},${g},${b},.12)">№</th>
-            <th style="padding:13px 16px;text-align:left;color:${mc};font-size:12px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid rgba(${r},${g},${b},.12)">Наименование</th>
-            <th style="padding:13px 16px;text-align:center;color:${mc};font-size:12px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid rgba(${r},${g},${b},.12)">План ч</th>
-            <th style="padding:13px 16px;text-align:center;color:${mc};font-size:12px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid rgba(${r},${g},${b},.12)">Факт ч</th>
-            <th style="padding:13px 16px;text-align:left;color:${mc};font-size:12px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid rgba(${r},${g},${b},.12)">Статус</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    </div>`;
-  }
-
-  function renderSummary(): string {
-    const con = aiConclusion ?? {
-      achievements:["Задачи выполнены в рамках плана","Приоритетные задачи закрыты"],
-      risks:["Перерасход часов по ряду задач","Требуется корректировка сроков"],
-      inProgress:["Задачи перенесены на следующий период","Беклог требует планирования"],
-      nextSteps:["Распределить задачи из беклога","Согласовать план на следующий месяц"],
-    };
-    const sections = [
-      { key:"achievements" as const, icon:"✅", label:"Достижения", col:"#34d399", bg:"rgba(4,78,59,.55)", border:"rgba(52,211,153,.2)", bullet:"#34d399" },
-      { key:"risks"        as const, icon:"⚠️", label:"Риски",      col:"#fb7185", bg:"rgba(120,10,40,.55)", border:"rgba(251,113,133,.2)", bullet:"#fb7185" },
-      { key:"inProgress"   as const, icon:"⚙️", label:"В процессе", col:"#fbbf24", bg:"rgba(80,55,5,.55)", border:"rgba(251,191,36,.2)", bullet:"#fbbf24" },
-      { key:"nextSteps"    as const, icon:"🎯", label:"Следующие шаги", col:"#a78bfa", bg:"rgba(50,20,90,.55)", border:"rgba(167,139,250,.2)", bullet:"#a78bfa" },
-    ];
-    const cards = sections.map(s => `
-      <div style="border-radius:22px;padding:28px 26px;background:${s.bg};border:1px solid ${s.border};position:relative;overflow:hidden">
-        <h4 style="font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:${s.col};margin-bottom:16px;display:flex;align-items:center;gap:8px">${s.icon} ${s.label}</h4>
-        <ul style="list-style:none;display:flex;flex-direction:column;gap:10px">
-          ${con[s.key].map(item => `<li style="font-size:15px;color:rgba(255,255,255,.82);padding-left:18px;position:relative;line-height:1.5"><span style="position:absolute;left:0;top:8px;width:7px;height:7px;border-radius:50%;background:${s.bullet};box-shadow:0 0 6px ${s.bullet};display:inline-block"></span>${esc(item)}</li>`).join("")}
-        </ul>
-      </div>`).join("");
-    return `
-    <div style="position:relative;z-index:1;width:100%;max-width:1200px">
-      <h2 style="font-size:40px;font-weight:800;margin-bottom:36px;text-align:center"><em style="font-style:normal;background:linear-gradient(135deg,${tc},${acA});-webkit-background-clip:text;-webkit-text-fill-color:transparent">Итоги и рекомендации</em></h2>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">${cards}</div>
-    </div>`;
-  }
-
-  // Render all slides
-  const slidesHTML = slides.map((slide, idx) => {
-    const c = slide.content;
-    let inner = "";
-    if (slide.type === "title")      inner = renderTitle(c);
-    else if (slide.type === "kpi")   inner = renderKpi(c);
-    else if (slide.type === "statuses") inner = renderStatuses(c);
-    else if (slide.type === "completed") inner = renderTaskCards(c.tasks as Task[], "Завершённые задачи");
-    else if (slide.type === "inprogress") inner = renderTaskCards(c.tasks as Task[], "Задачи в работе");
-    else if (slide.type === "table") inner = renderTable((c.rows || c.tasks) as Task[]);
-    else if (slide.type === "summary") inner = renderSummary();
-    return `<div class="slide${idx===0?" active":""}" data-idx="${idx}">${inner}</div>`;
-  }).join("\n");
-
-  const dotsHTML = slides.map((_,i) => `<button class="dot${i===0?" active":""}" data-idx="${i}"></button>`).join("");
-
-  return `<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Презентация</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',system-ui,sans-serif;background:${preset.bodyBg};color:${tc};height:100vh;overflow:hidden}
-.bg-overlay{position:fixed;inset:0;z-index:0;pointer-events:none;background:${preset.overlayBg}}
-.bg-pattern{position:fixed;inset:0;z-index:0;pointer-events:none;${patternBodyCSS}}
-.deck{width:100%;height:100vh;position:relative;z-index:1}
-.slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:56px 80px 100px;opacity:0;transform:translateX(60px) scale(.98);transition:all .55s cubic-bezier(.4,0,.2,1);pointer-events:none}
-.slide.active{opacity:1;transform:none;pointer-events:all}
-.slide.prev{opacity:0;transform:translateX(-60px) scale(.98)}
-.nav{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;z-index:100;background:rgba(${r},${g},${b},.08);border:1px solid rgba(${r},${g},${b},.25);backdrop-filter:blur(20px);border-radius:40px;padding:10px 24px}
-.nav button.arrow{background:none;border:none;color:rgba(${r},${g},${b},.7);cursor:pointer;font-size:20px;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:.2s}
-.nav button.arrow:hover{background:rgba(${r},${g},${b},.15);color:${acA}}
-.dots{display:flex;gap:6px;align-items:center}
-.dot{width:8px;height:8px;border-radius:4px;border:none;background:rgba(${r},${g},${b},.2);cursor:pointer;transition:all .3s}
-.dot.active{width:28px;background:${acGrad}}
-.counter{font-size:14px;color:rgba(${r},${g},${b},.4);min-width:44px;text-align:center}
-em{font-style:normal}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.6)}}
-@keyframes shimmer{0%{background-position:0%}100%{background-position:200%}}
-</style>
-</head>
-<body>
-<div class="bg-overlay"></div>
-${patternBodyCSS ? '<div class="bg-pattern"></div>' : ''}
-${emojiHTML}
-<div class="deck">
-${slidesHTML}
-</div>
-<div class="nav">
-  <button class="arrow" id="prevBtn">&#8592;</button>
-  <div class="dots" id="dots">${dotsHTML}</div>
-  <span class="counter" id="counter">1 / ${slides.length}</span>
-  <button class="arrow" id="nextBtn">&#8594;</button>
-</div>
-<script>
-const slides=document.querySelectorAll('.slide');
-const dots=document.querySelectorAll('.dot');
-const counter=document.getElementById('counter');
-let cur=0;
-function goTo(n){
-  slides[cur].classList.remove('active');
-  slides[cur].classList.add('prev');
-  setTimeout(()=>slides[cur].classList.remove('prev'),500);
-  cur=(n+slides.length)%slides.length;
-  slides[cur].classList.add('active');
-  dots.forEach((d,i)=>d.classList.toggle('active',i===cur));
-  counter.textContent=(cur+1)+' / '+slides.length;
-}
-document.getElementById('prevBtn').onclick=()=>goTo(cur-1);
-document.getElementById('nextBtn').onclick=()=>goTo(cur+1);
-dots.forEach(d=>d.onclick=()=>goTo(Number(d.dataset.idx)));
-document.addEventListener('keydown',e=>{
-  if(e.key==='ArrowRight'||e.key===' ')goTo(cur+1);
-  if(e.key==='ArrowLeft')goTo(cur-1);
-});
-counter.textContent='1 / '+slides.length;
-</script>
-</body>
-</html>`;
 }
 
 /* ================================================================ */
