@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { validateAdminRequest } from "@/lib/admin-auth";
 
+// GET /api/admin/sessions?token=xxx
 export async function GET(req: NextRequest) {
   try {
     const admin = await validateAdminRequest(req);
@@ -33,12 +34,16 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// DELETE /api/admin/sessions
+// Body: { token, sessionId }
 export async function DELETE(req: NextRequest) {
   try {
-    const admin = await validateAdminRequest(req);
+    const body = await req.json();
+    const { token, sessionId } = body;
+
+    const admin = await validateAdminRequest(req, token);
     if (!admin) return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
 
-    const { sessionId } = await req.json();
     if (!sessionId) return NextResponse.json({ error: "Укажите sessionId" }, { status: 400 });
 
     const session = await prisma.session.findUnique({

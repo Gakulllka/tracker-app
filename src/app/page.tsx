@@ -985,6 +985,8 @@ function AppWithAuth() {
     localStorage.removeItem("auth_user");
     localStorage.removeItem("auth_workspace");
     localStorage.removeItem("auth_permissions");
+    // Clear auth cookie used by middleware
+    document.cookie = "auth_token=; path=/; max-age=0; SameSite=Lax";
     setAuthData(null);
   }, [authData]);
 
@@ -1265,12 +1267,10 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   const pushToServer = useCallback(async () => {
     if (isSyncingRef.current) return;
     if (!initialLoadDoneRef.current) return;
-    // Don't push for 2s after a pull (server just sent us its state)
-    if (Date.now() - lastPullAtRef.current < 2000) return;
     isSyncingRef.current = true;
     try {
       const s = useTaskStore.getState();
-      // Save current live data into domainData before pushing
+      // Always snapshot current live data into domainData before pushing
       const domainData = {
         ...s.domainData,
         [s.activeDomainId]: { allData: s.allData, backlog: s.backlog },
@@ -1290,8 +1290,11 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         if (result.updatedAt) {
           serverUpdatedAtRef.current = result.updatedAt;
         }
+        lastPullAtRef.current = Date.now(); // mark successful write time
         setLastSync(new Date());
         setIsOnline(true);
+      } else {
+        setIsOnline(false);
       }
     } catch {
       setIsOnline(false);
@@ -1306,19 +1309,20 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       if (!res.ok) return;
       const data = await res.json();
 
-      // Update server timestamp for future push comparisons
       if (data.updatedAt) {
         serverUpdatedAtRef.current = data.updatedAt;
       }
 
-      const s = useTaskStore.getState();
-
-      // Record pull time so pushes are suppressed briefly (avoids echo)
-      lastPullAtRef.current = Date.now();
-
+      // Only apply server data if it's actually newer than our last push,
+      // OR if we have no local changes pending (lastLocalChangeRef is old)
+      const timeSinceLocalChange = Date.now() - lastLocalChangeRef.current;
+      const serverIsNewer = data.updatedAt && data.updatedAt > (serverUpdatedAtRef.current || "");
+      
       if (data.domainData && Object.keys(data.domainData).length > 0) {
+        // Only suppress the VERY next push that would be triggered by setDomainData
+        // Don't suppress subsequent user-driven pushes
         suppressNextPushRef.current = true;
-        s.setDomainData(data.domainData);
+        useTaskStore.getState().setDomainData(data.domainData);
       }
       setLastSync(new Date());
       setIsOnline(true);
@@ -1333,7 +1337,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     const load = async () => {
       const start = Date.now();
       await pullFromServer();
-      // Load shared questions from dedicated API
+      // Load shared questions
       try {
         const res = await fetch("/api/question");
         if (res.ok) {
@@ -1343,7 +1347,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
           }
         }
       } catch { /* silent */ }
-      // Ensure the loading screen is visible for at least 800ms
+      // Minimum loading screen time
       const elapsed = Date.now() - start;
       if (elapsed < 800) {
         await new Promise((r) => setTimeout(r, 800 - elapsed));
@@ -1357,7 +1361,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     return () => { cancelled = true; };
   }, [pullFromServer]);
 
-  // Poll questions every 5 seconds
+  // Poll questions every 8 seconds
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -1369,40 +1373,44 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
           }
         }
       } catch { /* silent */ }
-    }, 5000);
+    }, 8000);
     return () => clearInterval(interval);
   }, []);
 
-  // Push to server: instant on every local data change
+  // Push to server on every local data change — debounce 400ms
+  // suppressNextPushRef is set by pullFromServer to skip the echo push
   useEffect(() => {
     if (!initialLoadDoneRef.current) return;
     if (suppressNextPushRef.current) {
       suppressNextPushRef.current = false;
       return;
     }
-    // This is a local change — debounce push by 500ms
+    // Track time of last local change (for pull conflict resolution)
     lastLocalChangeRef.current = Date.now();
     const timer = setTimeout(() => {
       pushToServer();
-    }, 800);
+    }, 400);
     return () => clearTimeout(timer);
   }, [allData, backlog, pushToServer]);
 
-  // Pull from server: every 10 seconds for better multi-user responsiveness
+  // Periodic pull every 12 seconds (multi-user sync)
   useEffect(() => {
     if (!initialLoadDoneRef.current) return;
     const interval = setInterval(() => {
-      pullFromServer();
-    }, 10_000);
+      // Don't pull if we just wrote (400ms push + 200ms buffer)
+      if (Date.now() - lastLocalChangeRef.current > 600) {
+        pullFromServer();
+      }
+    }, 12_000);
     return () => clearInterval(interval);
   }, [pullFromServer]);
 
-  // Backup push every 5 minutes
+  // Backup push every 3 minutes (safety net)
   useEffect(() => {
     if (!initialLoadDoneRef.current) return;
     const interval = setInterval(() => {
       pushToServer();
-    }, 300_000);
+    }, 180_000);
     return () => clearInterval(interval);
   }, [pushToServer]);
 
@@ -1700,7 +1708,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         const data = await res.json();
         if (data.question) {
           const q = data.question;
-          setQuestions(prev => [...prev, { id: q.id, text: q.text, author: q.author, questionDate: q.questionDate, answer: q.answer || "" }]);
+          setQuestions(prev => [...prev, mapQuestionFromAPI(q)]);
         }
       }
     } catch { /* silent */ }
@@ -2351,6 +2359,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             updateBacklogTask={updateBacklogTask}
             deleteBacklogTask={deleteBacklogTask}
             reorderBacklog={reorderBacklog}
+            setCommentArchiveDialog={setCommentArchiveDialog}
             isDark={customDark}
           />
         )}

@@ -152,8 +152,16 @@ export async function GET(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
 
-    let ws = await prisma.workspace.findUnique({ where: { id } });
-    if (!ws) ws = await prisma.workspace.create({ data: { id } });
+    const ws = await prisma.workspace.findUnique({ where: { id } });
+    if (!ws) {
+      // Workspace not found — return empty data rather than creating one without userId
+      return NextResponse.json({
+        id,
+        name: "Моё пространство",
+        domainData: {},
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     const domainData = parseDomainData(ws.allData, ws.backlog);
     const cleanDomainData = filterDeletedFromDomains(domainData);

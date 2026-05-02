@@ -52,6 +52,8 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
       localStorage.setItem("auth_token", data.token);
       localStorage.setItem("auth_user", JSON.stringify(data.user));
       localStorage.setItem("auth_workspace", data.workspaceId);
+      // Also store in cookie so middleware can protect /admin without localStorage
+      document.cookie = `auth_token=${encodeURIComponent(data.token)}; path=/; max-age=2592000; SameSite=Lax`;
 
       onAuth({
         token: data.token,

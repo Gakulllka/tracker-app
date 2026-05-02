@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { validateAdminRequest } from "@/lib/admin-auth";
 
 // GET /api/admin/users?token=xxx
-// Returns all users with their permissions. Admin only.
 export async function GET(req: NextRequest) {
   try {
     const admin = await validateAdminRequest(req);
@@ -17,6 +16,7 @@ export async function GET(req: NextRequest) {
         username: true,
         displayName: true,
         role: true,
+        status: true,
         createdAt: true,
         permissions: true,
         sessions: {
@@ -36,12 +36,16 @@ export async function GET(req: NextRequest) {
 }
 
 // PUT /api/admin/users — toggle ACTIVE/BLOCKED status
+// Body: { token, userId, status }
 export async function PUT(req: NextRequest) {
   try {
-    const admin = await validateAdminRequest(req);
+    // Parse body FIRST, then pass token to validateAdminRequest
+    const body = await req.json();
+    const { token, userId, status } = body;
+
+    const admin = await validateAdminRequest(req, token);
     if (!admin) return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
 
-    const { userId, status } = await req.json();
     if (!userId) return NextResponse.json({ error: "Укажите userId" }, { status: 400 });
     if (!["ACTIVE", "BLOCKED"].includes(status))
       return NextResponse.json({ error: "Статус должен быть ACTIVE или BLOCKED" }, { status: 400 });
@@ -51,11 +55,12 @@ export async function PUT(req: NextRequest) {
     const user = await prisma.user.update({
       where: { id: userId },
       data: { status },
-      select: { id: true, username: true, displayName: true, status: true,
-        role: { select: { id: true, name: true, description: true } } },
+      select: {
+        id: true, username: true, displayName: true, status: true,
+        role: { select: { id: true, name: true, description: true } },
+      },
     });
 
-    // Terminate all active sessions if blocking
     if (status === "BLOCKED") {
       await prisma.session.deleteMany({ where: { userId } });
     }

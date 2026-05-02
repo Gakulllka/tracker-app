@@ -2,7 +2,24 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
-  // Clone the request and remove ALL conditional headers that cause 412
+  const { pathname } = request.nextUrl;
+
+  // ── Admin route protection ─────────────────────────────────────────────
+  // The /admin page requires an auth_token cookie.
+  // We can't validate the token in Edge middleware (no DB access), so we
+  // just ensure the cookie exists. The page itself calls /api/admin/* which
+  // fully validates admin role server-side.
+  if (pathname.startsWith("/admin")) {
+    const token = request.cookies.get("auth_token")?.value
+      || request.nextUrl.searchParams.get("token");
+
+    if (!token) {
+      // Redirect to home — the auth screen will appear
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+  }
+
+  // ── Strip conditional request headers (prevent 412 / proxy caching) ───
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete("if-none-match");
   requestHeaders.delete("if-modified-since");
@@ -15,7 +32,6 @@ export function middleware(request: NextRequest) {
     request: { headers: requestHeaders },
   });
 
-  // Strip ETag and set aggressive no-cache headers to prevent proxy caching
   response.headers.delete("etag");
   response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   response.headers.set("Pragma", "no-cache");
@@ -27,7 +43,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Match everything except api routes and _next internals
     "/((?!api|_next/static|_next/image|_next/webpack).*)",
   ],
 };

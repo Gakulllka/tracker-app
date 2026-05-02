@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { validateAdminRequest } from "@/lib/admin-auth";
 
+// GET /api/admin/roles?token=xxx — token via query string, no body needed
 export async function GET(req: NextRequest) {
   try {
     const admin = await validateAdminRequest(req);
@@ -22,12 +23,16 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// POST /api/admin/roles
+// Body: { token, name, description?, permissions? }
 export async function POST(req: NextRequest) {
   try {
-    const admin = await validateAdminRequest(req);
+    const body = await req.json();
+    const { token, name, description, permissions } = body;
+
+    const admin = await validateAdminRequest(req, token);
     if (!admin) return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
 
-    const { name, description, permissions } = await req.json();
     if (!name?.trim()) return NextResponse.json({ error: "Укажите название роли" }, { status: 400 });
 
     const existing = await prisma.role.findUnique({ where: { name: name.trim() } });
@@ -67,12 +72,16 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// PUT /api/admin/roles
+// Body: { token, roleId, name?, description?, permissions? }
 export async function PUT(req: NextRequest) {
   try {
-    const admin = await validateAdminRequest(req);
+    const body = await req.json();
+    const { token, roleId, name, description, permissions } = body;
+
+    const admin = await validateAdminRequest(req, token);
     if (!admin) return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
 
-    const { roleId, name, description, permissions } = await req.json();
     if (!roleId) return NextResponse.json({ error: "Укажите roleId" }, { status: 400 });
 
     const existing = await prisma.role.findUnique({ where: { id: roleId } });
@@ -101,12 +110,16 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+// DELETE /api/admin/roles
+// Body: { token, roleId }
 export async function DELETE(req: NextRequest) {
   try {
-    const admin = await validateAdminRequest(req);
+    const body = await req.json();
+    const { token, roleId } = body;
+
+    const admin = await validateAdminRequest(req, token);
     if (!admin) return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
 
-    const { roleId } = await req.json();
     if (!roleId) return NextResponse.json({ error: "Укажите roleId" }, { status: 400 });
 
     const role = await prisma.role.findUnique({ where: { id: roleId } });

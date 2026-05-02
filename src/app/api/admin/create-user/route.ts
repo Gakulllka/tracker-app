@@ -3,12 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { validateAdminRequest } from "@/lib/admin-auth";
 
+// POST /api/admin/create-user
+// Body: { token, username, password, displayName?, roleId? }
 export async function POST(req: NextRequest) {
   try {
-    const admin = await validateAdminRequest(req);
+    const body = await req.json();
+    const { token, username, password, displayName, roleId } = body;
+
+    const admin = await validateAdminRequest(req, token);
     if (!admin) return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
 
-    const { username, password, displayName, roleId } = await req.json();
     if (!username || !password) return NextResponse.json({ error: "Укажите username и password" }, { status: 400 });
     if (username.length < 3) return NextResponse.json({ error: "Минимум 3 символа" }, { status: 400 });
     if (password.length < 8) return NextResponse.json({ error: "Пароль: минимум 8 символов" }, { status: 400 });

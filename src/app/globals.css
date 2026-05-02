@@ -704,63 +704,52 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
   }
 }
 
-/* ================================================================ */
-/*  Dashboard                                                        */
-/* ================================================================ */
+/* ================================================================
+   DASHBOARD — REDESIGNED
+   Replace the existing /* Dashboard * / section in globals.css
+   (from .dashboard-kpi-card to the closing @media block)
+   ================================================================ */
 
-.dashboard-kpi-card {
+.dash-kpi-card {
   background: var(--tracker-bg-card, #fff);
   border: 1px solid var(--tracker-border, #e8e0f5);
   border-radius: 14px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-  transition: box-shadow 0.2s ease;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
-
-.dashboard-kpi-card:hover {
-  box-shadow: 0 3px 12px color-mix(in srgb, var(--tracker-accent, #9B72CF) 10%, transparent);
+.dash-kpi-card:hover {
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--tracker-accent, #9B72CF) 10%, transparent);
 }
-
-.dashboard-kpi-label {
-  font-size: 0.7rem;
+.dash-kpi-label {
+  font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--tracker-text-muted, #888);
-  margin-bottom: 2px;
 }
-
-.dashboard-kpi-value {
+.dash-kpi-value {
   font-size: 1.75rem;
-  font-weight: 800;
+  font-weight: 500;
   line-height: 1;
   letter-spacing: -0.02em;
-  tabular-nums: all;
+  font-variant-numeric: tabular-nums;
 }
-
-.dashboard-section-card {
+.dash-section {
   background: var(--tracker-bg-card, #fff);
   border: 1px solid var(--tracker-border, #e8e0f5);
   border-radius: 14px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
 }
-
-.dashboard-section-title {
-  font-size: 0.75rem;
+.dash-section-title {
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--tracker-text-muted, #888);
 }
-
 @media (max-width: 639px) {
-  .dashboard-kpi-value {
-    font-size: 1.4rem;
-  }
-  .dashboard-kpi-card,
-  .dashboard-section-card {
-    padding: 12px;
-    border-radius: 12px;
-  }
+  .dash-kpi-value { font-size: 1.4rem; }
+  .dash-kpi-card, .dash-section { padding: 12px 13px; border-radius: 12px; }
 }

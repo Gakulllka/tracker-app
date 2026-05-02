@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { validateAdminRequest } from "@/lib/admin-auth";
 
+// PUT /api/admin/role — change user role
+// Body: { token, userId, roleId }
 export async function PUT(req: NextRequest) {
   try {
-    const admin = await validateAdminRequest(req);
+    const body = await req.json();
+    const { token, userId, roleId } = body;
+
+    const admin = await validateAdminRequest(req, token);
     if (!admin) return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
 
-    const { userId, roleId } = await req.json();
     if (!userId || !roleId) return NextResponse.json({ error: "Укажите userId и roleId" }, { status: 400 });
 
     const targetRole = await prisma.role.findUnique({ where: { id: roleId } });
@@ -47,12 +51,16 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+// DELETE /api/admin/role — delete user account
+// Body: { token, userId }
 export async function DELETE(req: NextRequest) {
   try {
-    const admin = await validateAdminRequest(req);
+    const body = await req.json();
+    const { token, userId } = body;
+
+    const admin = await validateAdminRequest(req, token);
     if (!admin) return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
 
-    const { userId } = await req.json();
     if (!userId) return NextResponse.json({ error: "Укажите userId" }, { status: 400 });
     if (userId === admin.user.id) return NextResponse.json({ error: "Нельзя удалить свой аккаунт" }, { status: 400 });
 
