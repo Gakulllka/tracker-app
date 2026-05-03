@@ -240,6 +240,10 @@ export interface DomainData {
   backlog: Task[];
   /** Полная база задач — здесь живут все года. Это и шлётся на сервер. */
   dataByYearMonth?: Record<MonthKey, Task[]>;
+  /** Phase 7.2: плановое количество часов на (домен, месяц, год).
+   *  Ключ — MonthKey "YYYY-MM". Значение — числo часов плана.
+   *  Если ключа нет → дефолт 80. */
+  monthlyPlanByYearMonth?: Record<MonthKey, number>;
 }
 
 interface AppState {
@@ -268,8 +272,8 @@ interface AppState {
   // Presentation background
   presBg: PresBgSettings;
 
-  // Per-month budget (formula strings)
-  monthBudget: string[];
+  // Phase 7.2: monthBudget (Record<0..11, string>) удалён.
+  // Заменён на monthlyPlanByYearMonth внутри DomainData.
 
   // Filters
   filterStatuses: Set<Status>;
@@ -325,7 +329,9 @@ interface AppState {
   setPresBg: (bg: Partial<PresBgSettings>) => void;
 
   // Per-month budget
-  setMonthBudget: (month: number, value: string) => void;
+  /** Phase 7.2: записать план часов на (текущий домен, монтикей).
+   *  Если hours = 0 или NaN — ключ удаляется (вернётся дефолт 80). */
+  setMonthlyPlan: (monthKey: MonthKey, hours: number) => void;
 
   // Filters
   toggleStatusFilter: (s: Status) => void;
@@ -427,7 +433,6 @@ export const useTaskStore = create<AppState>()(
       customColor: "",
       customDark: false,
       presBg: DEFAULT_PRES_BG,
-      monthBudget: Array(12).fill("80"),
       filterStatuses: new Set(),
       filterPriorities: new Set(),
       sortKey: "",
@@ -893,10 +898,27 @@ export const useTaskStore = create<AppState>()(
       setCustomColor: (color, dark) => set({ customColor: color, customDark: dark, themeId: "custom" }),
       setCustomDark: (dark) => set({ customDark: dark }),
       setPresBg: (bg) => set((s) => ({ presBg: { ...s.presBg, ...bg } })),
-      setMonthBudget: (month, value) => set((s) => {
-        const next = [...s.monthBudget];
-        next[month] = value;
-        return { monthBudget: next };
+
+      /** Phase 7.2: записать план часов в monthlyPlanByYearMonth активного домена. */
+      setMonthlyPlan: (monthKey, hours) => set((s) => {
+        const dom = s.domainData[s.activeDomainId];
+        if (!dom) return s;
+        const existing = dom.monthlyPlanByYearMonth || {};
+        const next: Record<MonthKey, number> = { ...existing };
+        if (!hours || isNaN(hours) || hours <= 0) {
+          delete next[monthKey];
+        } else {
+          next[monthKey] = hours;
+        }
+        return {
+          domainData: {
+            ...s.domainData,
+            [s.activeDomainId]: {
+              ...dom,
+              monthlyPlanByYearMonth: next,
+            },
+          },
+        };
       }),
 
       toggleStatusFilter: (s) => set(state => {
@@ -1119,7 +1141,6 @@ export const useTaskStore = create<AppState>()(
         currentMonth: state.currentMonth,
         currentYear: state.currentYear,
         presBg: state.presBg,
-        monthBudget: state.monthBudget,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

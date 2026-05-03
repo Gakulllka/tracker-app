@@ -1026,8 +1026,12 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   const storeSetPresBg = useTaskStore((s) => s.setPresBg);
   const presSubTab = useTaskStore((s) => s.presSubTab);
   const setPresSubTab = useTaskStore((s) => s.setPresSubTab);
-  const monthBudget = useTaskStore((s) => s.monthBudget);
-  const setMonthBudget = useTaskStore((s) => s.setMonthBudget);
+  /* Phase 7.2: monthBudget удалён, заменён на monthlyPlanByYearMonth per-domain.
+   * Подписываемся на текущий домен и подсчитываем план для текущего месяца+года. */
+  const setMonthlyPlan = useTaskStore((s) => s.setMonthlyPlan);
+  const activeDomainData = useTaskStore((s) => s.domainData[s.activeDomainId]);
+  const currentMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+  const monthlyPlan = activeDomainData?.monthlyPlanByYearMonth?.[currentMonthKey] ?? 80;
   const filterStatuses = useTaskStore((s) => s.filterStatuses);
   const filterPriorities = useTaskStore((s) => s.filterPriorities);
   const sortKey = useTaskStore((s) => s.sortKey);
@@ -2609,8 +2613,8 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         {view === "dashboard" && (
           <DashboardView
             data={dashboardData}
-            monthBudget={monthBudget[currentMonth]}
-            onBudgetChange={(v) => setMonthBudget(currentMonth, v)}
+            monthPlan={monthlyPlan}
+            onSetMonthPlan={(h) => setMonthlyPlan(currentMonthKey, h)}
             currentMonth={currentMonth}
             currentYear={currentYear}
             backlogCount={(backlog || []).length}
@@ -4637,8 +4641,10 @@ interface DashboardViewProps {
     monthlyCompleted: number[];
     topTasks: Task[];
   };
-  monthBudget: string;
-  onBudgetChange: (v: string) => void;
+  /** Phase 7.2: текущее значение плана часов для (домен, месяц, год). Дефолт 80. */
+  monthPlan: number;
+  /** Phase 7.2: записать значение плана. */
+  onSetMonthPlan: (hours: number) => void;
   currentMonth: number;
   currentYear: number;
   backlogCount: number;
@@ -4713,25 +4719,60 @@ function MiniSparkline({ values, color, height = 40 }: { values: number[]; color
   );
 }
 
-function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, currentYear, backlogCount }: DashboardViewProps) {
-  const budget = evalExpr(monthBudget);
-  const budgetH = isNaN(budget) || budget <= 0 ? 0 : budget;
+function DashboardView({ data, monthPlan, onSetMonthPlan, currentMonth, currentYear, backlogCount }: DashboardViewProps) {
+  /* Phase 7.2: monthBudget удалён. Теперь:
+   *  - План = monthPlan (чистое число часов на (домен, месяц, год)), вводится юзером, дефолт 80
+   *  - В блоке "План" показываем также сумму планов по всем задачам месяца (data.planH)
+   *  - В блоке "Факт" — фактически потраченные часы (data.factH) + перерасход или остаток относительно введённого плана
+   *
+   *  Перестроенная сетка:
+   *    1. Header (без бюджета)
+   *    2. Annual chart (раньше внизу)
+   *    3. KPI cards (Completion / Plan / Fact / Backlog)
+   *    4. Status + Priorities (раньше Status + Sparkline; Sparkline удалён, на его место — Priorities)
+   *    5. Alert banner + Top tasks (раньше Alert был сверху, Top tasks отдельно)
+   */
   const completionRate = data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0;
-  const planExec = data.planH > 0 ? Math.round((data.factH / data.planH) * 100) : 0;
-  const budgetUsed = budgetH > 0 ? Math.round((data.factH / budgetH) * 100) : 0;
-  const isOverBudget = budgetUsed > 100;
-  const budgetFree = budgetH > 0 ? R2(budgetH - data.factH) : 0;
+
+  const planEffective = monthPlan > 0 ? monthPlan : 80;
+  const factVsPlanPct = planEffective > 0 ? Math.round((data.factH / planEffective) * 100) : 0;
+  const isOverPlan = data.factH > planEffective;
+  const remaining = R2(planEffective - data.factH);
+  const overspent = R2(data.factH - planEffective);
 
   const accentDark = "var(--tracker-accent-fg-dark)";
   const monthName = `${MONTHS[currentMonth]} ${currentYear}`;
-  const yearTotalFact = R2(data.monthlyFact.reduce((a, b) => a + b, 0));
-  const yearPeakFact  = R2(Math.max(...data.monthlyFact));
 
   const completionColor = completionRate >= 80 ? "#1D9E75" : completionRate >= 50 ? "#BA7517" : "#E24B4A";
-  const planColor = planExec > 110 ? "#E24B4A" : planExec >= 90 ? "#1D9E75" : "var(--tracker-accent)";
-  const budgetColor = isOverBudget ? "#E24B4A" : budgetUsed >= 85 ? "#BA7517" : "#1D9E75";
+  const factColor = isOverPlan ? "#E24B4A" : factVsPlanPct >= 85 ? "#BA7517" : "#1D9E75";
 
   const MONTHS_SHORT = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"];
+
+  // Локальный inline-input для плана: храним строку чтобы юзер мог временно
+  // вводить невалидное (стирать символы). Не синхронизируем через useEffect —
+  // так ESLint не ругается. Пока юзер активно вводит, поле может быть рассинхронизировано
+  // с monthPlan, но это норма: при blur коммитим валидное значение.
+  const [planInputValue, setPlanInputValue] = useState<string>(String(planEffective));
+
+  const commitPlan = () => {
+    const n = Number(planInputValue.replace(",", "."));
+    if (!isNaN(n) && n > 0 && n !== planEffective) {
+      onSetMonthPlan(n);
+    } else if (isNaN(n) || n <= 0) {
+      // невалид — вернёмся к текущему значению
+      setPlanInputValue(String(planEffective));
+    }
+  };
+
+  // Когда planEffective меняется снаружи (например, другой юзер обновил план),
+  // обновляем поле — но только если юзер сейчас не редактирует (нет фокуса).
+  // Делаем через ref на input.
+  const planInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (document.activeElement !== planInputRef.current) {
+      setPlanInputValue(String(planEffective));
+    }
+  }, [planEffective]);
 
   return (
     <div className="space-y-3">
@@ -4742,168 +4783,11 @@ function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, curren
           <h2 className="text-xl font-semibold tracking-tight" style={{ color: accentDark }}>{monthName}</h2>
           <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>
             {data.total} задач · {data.completed} завершено
-            {data.atRisk.length > 0 && (
-              <> · <span style={{ color: "#E24B4A", fontWeight: 600 }}>⚠ {data.atRisk.length} в риске</span></>
-            )}
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Бюджет ч/мес:</label>
-          <input type="text" value={monthBudget} onChange={e => onBudgetChange(e.target.value)}
-            placeholder="160"
-            className="h-8 w-20 text-center text-sm rounded-lg border bg-transparent outline-none"
-            style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }} />
-          {budgetH > 0 && (
-            <span className="text-xs font-medium px-2.5 py-1 rounded-full"
-              style={{ background: "var(--tracker-accent-bg)", color: accentDark }}>
-              {fmt2(budgetH)} ч
-            </span>
-          )}
-        </div>
       </div>
 
-      {/* ── ALERT BANNER ── */}
-      {data.atRisk.length > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm"
-          style={{ background: "rgba(226,75,74,0.07)", border: "1px solid rgba(226,75,74,0.2)", color: "#A32D2D" }}>
-          <span className="text-base shrink-0">⚠</span>
-          <span className="flex-1 text-xs">
-            {data.atRisk.length} {data.atRisk.length === 1 ? "задача превышает" : "задачи превышают"} плановые часы
-          </span>
-          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
-            style={{ background: "#E24B4A", color: "#fff" }}>
-            {data.atRisk.length} в риске
-          </span>
-        </div>
-      )}
-
-      {/* ── KPI CARDS ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-        {/* Completion */}
-        <div className="dash-kpi-card relative overflow-hidden" style={{ borderColor: completionColor + "30" }}>
-          <div className="absolute top-3 right-3">
-            <RadialProgress pct={completionRate} size={44} stroke={4} color={completionColor} />
-          </div>
-          <p className="dash-kpi-label">Выполнение</p>
-          <p className="dash-kpi-value mt-1" style={{ color: completionColor }}>{completionRate}%</p>
-          <p className="text-[11px] mt-1.5" style={{ color: "var(--tracker-text-muted)" }}>{data.completed} из {data.total} задач</p>
-          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
-            <div className="h-full rounded-full transition-all duration-700"
-              style={{ width: `${Math.min(completionRate, 100)}%`, background: completionColor }} />
-          </div>
-        </div>
-        {/* Fact / Plan */}
-        <div className="dash-kpi-card" style={{ borderColor: "var(--tracker-accent)" + "30" }}>
-          <p className="dash-kpi-label">Факт / План</p>
-          <div className="flex items-baseline gap-1.5 mt-1">
-            <span className="dash-kpi-value" style={{ color: accentDark }}>{fmt2(data.factH)}</span>
-            <span className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>/ {fmt2(data.planH)} ч</span>
-          </div>
-          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
-            <div className="h-full rounded-full transition-all duration-700"
-              style={{ width: `${Math.min(planExec, 100)}%`, background: planColor }} />
-          </div>
-          <div className="flex items-center gap-2 mt-1.5">
-            <DeltaBadge pct={planExec} />
-            <span className="text-[11px]" style={{ color: "var(--tracker-text-muted)" }}>от плана</span>
-          </div>
-        </div>
-        {/* Budget */}
-        <div className="dash-kpi-card" style={{ borderColor: budgetColor + "30" }}>
-          <p className="dash-kpi-label">Бюджет</p>
-          {budgetH > 0 ? (
-            <>
-              <p className="dash-kpi-value mt-1" style={{ color: budgetColor }}>{budgetUsed}%</p>
-              <p className="text-[11px] mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>{fmt2(data.factH)} / {fmt2(budgetH)} ч</p>
-              <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
-                <div className="h-full rounded-full transition-all duration-700"
-                  style={{ width: `${Math.min(budgetUsed, 100)}%`, background: budgetColor }} />
-              </div>
-              <p className="text-[11px] mt-1.5" style={{ color: budgetColor }}>
-                {isOverBudget ? `+${fmt2(R2(data.factH - budgetH))} ч перебор` : `${fmt2(budgetFree)} ч свободно`}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="dash-kpi-value mt-1" style={{ color: "var(--tracker-text-muted)" }}>—</p>
-              <p className="text-[11px] mt-1.5" style={{ color: "var(--tracker-text-muted)" }}>Введите бюджет</p>
-            </>
-          )}
-        </div>
-        {/* Backlog */}
-        <div className="dash-kpi-card">
-          <p className="dash-kpi-label">Беклог</p>
-          <p className="dash-kpi-value mt-1" style={{ color: accentDark }}>{backlogCount}</p>
-          <p className="text-[11px] mt-1.5" style={{ color: "var(--tracker-text-muted)" }}>
-            {data.atRisk.length > 0
-              ? <span style={{ color: "#E24B4A" }}>⚠ {data.atRisk.length} в риске</span>
-              : "задач в очереди"}
-          </p>
-          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
-            <div className="h-full rounded-full"
-              style={{ width: `${Math.min(backlogCount * 7, 100)}%`, background: "var(--tracker-accent)" }} />
-          </div>
-        </div>
-      </div>
-
-      {/* ── STATUS + SPARKLINE ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-        <div className="dash-section">
-          <p className="dash-section-title">Статусы задач</p>
-          <div className="mt-2.5">
-            <StatusBar statusCounts={data.statusCounts} total={data.total} />
-          </div>
-          <div className="mt-3 space-y-2">
-            {Object.values(STATUSES)
-              .filter(s => (data.statusCounts[s] || 0) > 0)
-              .sort((a, b) => (data.statusCounts[b] || 0) - (data.statusCounts[a] || 0))
-              .slice(0, 7)
-              .map(s => {
-                const count = data.statusCounts[s] || 0;
-                const pct = data.total > 0 ? Math.round((count / data.total) * 100) : 0;
-                return (
-                  <div key={s} className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: SCOL[s] || "#ccc" }} />
-                    <span className="text-xs flex-1 truncate" style={{ color: "var(--tracker-text-main)" }}>{s}</span>
-                    <div className="w-16 h-1 rounded-full overflow-hidden shrink-0" style={{ background: "var(--tracker-border)" }}>
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: SCOL[s] || "#ccc" }} />
-                    </div>
-                    <span className="text-[11px] w-5 text-right font-medium tabular-nums" style={{ color: "var(--tracker-text-muted)" }}>{count}</span>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-        <div className="dash-section">
-          <p className="dash-section-title">Динамика факт-часов</p>
-          <div className="mt-2.5">
-            <MiniSparkline values={data.monthlyFact} color="var(--tracker-accent)" height={52} />
-          </div>
-          <div className="flex justify-between mt-1 px-0.5">
-            {MONTHS_SHORT.map((m, i) => (
-              <span key={m} className="text-[9px] tabular-nums"
-                style={{ color: i === currentMonth ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
-                  fontWeight: i === currentMonth ? 700 : 400 }}>
-                {m}
-              </span>
-            ))}
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {[
-              { label: "Текущий", val: fmt2(data.factH) + " ч" },
-              { label: "Пик за год", val: fmt2(yearPeakFact) + " ч" },
-              { label: "Итого за год", val: fmt2(yearTotalFact) + " ч" },
-            ].map(item => (
-              <div key={item.label} className="rounded-lg px-2.5 py-2 text-center" style={{ background: "var(--tracker-accent-bg)" }}>
-                <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--tracker-text-muted)" }}>{item.label}</p>
-                <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--tracker-accent-fg-dark)" }}>{item.val}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ── ANNUAL CHART ── */}
+      {/* ── 1. ANNUAL CHART (раньше был внизу, теперь сверху) ── */}
       <div className="dash-section">
         <div className="flex items-center justify-between mb-2">
           <p className="dash-section-title">Годовая динамика</p>
@@ -4955,8 +4839,111 @@ function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, curren
         })()}
       </div>
 
-      {/* ── PRIORITIES + TOP TASKS ── */}
+      {/* ── 2. KPI CARDS ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        {/* Completion */}
+        <div className="dash-kpi-card relative overflow-hidden" style={{ borderColor: completionColor + "30" }}>
+          <div className="absolute top-3 right-3">
+            <RadialProgress pct={completionRate} size={44} stroke={4} color={completionColor} />
+          </div>
+          <p className="dash-kpi-label">Выполнение</p>
+          <p className="dash-kpi-value mt-1" style={{ color: completionColor }}>{completionRate}%</p>
+          <p className="text-[11px] mt-1.5" style={{ color: "var(--tracker-text-muted)" }}>{data.completed} из {data.total} задач</p>
+          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${Math.min(completionRate, 100)}%`, background: completionColor }} />
+          </div>
+        </div>
+
+        {/* Phase 7.2: PLAN — input + сумма по задачам */}
+        <div className="dash-kpi-card" style={{ borderColor: "var(--tracker-accent)" + "30" }}>
+          <p className="dash-kpi-label">План</p>
+          <div className="flex items-baseline gap-1.5 mt-1">
+            <input
+              ref={planInputRef}
+              type="text"
+              value={planInputValue}
+              onChange={e => setPlanInputValue(e.target.value)}
+              onBlur={commitPlan}
+              onKeyDown={e => { if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur(); }}
+              className="dash-kpi-value bg-transparent outline-none border-b-2 border-dashed pb-0.5 w-20 text-left tabular-nums focus:border-solid"
+              style={{ color: accentDark, borderColor: "var(--tracker-accent)" + "50" }}
+              aria-label="План часов на месяц"
+            />
+            <span className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>ч</span>
+          </div>
+          <p className="text-[11px] mt-1" style={{ color: "var(--tracker-text-muted)" }}>
+            по задачам: {fmt2(data.planH)} ч
+          </p>
+          <p className="text-[10px] mt-1" style={{ color: "var(--tracker-text-muted)" }}>
+            на {monthName.toLowerCase()}
+          </p>
+        </div>
+
+        {/* Phase 7.2: FACT — потрачено + остаток / перерасход */}
+        <div className="dash-kpi-card" style={{ borderColor: factColor + "30" }}>
+          <p className="dash-kpi-label">Факт</p>
+          <div className="flex items-baseline gap-1.5 mt-1">
+            <span className="dash-kpi-value" style={{ color: factColor }}>{fmt2(data.factH)}</span>
+            <span className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>ч</span>
+          </div>
+          <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${Math.min(factVsPlanPct, 100)}%`, background: factColor }} />
+          </div>
+          {isOverPlan ? (
+            <p className="text-[11px] mt-1.5 font-semibold" style={{ color: "#E24B4A" }}>
+              +{fmt2(overspent)} ч перерасход
+            </p>
+          ) : (
+            <p className="text-[11px] mt-1.5" style={{ color: "var(--tracker-text-muted)" }}>
+              осталось {fmt2(remaining)} ч
+            </p>
+          )}
+        </div>
+
+        {/* Backlog */}
+        <div className="dash-kpi-card">
+          <p className="dash-kpi-label">Беклог</p>
+          <p className="dash-kpi-value mt-1" style={{ color: accentDark }}>{backlogCount}</p>
+          <p className="text-[11px] mt-1.5" style={{ color: "var(--tracker-text-muted)" }}>задач в очереди</p>
+          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+            <div className="h-full rounded-full"
+              style={{ width: `${Math.min(backlogCount * 7, 100)}%`, background: "var(--tracker-accent)" }} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. STATUS + PRIORITIES (раньше Status + Sparkline; Sparkline удалён) ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        <div className="dash-section">
+          <p className="dash-section-title">Статусы задач</p>
+          <div className="mt-2.5">
+            <StatusBar statusCounts={data.statusCounts} total={data.total} />
+          </div>
+          <div className="mt-3 space-y-2">
+            {Object.values(STATUSES)
+              .filter(s => (data.statusCounts[s] || 0) > 0)
+              .sort((a, b) => (data.statusCounts[b] || 0) - (data.statusCounts[a] || 0))
+              .slice(0, 7)
+              .map(s => {
+                const count = data.statusCounts[s] || 0;
+                const pct = data.total > 0 ? Math.round((count / data.total) * 100) : 0;
+                return (
+                  <div key={s} className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: SCOL[s] || "#ccc" }} />
+                    <span className="text-xs flex-1 truncate" style={{ color: "var(--tracker-text-main)" }}>{s}</span>
+                    <div className="w-16 h-1 rounded-full overflow-hidden shrink-0" style={{ background: "var(--tracker-border)" }}>
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: SCOL[s] || "#ccc" }} />
+                    </div>
+                    <span className="text-[11px] w-5 text-right font-medium tabular-nums" style={{ color: "var(--tracker-text-muted)" }}>{count}</span>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+
+        {/* Priorities — раньше был ниже, теперь занимает место Sparkline */}
         <div className="dash-section">
           <p className="dash-section-title">Приоритеты</p>
           <div className="mt-3 space-y-2.5">
@@ -4976,60 +4963,72 @@ function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, curren
                   </div>
                 );
               })}
-          </div>
-        </div>
-        <div className="dash-section">
-          <p className="dash-section-title">Топ задач по часам</p>
-          <div className="mt-3">
-            {data.topTasks.length === 0 && (
-              <p className="text-xs py-2" style={{ color: "var(--tracker-text-muted)" }}>Нет данных</p>
+            {Object.values(PRIORITIES).every(p => (data.priorityCounts[p] || 0) === 0) && (
+              <p className="text-xs py-2" style={{ color: "var(--tracker-text-muted)" }}>Нет данных о приоритетах</p>
             )}
-            {data.topTasks.map((task, i) => {
-              const factVal = evalExpr(task.factH);
-              const planVal = evalExpr(task.planH);
-              const isOver = planVal > 0 && factVal > planVal;
-              const maxFact = evalExpr(data.topTasks[0]?.factH || "0");
-              const barPct = maxFact > 0 ? (factVal / maxFact) * 100 : 0;
-              const barColor = isOver ? "#E24B4A" : "var(--tracker-accent)";
-              return (
-                <div key={task.id} className="flex items-center gap-2 py-2 border-b last:border-b-0"
-                  style={{ borderColor: "var(--tracker-border)" }}>
-                  <span className="text-[10px] font-semibold w-3.5 shrink-0 tabular-nums" style={{ color: "var(--tracker-text-muted)" }}>{i + 1}</span>
-                  <span className="text-xs flex-1 truncate" style={{ color: "var(--tracker-text-main)" }} title={task.name}>{task.name || task.num || "—"}</span>
-                  {isOver && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full shrink-0" style={{ background: "#FCEBEB", color: "#A32D2D" }}>
-                      +{fmt2(R2(factVal - planVal))}ч
-                    </span>
-                  )}
-                  <div className="w-12 h-1 rounded-full overflow-hidden shrink-0" style={{ background: "var(--tracker-border)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${barPct}%`, background: barColor }} />
-                  </div>
-                  <span className="text-[11px] w-9 text-right font-medium tabular-nums shrink-0"
-                    style={{ color: isOver ? "#E24B4A" : "var(--tracker-accent-fg-dark)" }}>
-                    {fmt2(factVal)}ч
-                  </span>
-                </div>
-              );
-            })}
           </div>
         </div>
       </div>
 
-      {/* ── RISK ZONE ── */}
+      {/* ── 4. ALERT BANNER + TOP TASKS — внизу ── */}
       {data.atRisk.length > 0 && (
-        <div className="dash-section" style={{ borderLeftWidth: "3px", borderLeftColor: "#E24B4A", borderRadius: "14px" }}>
-          <div className="flex items-center gap-2 mb-3">
-            <p className="dash-section-title" style={{ color: "#A32D2D" }}>⚠ Зона риска — факт превышает план</p>
-          </div>
-          <div className="space-y-1.5">
-            {data.atRisk.slice(0, 5).map(task => {
-              const plan = evalExpr(task.planH);
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm"
+          style={{ background: "rgba(226,75,74,0.07)", border: "1px solid rgba(226,75,74,0.2)", color: "#A32D2D" }}>
+          <span className="text-base shrink-0">⚠</span>
+          <span className="flex-1 text-xs">
+            {data.atRisk.length} {data.atRisk.length === 1 ? "задача превышает" : "задачи превышают"} плановые часы
+          </span>
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+            style={{ background: "#E24B4A", color: "#fff" }}>
+            {data.atRisk.length} в риске
+          </span>
+        </div>
+      )}
+
+      <div className="dash-section">
+        <p className="dash-section-title">Топ задач по часам</p>
+        <div className="mt-3">
+          {data.topTasks.length === 0 && (
+            <p className="text-xs py-2" style={{ color: "var(--tracker-text-muted)" }}>Нет данных</p>
+          )}
+          {data.topTasks.map((task, i) => {
+            const factVal = evalExpr(task.factH);
+            const planVal = evalExpr(task.planH);
+            const isOver = planVal > 0 && factVal > planVal;
+            const maxF = Math.max(...data.topTasks.map(t => evalExpr(t.factH)), 1);
+            const pct = (factVal / maxF) * 100;
+            return (
+              <div key={task.id || i} className="flex items-center gap-3 py-1.5">
+                <span className="text-[10px] w-4 text-center font-semibold tabular-nums" style={{ color: "var(--tracker-text-muted)" }}>{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate" style={{ color: "var(--tracker-text-main)" }}>{task.name || task.num || "—"}</p>
+                  <div className="mt-1 h-1 rounded-full overflow-hidden" style={{ background: "var(--tracker-border)" }}>
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: isOver ? "#E24B4A" : "var(--tracker-accent)" }} />
+                  </div>
+                </div>
+                <p className="text-xs font-semibold tabular-nums shrink-0" style={{ color: isOver ? "#E24B4A" : "var(--tracker-text-main)" }}>
+                  {fmt2(factVal)} ч
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* В риске — детальный список (если задачи есть) */}
+      {data.atRisk.length > 0 && (
+        <div className="dash-section">
+          <p className="dash-section-title">В зоне риска</p>
+          <div className="mt-3 space-y-2">
+            {data.atRisk.slice(0, 5).map((task, i) => {
               const fact = evalExpr(task.factH);
+              const plan = evalExpr(task.planH);
               const over = R2(fact - plan);
-              const pct = Math.round((fact / plan) * 100);
+              const pct = plan > 0 ? Math.round((fact / plan) * 100) : 0;
               return (
-                <div key={task.id} className="flex items-center gap-3 py-2 px-3 rounded-xl"
-                  style={{ background: "rgba(226,75,74,0.05)", border: "1px solid rgba(226,75,74,0.15)" }}>
+                <div key={task.id || i} className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                  style={{ background: "rgba(226,75,74,0.04)" }}>
+                  <span className="text-xs shrink-0" style={{ color: "var(--tracker-text-muted)" }}>{task.num}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium truncate" style={{ color: "var(--tracker-text-main)" }}>{task.name || task.num || "—"}</p>
                     <p className="text-[11px] mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>план {fmt2(plan)} ч → факт {fmt2(fact)} ч</p>
