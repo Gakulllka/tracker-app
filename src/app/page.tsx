@@ -148,6 +148,8 @@ import {
   Shield,
   Maximize2,
   FileText,
+  Sun,
+  Moon,
 } from "lucide-react";
 import AuthScreen from "@/components/auth-screen";
 
@@ -688,40 +690,25 @@ function ThemePreview({ hex, isDark }: { hex: string; isDark: boolean }) {
 
 function DesignView({ themeId, customColor, customDark, accentHex, onSetTheme, onSetCustomColor, presBg, onSetPresBg }: DesignViewProps) {
   const [customInput, setCustomInput] = useState(customColor || themeId || "#9B72CF");
-  const [darkMode, setDarkMode] = useState(customDark);
-  const [previewHex, setPreviewHex] = useState(accentHex);
 
-  // Keep previewHex in sync with external changes
-  useEffect(() => { setPreviewHex(accentHex); }, [accentHex]);
   useEffect(() => { setCustomInput(customColor || themeId || "#9B72CF"); }, [customColor, themeId]);
-  useEffect(() => { setDarkMode(customDark); }, [customDark]);
 
   const activeHex = customColor || themeId;
   const isCustom = !!customColor && !NAMED_THEMES.find(t => t.hex === customColor);
 
   const handleSelectTheme = (hex: string) => {
     onSetTheme(hex);
-    setPreviewHex(hex);
   };
 
   const handleCustomChange = (hex: string) => {
     setCustomInput(hex);
-    setPreviewHex(hex);
     if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
-      onSetCustomColor(hex, darkMode);
+      onSetCustomColor(hex, customDark);
     }
   };
 
-  const handleDarkToggle = (checked: boolean) => {
-    setDarkMode(checked);
-    onSetCustomColor(customColor || themeId || "#9B72CF", checked);
-  };
-
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
-
-      {/* ── Left: controls ──────────────────────────────────────── */}
-      <div className="space-y-6">
+    <div className="space-y-6 max-w-3xl mx-auto">
 
         {/* Section: Named themes */}
         <div>
@@ -747,8 +734,6 @@ function DesignView({ themeId, customColor, customDark, accentHex, onSetTheme, o
                 <button
                   key={theme.hex}
                   onClick={() => handleSelectTheme(theme.hex)}
-                  onMouseEnter={() => setPreviewHex(theme.hex)}
-                  onMouseLeave={() => setPreviewHex(activeHex)}
                   className="group relative flex flex-col items-center gap-2 rounded-xl p-3 border-2 transition-all"
                   style={{
                     borderColor: isActive ? "var(--tracker-accent)" : "var(--tracker-border)",
@@ -782,11 +767,11 @@ function DesignView({ themeId, customColor, customDark, accentHex, onSetTheme, o
           </div>
         </div>
 
-        {/* Section: Custom colour */}
-        <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+        {/* Section: Custom colour + Phase 7 палитра полутонов */}
+        <div className="rounded-xl border p-4 space-y-4" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
           <div>
             <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Свой цвет</h3>
-            <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Введите любой HEX или выберите из палитры</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Введите HEX или используйте пипетку</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -819,32 +804,54 @@ function DesignView({ themeId, customColor, customDark, accentHex, onSetTheme, o
               )}
             </div>
           </div>
+
+          {/* Phase 7: палитра автоматических полутонов от выбранного акцента.
+           * Показывает, как именно выбранный цвет распределяется в UI: куда
+           * пойдёт акцент сам по себе, куда — мягкий вариант (фон карточек),
+           * куда — затемнённый (текст на акценте) и т.д.
+           * Все значения вычисляются движком темы из основного цвета. */}
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--tracker-text-muted)" }}>
+              Палитра — автоматические оттенки
+            </p>
+            <div className="grid grid-cols-5 gap-2">
+              {([
+                { label: "Акцент", value: "var(--tracker-accent)", textOn: "#fff" },
+                { label: "Soft", value: "var(--tracker-accent-soft)", textOn: "var(--tracker-accent-fg-dark)" },
+                { label: "BG", value: "var(--tracker-accent-bg)", textOn: "var(--tracker-accent-fg-dark)" },
+                { label: "Hover", value: "var(--tracker-accent-hover)", textOn: "var(--tracker-accent-fg-dark)" },
+                { label: "На акценте", value: "var(--tracker-accent-fg-dark)", textOn: "var(--tracker-bg-main)" },
+              ] as const).map(swatch => (
+                <div
+                  key={swatch.label}
+                  className="flex flex-col items-center gap-1 rounded-lg p-2 border"
+                  style={{ borderColor: "var(--tracker-border)" }}
+                >
+                  <div
+                    className="w-full h-10 rounded-md flex items-center justify-center text-[10px] font-semibold"
+                    style={{ background: swatch.value, color: swatch.textOn }}
+                  >
+                    Aa
+                  </div>
+                  <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+                    {swatch.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] mt-2" style={{ color: "var(--tracker-text-muted)" }}>
+              Тёмная/светлая определяется тумблером в шапке.
+            </p>
+          </div>
         </div>
 
-        {/* Section: Dark mode */}
-        <div className="rounded-xl border p-4 flex items-center justify-between" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
-          <div>
-            <p className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Тёмный режим</p>
-            <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Инвертировать яркость палитры</p>
-          </div>
-          <Switch checked={darkMode} onCheckedChange={handleDarkToggle} />
-        </div>
+        {/* Phase 7: «Тёмный режим» удалён отсюда — теперь это иконка
+         * Sun/Moon в шапке (доступна с любой вкладки). */}
 
         {/* Phase 6: «Стиль презентации» с пресетами темы удалён.
          * Теперь презентация полностью наследует цвета от текущей темы
          * трекера. Настройки фона презентации (паттерн / эмодзи /
          * анимации) живут в табе Презентация → Дизайн. */}
-
-      </div>
-
-      {/* ── Right: live preview ──────────────────────────────────── */}
-      <div className="space-y-3">
-        <div>
-          <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Предпросмотр</h3>
-          <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Наведите на тему чтобы увидеть</p>
-        </div>
-        <ThemePreview hex={previewHex} isDark={darkMode} />
-      </div>
 
     </div>
   );
@@ -1013,6 +1020,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   const customColor = useTaskStore((s) => s.customColor);
   const customDark = useTaskStore((s) => s.customDark);
   const storeSetCustomColor = useTaskStore((s) => s.setCustomColor);
+  const storeSetCustomDark = useTaskStore((s) => s.setCustomDark);
   const storeSetTheme = useTaskStore((s) => s.setTheme);
   const presBg = useTaskStore((s) => s.presBg);
   const storeSetPresBg = useTaskStore((s) => s.setPresBg);
@@ -2239,32 +2247,100 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             <span className="text-xs text-[var(--tracker-text-muted)] hidden md:inline">{isOnline ? "Онлайн" : "Оффлайн"}</span>
           </div>
 
+          {/* Phase 7: Year selector в шапке (рядом с sync status) */}
+          {(view === "table" || view === "dashboard" || view === "slides") && (
+            <div className="hidden md:flex items-center gap-1 ml-2" title="Год">
+              <button
+                onClick={() => setCurrentYearStore(currentYear - 1)}
+                className="size-7 rounded-md text-sm font-medium text-[var(--tracker-text-muted)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-text-main)] transition-colors flex items-center justify-center"
+                aria-label="Предыдущий год"
+              >
+                ‹
+              </button>
+              <Select value={String(currentYear)} onValueChange={(v) => setCurrentYearStore(Number(v))}>
+                <SelectTrigger className="h-7 w-[78px] text-xs font-medium border-[var(--tracker-border)] bg-transparent text-[var(--tracker-text-main)]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(() => {
+                    const yrs = new Set<number>(getAvailableYears());
+                    const now = new Date().getFullYear();
+                    for (let dy = -2; dy <= 2; dy++) yrs.add(now + dy);
+                    yrs.add(currentYear);
+                    return Array.from(yrs).sort((a, b) => b - a).map((y) => (
+                      <SelectItem key={y} value={String(y)} className="text-sm">
+                        {y}{getAvailableYears().includes(y) ? "" : " ·"}
+                      </SelectItem>
+                    ));
+                  })()}
+                </SelectContent>
+              </Select>
+              <button
+                onClick={() => setCurrentYearStore(currentYear + 1)}
+                className="size-7 rounded-md text-sm font-medium text-[var(--tracker-text-muted)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-text-main)] transition-colors flex items-center justify-center"
+                aria-label="Следующий год"
+              >
+                ›
+              </button>
+            </div>
+          )}
+
           {/* Spacer */}
           <div className="flex-1" />
 
-          {/* User info + Logout */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--tracker-accent-bg)]">
-              <div className="w-5 h-5 rounded-full bg-[var(--tracker-accent)]/20 flex items-center justify-center shrink-0">
-                <span className="text-[10px] font-bold text-[var(--tracker-accent-fg-dark)]">{(authData.user.displayName || authData.user.username).charAt(0).toUpperCase()}</span>
-              </div>
-              <span className="text-xs text-[var(--tracker-text-main)] max-w-[120px] truncate hidden sm:inline">{authData.user.displayName || authData.user.username}</span>
-              {isAdmin && (
-                <span className="text-[9px] px-1 py-0.5 rounded font-bold hidden sm:inline" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)", border: "1px solid var(--tracker-border)" }}>ADMIN</span>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
-              title="Выйти из аккаунта"
-              onClick={onLogout}
-            >
-              <LogOut className="size-4" />
-            </Button>
-          </div>
-
+          {/*
+           * Phase 7: новый порядок справа налево —
+           *   Logout → Учётка → Settings → Admin → Save (Файл) → Дем. режим → Домены
+           * (то есть на экране слева направо: Домены | Дем.режим | Файл | Admin | Settings | Учётка | Logout)
+           *
+           * Тёмная тема — отдельный иконочный тумблер слева от Settings.
+           */}
           <div className="flex items-center gap-1.5">
+            {/* Domain selector (only if > 1 visible domain) */}
+            {visibleDomains.length > 1 && (
+              <Select value={activeDomainId} onValueChange={storeSetActiveDomain}>
+                <SelectTrigger className="h-8 w-auto max-w-[160px] text-xs border-[var(--tracker-border)] bg-transparent text-[var(--tracker-text-main)] hidden sm:flex">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {visibleDomains.map((d) => (
+                    <SelectItem key={d.id} value={d.id} className="text-xs">
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Client mode toggle */}
+            <Button
+              variant={clientMode ? "default" : "outline"}
+              size="sm"
+              onClick={toggleClientMode}
+              className={
+                clientMode
+                  ? "gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)] hover:text-white border-[var(--tracker-accent)]"
+                  : "gap-1.5 border-[var(--tracker-border)] bg-transparent text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-accent-fg-dark)]"
+              }
+            >
+              {clientMode ? (
+                <>
+                  <EyeOff className="size-3.5" />
+                  <span className="hidden sm:inline">Выйти</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="size-3.5" />
+                  <span className="hidden sm:inline">Демонстрация</span>
+                </>
+              )}
+            </Button>
+
+            <Separator
+              orientation="vertical"
+              className="header-separator mx-1 h-6 bg-[var(--tracker-border)] hidden sm:block"
+            />
+
             {/* Save/Load dropdown */}
             <span className="header-file-btn contents"><DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -2348,17 +2424,6 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             </Button>
             </span>
 
-            {/* Settings button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
-              title="Настройки"
-              onClick={() => { setSettingsOpen(true); setSettingsTab("theme"); setCustomColorInput(customColor || themeId || "#9B72CF"); }}
-            >
-              <Settings className="size-4" />
-            </Button>
-
             {/* Admin panel button */}
             {isAdmin && (
               <Button
@@ -2372,49 +2437,50 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
               </Button>
             )}
 
+            {/* Phase 7: тумблер тёмной темы — глобальный, доступен в шапке */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
+              title={customDark ? "Светлая тема" : "Тёмная тема"}
+              onClick={() => storeSetCustomDark(!customDark)}
+            >
+              {customDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </Button>
+
+            {/* Settings button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
+              title="Настройки"
+              onClick={() => { setSettingsOpen(true); setSettingsTab("theme"); setCustomColorInput(customColor || themeId || "#9B72CF"); }}
+            >
+              <Settings className="size-4" />
+            </Button>
+
+            {/* User info + Logout */}
             <Separator
               orientation="vertical"
               className="header-separator mx-1 h-6 bg-[var(--tracker-border)] hidden sm:block"
             />
-
-            {/* Domain selector (only if > 1 visible domain) */}
-            {visibleDomains.length > 1 && (
-              <Select value={activeDomainId} onValueChange={storeSetActiveDomain}>
-                <SelectTrigger className="h-8 w-auto max-w-[160px] text-xs border-white/20 bg-white/10 text-white hidden sm:flex">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {visibleDomains.map((d) => (
-                    <SelectItem key={d.id} value={d.id} className="text-xs">
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            {/* Client mode toggle */}
-            <Button
-              variant={clientMode ? "default" : "outline"}
-              size="sm"
-              onClick={toggleClientMode}
-              className="gap-1.5 border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-            >
-              {clientMode ? (
-                <>
-                  <EyeOff className="size-3.5" />
-                  <span className="hidden sm:inline">
-                    Выйти
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Eye className="size-3.5" />
-                  <span className="hidden sm:inline">
-                    Демонстрация
-                  </span>
-                </>
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--tracker-accent-bg)]">
+              <div className="w-5 h-5 rounded-full bg-[var(--tracker-accent)]/20 flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-bold text-[var(--tracker-accent-fg-dark)]">{(authData.user.displayName || authData.user.username).charAt(0).toUpperCase()}</span>
+              </div>
+              <span className="text-xs text-[var(--tracker-text-main)] max-w-[120px] truncate hidden sm:inline">{authData.user.displayName || authData.user.username}</span>
+              {isAdmin && (
+                <span className="text-[9px] px-1 py-0.5 rounded font-bold hidden sm:inline" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)", border: "1px solid var(--tracker-border)" }}>ADMIN</span>
               )}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
+              title="Выйти из аккаунта"
+              onClick={onLogout}
+            >
+              <LogOut className="size-4" />
             </Button>
           </div>
         </div>
@@ -2455,44 +2521,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         {/* ---- MONTH SELECTOR ---- */}
         {(view === "table" || view === "dashboard" || view === "slides") && (
           <div className="w-full mt-4 space-y-2">
-            {/* Year selector — Phase 2 */}
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={() => setCurrentYearStore(currentYear - 1)}
-                className="size-7 rounded-md text-sm font-medium bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center justify-center"
-                aria-label="Предыдущий год"
-                title="Предыдущий год"
-              >
-                ‹
-              </button>
-              <Select value={String(currentYear)} onValueChange={(v) => setCurrentYearStore(Number(v))}>
-                <SelectTrigger className="h-7 w-[110px] text-sm font-medium">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(() => {
-                    const yrs = new Set<number>(getAvailableYears());
-                    // Включим ±2 года вокруг текущего на всякий случай (для перехода в новый год без данных).
-                    const now = new Date().getFullYear();
-                    for (let dy = -2; dy <= 2; dy++) yrs.add(now + dy);
-                    yrs.add(currentYear);
-                    return Array.from(yrs).sort((a, b) => b - a).map((y) => (
-                      <SelectItem key={y} value={String(y)} className="text-sm">
-                        {y}{getAvailableYears().includes(y) ? "" : " ·"}
-                      </SelectItem>
-                    ));
-                  })()}
-                </SelectContent>
-              </Select>
-              <button
-                onClick={() => setCurrentYearStore(currentYear + 1)}
-                className="size-7 rounded-md text-sm font-medium bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center justify-center"
-                aria-label="Следующий год"
-                title="Следующий год"
-              >
-                ›
-              </button>
-            </div>
+            {/* Phase 7: переключатель года перенесён в шапку (см. <header>). */}
             <ScrollArea className="w-full" type="scrollbar">
               <div className="flex gap-1.5 pb-1 sm:justify-center">
                 {MONTHS.map((m, i) => (
@@ -3609,7 +3638,7 @@ function TableView({
       {/* ---- DESKTOP TABLE (hidden on mobile) ---- */}
       {/* ---- DESKTOP TABLE ---- */}
       <Card className="hidden md:block max-h-[70vh] overflow-auto py-0">
-        <Table className="border-collapse sticky-table-header">
+        <Table className="border-collapse sticky-table-header w-full">
           <TableHeader className="bg-[var(--tracker-accent-bg,#f3f0fb)]">
             <TableRow className="[&_th]:text-[var(--tracker-accent-fg-dark,#3d2264)]">
               {!clientMode && (
@@ -4108,24 +4137,33 @@ function TableView({
           {rows.length > 0 && (
             <TableFooter className="sticky bottom-0">
               <TableRow className="font-semibold bg-[var(--tracker-accent-bg)] border-t-[1.5px] border-[var(--tracker-border)]">
+                {/* drag (!clientMode) */}
                 {!clientMode && <TableCell className="border-t border-[var(--tracker-accent)]/20" />}
+                {/* № */}
                 <TableCell className="border-t border-[var(--tracker-accent)]/20" />
-                <TableCell className="border-t border-[var(--tracker-accent)]/20" />
+                {/* Наименование — здесь надпись ИТОГО */}
                 <TableCell className="text-[var(--tracker-accent-fg)] border-t border-[var(--tracker-accent)]/20 font-bold">
                   ИТОГО
                 </TableCell>
+                {/* План, ч */}
                 <TableCell className="text-right border-t border-[var(--tracker-accent)]/20">
                   {fmt2(rowsMetrics.totPlan)} ч
                 </TableCell>
+                {/* Факт, ч */}
                 <TableCell className={`text-right border-t border-[var(--tracker-accent)]/20 ${rowsMetrics.totFact > rowsMetrics.totPlan ? "text-[var(--tracker-danger)]" : rowsMetrics.totFact === rowsMetrics.totPlan && rowsMetrics.totFact > 0 ? "text-green-600 dark:text-green-400" : ""}`}>
                   {fmt2(rowsMetrics.totFact)} ч
                 </TableCell>
+                {/* Итого, ч */}
                 <TableCell className="text-right font-bold text-[var(--tracker-accent-fg)] border-t border-[var(--tracker-accent)]/20">
                   {fmt2(rowsMetrics.totTotalH)} ч
                 </TableCell>
+                {/* Приоритет */}
                 <TableCell className="border-t border-[var(--tracker-accent)]/20" />
+                {/* Очередь */}
                 <TableCell className="border-t border-[var(--tracker-accent)]/20" />
+                {/* Статус */}
                 <TableCell className="border-t border-[var(--tracker-accent)]/20" />
+                {/* Прогресс — здесь bar */}
                 <TableCell className="border-t border-[var(--tracker-accent)]/20">
                   <div className="flex items-center gap-2">
                     <div className="h-2 w-16 rounded-full bg-[var(--tracker-accent)]/10 overflow-hidden">
@@ -4144,7 +4182,9 @@ function TableView({
                     </span>
                   </div>
                 </TableCell>
+                {/* Комментарий */}
                 <TableCell className="border-t border-[var(--tracker-accent)]/20" />
+                {/* Действия (!clientMode) */}
                 {!clientMode && <TableCell className="border-t border-[var(--tracker-accent)]/20" />}
               </TableRow>
             </TableFooter>
@@ -4560,11 +4600,12 @@ function BacklogView({
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Отмена</Button>
-            <Button onClick={handleReturnToTable} className="bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]">
-              <Check className="size-4 mr-1.5" />
+          <DialogFooter className="gap-2 sm:flex-row sm:justify-stretch">
+            <Button onClick={handleReturnToTable} className="flex-1 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]">
               Перенести в таблицу
+            </Button>
+            <Button variant="destructive" onClick={closeDialog} className="flex-1">
+              Отмена
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -5183,15 +5224,16 @@ function QuestionsView({
               </div>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTaskDialog(d => ({ ...d, open: false }))}>Отмена</Button>
+          <DialogFooter className="gap-2 sm:flex-row sm:justify-stretch">
             <Button
               disabled={!taskDialog.name.trim()}
               onClick={handleCreateTask}
-              className="bg-[var(--tracker-accent)] text-white"
+              className="flex-1 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
             >
-              <Check className="size-4 mr-1.5" />
               {taskDialog.target === "backlog" ? "В беклог" : "В таблицу"}
+            </Button>
+            <Button variant="destructive" onClick={() => setTaskDialog(d => ({ ...d, open: false }))} className="flex-1">
+              Отмена
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -6420,8 +6462,7 @@ ${ctx}
               className="text-sm resize-none"
             />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreatingQuestion(null)}>Отмена</Button>
+          <DialogFooter className="gap-2 sm:flex-row sm:justify-stretch">
             <Button
               onClick={() => {
                 if (creatingQuestion?.trim()) {
@@ -6429,9 +6470,12 @@ ${ctx}
                   setCreatingQuestion(null);
                 }
               }}
-              className="bg-[var(--tracker-accent)] text-white"
+              className="flex-1 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
             >
-              <Check className="size-4 mr-1.5" />Добавить вопрос
+              Добавить вопрос
+            </Button>
+            <Button variant="destructive" onClick={() => setCreatingQuestion(null)} className="flex-1">
+              Отмена
             </Button>
           </DialogFooter>
         </DialogContent>

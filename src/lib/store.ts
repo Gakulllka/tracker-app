@@ -318,6 +318,8 @@ interface AppState {
   // Theme
   setTheme: (themeId: string) => void;
   setCustomColor: (color: string, dark: boolean) => void;
+  /** Phase 7: переключить только тёмную тему (без смены акцента). */
+  setCustomDark: (dark: boolean) => void;
 
   // Presentation background
   setPresBg: (bg: Partial<PresBgSettings>) => void;
@@ -889,6 +891,7 @@ export const useTaskStore = create<AppState>()(
 
       setTheme: (themeId) => set({ themeId, customColor: "" }),
       setCustomColor: (color, dark) => set({ customColor: color, customDark: dark, themeId: "custom" }),
+      setCustomDark: (dark) => set({ customDark: dark }),
       setPresBg: (bg) => set((s) => ({ presBg: { ...s.presBg, ...bg } })),
       setMonthBudget: (month, value) => set((s) => {
         const next = [...s.monthBudget];

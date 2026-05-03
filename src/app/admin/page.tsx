@@ -857,7 +857,9 @@ export default function AdminPage() {
     fetch(`/api/auth/me?token=${token}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.success && data.user.role?.name === "Admin") {
+        // /api/auth/me возвращает role как lowercase-строку ("admin" | "viewer" | …),
+        // не объект. Сравниваем напрямую со строкой "admin".
+        if (data.success && (data.user.role === "admin" || data.user.role?.name === "Admin")) {
           setIsAllowed(true);
         }
         setChecking(false);
