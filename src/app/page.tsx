@@ -18,6 +18,13 @@ import {
 } from "@/lib/presentation-renderer";
 import { renderPresentationHtml } from "@/lib/presentation-export";
 import {
+  fetchInsight,
+  saveInsight,
+  deleteInsight,
+  hashTasks,
+  type AiInsightShape,
+} from "@/lib/ai-insights-client";
+import {
   COLS,
   MONTHS,
   MONTHS_SHORT,
@@ -1213,12 +1220,10 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   // Slide data — Phase 3: больше не state, а useMemo от данных.
   // Кнопка «Создать презентацию» убрана. Слайды всегда есть, если есть задачи.
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [aiConclusion, setAiConclusion] = useState<{
-    achievements: string[];
-    risks: string[];
-    inProgress: string[];
-    nextSteps: string[];
-  } | null>(null);
+  /* Phase 4: aiConclusion теперь — серверный объект (с dataHash, source,
+   * updatedAt). Загружается при смене (workspaceId, activeDomainId,
+   * currentMonth, currentYear). aiDraft остаётся локальным. */
+  const [aiConclusion, setAiConclusion] = useState<AiInsightShape | null>(null);
   const [aiDraft, setAiDraft] = useState<{
     achievements: string[];
     risks: string[];
@@ -1226,6 +1231,8 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     nextSteps: string[];
   } | null>(null);
   const [aiConclusionBusy, setAiConclusionBusy] = useState(false);
+  /* Phase 4: текущий хеш задач месяца — для детекции stale-инсайтов. */
+  const [currentDataHash, setCurrentDataHash] = useState<string>("");
 
   // Drag overlay
   const [dragOverlay, setDragOverlay] = useState(false);
@@ -1604,6 +1611,51 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       setCurrentSlide(0);
     }
   }, [slides.length, currentSlide]);
+
+  /* Phase 4: monthKey для запросов в /api/insights */
+  const insightMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+
+  /* Phase 4: загрузка AI-инсайта с сервера при смене контекста.
+   * При смене (workspaceId, activeDomainId, currentMonth, currentYear)
+   * сбрасываем aiDraft (он принадлежал предыдущему контексту) и
+   * подтягиваем сохранённый инсайт. */
+  useEffect(() => {
+    if (!workspaceId) return;
+    let cancelled = false;
+    setAiDraft(null);
+    fetchInsight(workspaceId, activeDomainId, insightMonthKey)
+      .then((insight) => {
+        if (cancelled) return;
+        setAiConclusion(insight);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAiConclusion(null);
+      });
+    return () => { cancelled = true; };
+  }, [workspaceId, activeDomainId, insightMonthKey]);
+
+  /* Phase 4: вычисляем хеш текущих задач месяца — для бейджа stale.
+   * Хеш хранится в state, чтобы UI мог его сравнить с aiConclusion.dataHash. */
+  useEffect(() => {
+    let cancelled = false;
+    const monthRows = (allData[currentMonth] || []).filter((r) => r.name || r.num);
+    if (monthRows.length === 0) {
+      setCurrentDataHash("");
+      return;
+    }
+    hashTasks(monthRows).then((h) => {
+      if (!cancelled) setCurrentDataHash(h);
+    }).catch(() => { /* crypto.subtle недоступен — оставляем "" */ });
+    return () => { cancelled = true; };
+  }, [allData, currentMonth]);
+
+  /* Phase 4: stale-флаг — данные изменились с момента генерации инсайта */
+  const aiInsightStale = useMemo(() => {
+    if (!aiConclusion) return false;
+    if (!aiConclusion.dataHash || !currentDataHash) return false;
+    return aiConclusion.dataHash !== currentDataHash;
+  }, [aiConclusion, currentDataHash]);
 
   /* TotalH dialog breakdown */
   const monthBreakdown = useMemo(() => {
@@ -1992,12 +2044,43 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   }, [allData, currentMonth, currentYear, apiKeyRef, chatModel, setApiKeyDialogOpen, toast]);
 
   /* ---- Transfer ---- */
-  const handleApproveDraft = useCallback(() => {
+  /* Phase 4: при approval-е сохраняем на сервер (с dataHash и source).
+   * source = "ai" если черновик от AI, "manual" если юзер заполнял руками,
+   * "edited" если редактировал существующий aiConclusion. Точно отличить
+   * сложно (черновик может быть результатом редактирования или генерации),
+   * поэтому ставим "edited" если уже есть aiConclusion, иначе пусть будет
+   * "ai" по умолчанию — в любом случае это just metadata. */
+  const handleApproveDraft = useCallback(async () => {
     if (!aiDraft) return;
-    setAiConclusion(aiDraft);
+    const source: "ai" | "manual" | "edited" = aiConclusion ? "edited" : "ai";
+    const newConclusion: AiInsightShape = {
+      ...aiDraft,
+      dataHash: currentDataHash,
+      source,
+      updatedAt: new Date().toISOString(),
+    };
+    setAiConclusion(newConclusion);
     setAiDraft(null);
     toast({ title: "✅ AI анализ применён", description: "Тезисы добавлены в слайд «Итоги»" });
-  }, [aiDraft, toast]);
+
+    // Сохраняем на сервер (не блокируем UI — fire-and-forget с логированием).
+    if (workspaceId) {
+      saveInsight(workspaceId, activeDomainId, insightMonthKey, {
+        achievements: aiDraft.achievements,
+        risks: aiDraft.risks,
+        inProgress: aiDraft.inProgress,
+        nextSteps: aiDraft.nextSteps,
+        dataHash: currentDataHash,
+        source,
+      }).catch((err) => {
+        toast({
+          title: "Не удалось сохранить инсайт",
+          description: err instanceof Error ? err.message : "Сетевая ошибка",
+          variant: "destructive",
+        });
+      });
+    }
+  }, [aiDraft, aiConclusion, currentDataHash, workspaceId, activeDomainId, insightMonthKey, toast]);
 
   const handleDiscardDraft = useCallback(() => {
     setAiDraft(null);
@@ -2005,7 +2088,16 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
   const handleRemoveConclusion = useCallback(() => {
     setAiConclusion(null);
-  }, []);
+    if (workspaceId) {
+      deleteInsight(workspaceId, activeDomainId, insightMonthKey).catch((err) => {
+        toast({
+          title: "Не удалось удалить инсайт",
+          description: err instanceof Error ? err.message : "Сетевая ошибка",
+          variant: "destructive",
+        });
+      });
+    }
+  }, [workspaceId, activeDomainId, insightMonthKey, toast]);
 
   const handleTransfer = useCallback(() => {
     if (transferTarget < 0 || transferTarget === currentMonth) return;
@@ -2551,6 +2643,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             onApproveDraft={handleApproveDraft}
             onDiscardDraft={handleDiscardDraft}
             onRemoveConclusion={handleRemoveConclusion}
+            aiInsightStale={aiInsightStale}
             presSubTab={presSubTab}
             setPresSubTab={setPresSubTab}
             onOpenGlobalDesign={() => setView("design")}
@@ -5368,11 +5461,14 @@ interface SlidesViewProps {
   onAiAnalysis: () => void;
   aiAnalysisBusy: boolean;
   aiDraft: AiConclusionShape | null;
-  aiConclusion: AiConclusionShape | null;
+  /** Phase 4: aiConclusion расширен серверными полями (dataHash, source, updatedAt). */
+  aiConclusion: AiInsightShape | null;
   onSetAiDraft: (v: AiConclusionShape | null) => void;
   onApproveDraft: () => void;
   onDiscardDraft: () => void;
   onRemoveConclusion: () => void;
+  /** Phase 4: данные изменились с момента генерации текущего инсайта. */
+  aiInsightStale: boolean;
   /** Phase 3: активный под-таб + сеттер. */
   presSubTab: "slides" | "design" | "ai";
   setPresSubTab: (v: "slides" | "design" | "ai") => void;
@@ -5408,6 +5504,7 @@ function SlidesView({
   onApproveDraft,
   onDiscardDraft,
   onRemoveConclusion,
+  aiInsightStale,
   presSubTab,
   setPresSubTab,
   onOpenGlobalDesign,
@@ -5692,9 +5789,16 @@ function SlidesView({
               {aiDraft
                 ? "Черновик готов — проверьте и примените"
                 : aiConclusion
-                  ? "AI-выводы применены к слайду «Итоги»"
+                  ? (aiConclusion.source === "manual" ? "Тезисы применены вручную" : aiConclusion.source === "edited" ? "Тезисы применены (отредактированы)" : "AI-выводы применены к слайду «Итоги»")
                   : "Сгенерируйте AI-выводы или заполните вручную"}
             </p>
+            {/* Phase 4: бейдж stale — данные изменились с момента генерации */}
+            {aiInsightStale && !aiDraft && (
+              <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium"
+                style={{ background: "rgba(251,191,36,.12)", color: "#92400e", border: "1px solid rgba(251,191,36,.35)" }}>
+                ⚠️ Данные изменились с момента генерации — стоит обновить
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-1.5"

@@ -21,6 +21,7 @@ model User {
   workspaces  Workspace[]
   sessions    Session[]
   permissions UserPermission[]
+  aiInsights  AiInsight[]
 }
 
 model Role {
@@ -93,4 +94,28 @@ model ActivityLog {
   newValue   String   @default("")
   ipAddress  String   @default("")
   createdAt  DateTime @default(now())
+}
+
+// Phase 4: AI-инсайты привязаны к (пользователь, домен, месяц).
+// На каждую комбинацию ровно один инсайт; повторное сохранение перезаписывает.
+model AiInsight {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  domainId     String
+  monthKey     String   // "YYYY-MM"
+
+  achievements String   @default("[]") // JSON array
+  risks        String   @default("[]") // JSON array
+  inProgress   String   @default("[]") // JSON array
+  nextSteps    String   @default("[]") // JSON array
+
+  dataHash     String   @default("") // hash задач на момент генерации
+  source       String   @default("manual") // "ai" | "manual" | "edited"
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, domainId, monthKey])
+  @@index([userId, domainId])
 }
