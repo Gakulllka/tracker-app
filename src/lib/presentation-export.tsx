@@ -22,17 +22,24 @@ import {
   type SlideData,
   type AiConclusion,
   type PresentationTheme,
+  type TrackerThemeTokens,
 } from "./presentation-renderer";
 import type { PresBgSettings } from "./store";
 
-/** Главная функция: на вход — данные слайдов и настройки, на выход — готовый HTML. */
+/** Главная функция: на вход — данные слайдов и настройки, на выход — готовый HTML.
+ *
+ *  Phase 6: добавлен tokens — снапшот текущей темы трекера (bgMain, textMain
+ *  и т.д.). page.tsx читает их через getComputedStyle перед вызовом этой
+ *  функции и передаёт сюда. В SSR-контексте (renderToStaticMarkup) у нас
+ *  нет доступа к CSS-переменным, поэтому tokens обязательны. */
 export function renderPresentationHtml(
   slides: SlideData[],
   presBg: PresBgSettings,
-  aiConclusion?: AiConclusion | null,
+  aiConclusion: AiConclusion | null | undefined,
+  tokens: TrackerThemeTokens,
 ): string {
   const accentHex = String(slides[0]?.content?.accent || "#5B9BD5");
-  const theme = buildTheme(accentHex, presBg);
+  const theme = buildTheme(accentHex, presBg, tokens);
 
   // 1. Слой фона (паттерн + эмодзи) — рендерим один раз, кладём
   //    в body как фиксированный слой. Это идентично тому, что
@@ -162,8 +169,24 @@ body{
   text-align:center;
 }
 @media print{
-  .nav{display:none}
-  .slide{position:relative;page-break-after:always;opacity:1!important;transform:none!important}
+  @page{size:A4 landscape;margin:0}
+  html,body{height:auto;overflow:visible;background:#fff!important}
+  .bg-layer{position:absolute}
+  .nav{display:none!important}
+  .slide{
+    position:relative!important;
+    inset:auto!important;
+    width:100%;
+    height:100vh;
+    page-break-after:always;
+    page-break-inside:avoid;
+    opacity:1!important;
+    transform:none!important;
+    pointer-events:auto!important;
+  }
+  .slide:last-child{page-break-after:auto}
+  /* Печать включает фоны (без этого браузер их выкидывает) */
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 }
 </style>
 </head>

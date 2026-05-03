@@ -8,7 +8,7 @@ import React, {
   useRef,
   type KeyboardEvent,
 } from "react";
-import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, PRES_STYLE_PRESETS, undoStore } from "@/lib/store";
+import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, undoStore } from "@/lib/store";
 import {
   PresentationSlide,
   PresentationBgLayer,
@@ -146,6 +146,8 @@ import {
   Share2,
   LogOut,
   Shield,
+  Maximize2,
+  FileText,
 } from "lucide-react";
 import AuthScreen from "@/components/auth-screen";
 
@@ -828,80 +830,10 @@ function DesignView({ themeId, customColor, customDark, accentHex, onSetTheme, o
           <Switch checked={darkMode} onCheckedChange={handleDarkToggle} />
         </div>
 
-        {/* Section: Presentation style */}
-        <div>
-          <div className="mb-3">
-            <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Стиль презентации</h3>
-            <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Задний фон, цветовая схема и эмодзи</p>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {PRES_STYLE_PRESETS.map(preset => {
-              const isActive = (presBg.styleId || "dark") === preset.id;
-              return (
-                <button
-                  key={preset.id}
-                  onClick={() => {
-                    onSetPresBg({
-                      styleId: preset.id,
-                      emojis: preset.defaultEmojis,
-                      pattern: preset.defaultPattern,
-                    });
-                  }}
-                  className="relative flex flex-col items-center gap-1.5 rounded-xl p-3 border-2 transition-all"
-                  style={{
-                    borderColor: isActive ? "var(--tracker-accent)" : "var(--tracker-border)",
-                    background: isActive ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)",
-                    boxShadow: isActive ? `0 0 0 3px var(--tracker-accent)22` : undefined,
-                  }}
-                >
-                  <div
-                    className="w-full h-10 rounded-lg flex items-center justify-center text-lg"
-                    style={{ background: preset.bodyBg }}
-                  >
-                    {preset.emoji}
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs font-semibold" style={{ color: isActive ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-main)" }}>
-                      {preset.label}
-                    </div>
-                    <div className="text-[9px] leading-tight" style={{ color: "var(--tracker-text-muted)" }}>
-                      {preset.desc}
-                    </div>
-                  </div>
-                  {isActive && (
-                    <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: "var(--tracker-accent)" }}>
-                      <Check className="w-2.5 h-2.5 text-white" />
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Emoji picker for presentation */}
-          <div className="mt-3 rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
-            <p className="text-xs font-semibold" style={{ color: "var(--tracker-text-main)" }}>Эмодзи фона</p>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={presBg.emojis}
-                onChange={e => onSetPresBg({ emojis: e.target.value })}
-                className="flex-1 h-8 rounded-lg border px-2 text-sm bg-transparent outline-none"
-                style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}
-                placeholder="🚀 ✨ 💡"
-              />
-              <input
-                type="number"
-                min={0} max={40}
-                value={presBg.emojiCount}
-                onChange={e => onSetPresBg({ emojiCount: Number(e.target.value) })}
-                className="w-16 h-8 rounded-lg border px-2 text-sm bg-transparent outline-none text-center"
-                style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}
-              />
-            </div>
-            <p className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>Эмодзи через пробел · кол-во на слайде</p>
-          </div>
-        </div>
+        {/* Phase 6: «Стиль презентации» с пресетами темы удалён.
+         * Теперь презентация полностью наследует цвета от текущей темы
+         * трекера. Настройки фона презентации (паттерн / эмодзи /
+         * анимации) живут в табе Презентация → Дизайн. */}
 
       </div>
 
@@ -1987,21 +1919,110 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     setView("slides");
   }, [setView]);
 
+  /* Phase 6: снапшот текущих CSS-переменных темы трекера для прокидывания
+   * в SSR-рендер (renderPresentationHtml) и в локальное превью.
+   * Возвращает объект, совместимый с TrackerThemeTokens. */
+  const readTrackerTokens = useCallback(() => {
+    if (typeof window === "undefined") {
+      return {
+        bgMain: "#0d1117",
+        bgCard: "#1a1f2a",
+        textMain: "#e2e8f0",
+        textMuted: "rgba(148,163,184,.7)",
+        border: "rgba(255,255,255,.1)",
+        isDark: true,
+      };
+    }
+    const cs = getComputedStyle(document.documentElement);
+    const v = (n: string, f: string) => (cs.getPropertyValue(n).trim() || f);
+    const bgMain = v("--tracker-bg-main", "#0d1117");
+    return {
+      bgMain,
+      bgCard: v("--tracker-bg-card", customDark ? "#1a1f2a" : "#ffffff"),
+      textMain: v("--tracker-text-main", customDark ? "#e2e8f0" : "#1e293b"),
+      textMuted: v("--tracker-text-muted", customDark ? "rgba(148,163,184,.7)" : "rgba(100,116,139,.75)"),
+      border: v("--tracker-border", customDark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)"),
+      isDark: customDark,
+    };
+  }, [customDark]);
+
   const handleExportSlidesHTML = useCallback(() => {
     if (slides.length === 0) return;
-    const html = renderPresentationHtml(slides, presBg, aiConclusion);
+    const html = renderPresentationHtml(slides, presBg, aiConclusion, readTrackerTokens());
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    // Phase 2: имя файла включает год для уникальности между разными годами
     a.download = `presentation_${currentYear}-${String(currentMonth + 1).padStart(2, "0")}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toast({ title: "📥 Скачать HTML", description: "Презентация сохранена как HTML" });
-  }, [slides, currentMonth, currentYear, toast, presBg, aiConclusion]);
+  }, [slides, currentMonth, currentYear, toast, presBg, aiConclusion, readTrackerTokens]);
+
+  /* Phase 6: PDF-экспорт через нативный print диалог.
+   * Открываем сгенерированный HTML в скрытом iframe → ждём загрузку →
+   * вызываем print(). Юзер выбирает "Сохранить как PDF" в диалоге. */
+  const handleExportPDF = useCallback(() => {
+    if (slides.length === 0) return;
+    const html = renderPresentationHtml(slides, presBg, aiConclusion, readTrackerTokens());
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.left = "-10000px";
+    iframe.style.top = "0";
+    iframe.style.width = "1280px";
+    iframe.style.height = "720px";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+    iframe.setAttribute("aria-hidden", "true");
+    document.body.appendChild(iframe);
+
+    const cleanup = () => {
+      // Откладываем, иначе Chrome ругается «Document not ready»
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch { /* */ } }, 1000);
+    };
+
+    iframe.onload = () => {
+      try {
+        const win = iframe.contentWindow;
+        if (!win) { cleanup(); return; }
+        // Небольшая пауза чтобы все @font-face / images / SVG отрендерились
+        setTimeout(() => {
+          try {
+            win.focus();
+            win.print();
+          } catch (e) {
+            console.error("Print failed", e);
+          }
+          cleanup();
+        }, 250);
+      } catch (e) {
+        console.error("Print iframe error", e);
+        cleanup();
+      }
+    };
+
+    iframe.srcdoc = html;
+    toast({ title: "📄 PDF", description: "Откроется диалог печати — выберите «Сохранить как PDF»" });
+  }, [slides, presBg, aiConclusion, readTrackerTokens, toast]);
+
+  /* Phase 6: Fullscreen режим. Использует Fullscreen API на DOM-узле,
+   * куда вставлено превью презентации. Узел получает ref через callback. */
+  const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
+  const handleEnterFullscreen = useCallback(() => {
+    const el = fullscreenContainerRef.current;
+    if (!el) return;
+    const req = (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).requestFullscreen
+      || (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen;
+    if (req) {
+      try {
+        req.call(el);
+      } catch (e) {
+        console.error("Fullscreen request failed", e);
+      }
+    }
+  }, []);
 
   const handleAiAnalysis = useCallback(async () => {
     const apiKey = apiKeyRef.current;
@@ -2634,6 +2655,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             onSetPresBg={storeSetPresBg}
             onResetPresBg={() => storeSetPresBg(DEFAULT_PRES_BG)}
             onExportHTML={handleExportSlidesHTML}
+            onExportPDF={handleExportPDF}
+            onEnterFullscreen={handleEnterFullscreen}
+            fullscreenContainerRef={fullscreenContainerRef}
             hasData={(allData[currentMonth] || []).some((r) => r.name || r.num)}
             onAiAnalysis={handleAiAnalysis}
             aiAnalysisBusy={aiConclusionBusy}
@@ -5457,6 +5481,12 @@ interface SlidesViewProps {
   onSetPresBg: (patch: Partial<PresBgSettings>) => void;
   onResetPresBg: () => void;
   onExportHTML: () => void;
+  /** Phase 6: PDF экспорт через native print. */
+  onExportPDF: () => void;
+  /** Phase 6: переход в полноэкранный режим. */
+  onEnterFullscreen: () => void;
+  /** Phase 6: ref на контейнер превью — нужен для requestFullscreen(). */
+  fullscreenContainerRef: React.RefObject<HTMLDivElement | null>;
   hasData: boolean;
   onAiAnalysis: () => void;
   aiAnalysisBusy: boolean;
@@ -5495,6 +5525,9 @@ function SlidesView({
   onSetPresBg,
   onResetPresBg,
   onExportHTML,
+  onExportPDF,
+  onEnterFullscreen,
+  fullscreenContainerRef,
   hasData,
   onAiAnalysis,
   aiAnalysisBusy,
@@ -5539,6 +5572,32 @@ function SlidesView({
     </div>
   );
 
+  /* Phase 6: keyboard nav в fullscreen режиме (стрелки ← → переключают
+   * слайды). Слушаем глобально, но реагируем только если активен
+   * fullscreen-контейнер презентации.
+   *
+   * Должен быть ВЫШЕ early-return по hasData, иначе React ругается на
+   * условный вызов хука. */
+  useEffect(() => {
+    if (presSubTab !== "slides") return;
+    const handler = (e: Event) => {
+      const ke = e as Event & { key?: string; preventDefault: () => void };
+      const fsEl = document.fullscreenElement
+        || (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement;
+      if (!fsEl) return;
+      if (!fullscreenContainerRef.current?.contains(fsEl) && fullscreenContainerRef.current !== fsEl) return;
+      if (ke.key === "ArrowRight" || ke.key === " ") {
+        ke.preventDefault();
+        setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1));
+      } else if (ke.key === "ArrowLeft") {
+        ke.preventDefault();
+        setCurrentSlide(Math.max(0, currentSlide - 1));
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [presSubTab, currentSlide, slides.length, setCurrentSlide, fullscreenContainerRef]);
+
   /* ── Empty state ── */
   if (!hasData) {
     return (
@@ -5556,53 +5615,70 @@ function SlidesView({
   const slide = slides[Math.min(currentSlide, slides.length - 1)];
 
   /* ════════════════════════════════════════════════════════════════ */
-  /* SUB-TAB: SLIDES                                                  */
+  /* SUB-TAB: SLIDES — Phase 6: большой превью, компактный тулбар     */
   /* ════════════════════════════════════════════════════════════════ */
   if (presSubTab === "slides") {
     return (
-      <div className="space-y-4">
-        {subTabsHeader}
-
-        {/* Toolbar */}
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm"
-              onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
-              disabled={currentSlide === 0} className="gap-1.5">
-              <ChevronLeft className="size-4" />Назад
+      <div className="space-y-3 -mx-2 sm:mx-0">
+        <div className="flex items-center justify-between gap-2 flex-wrap px-2 sm:px-0">
+          {subTabsHeader}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={onEnterFullscreen}>
+              <Maximize2 className="size-3.5" />Во весь экран
             </Button>
-            <span className="text-sm text-muted-foreground tabular-nums">
-              {Math.min(currentSlide, slides.length - 1) + 1} / {slides.length}
-            </span>
-            <Button variant="outline" size="sm"
-              onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))}
-              disabled={currentSlide >= slides.length - 1} className="gap-1.5">
-              Далее<ChevronRight className="size-4" />
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={onExportPDF}>
+              <FileText className="size-3.5" />PDF
             </Button>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={onExportHTML}>
-              <Download className="size-3.5" />Скачать HTML
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={onExportHTML}>
+              <Download className="size-3.5" />HTML
             </Button>
           </div>
         </div>
 
-        {/* Dots */}
-        <div className="flex gap-1.5 justify-center flex-wrap">
-          {slides.map((s, i) => (
-            <button key={i} onClick={() => setCurrentSlide(i)} title={s.type}
-              className={`h-2 rounded-full transition-all ${
-                i === currentSlide ? "w-7 bg-[var(--tracker-accent)]" : "w-2 bg-muted-foreground/25 hover:bg-muted-foreground/40"
-              }`} />
-          ))}
-        </div>
+        {/* Slide preview — большой, на всю доступную ширину */}
+        <div ref={fullscreenContainerRef} className="relative">
+          {slide && (
+            <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} aiConclusion={aiConclusion} />
+          )}
 
-        {/* Slide preview */}
-        {slide && <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} aiConclusion={aiConclusion} />}
+          {/* Floating navigation — поверх превью, не отъедает место */}
+          <div className="absolute inset-x-0 bottom-3 flex justify-center pointer-events-none">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md pointer-events-auto"
+              style={{ background: "rgba(0,0,0,.45)", border: "1px solid rgba(255,255,255,.12)" }}>
+              <button
+                onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
+                disabled={currentSlide === 0}
+                className="size-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                aria-label="Назад"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <div className="flex items-center gap-1">
+                {slides.map((_, i) => (
+                  <button key={i} onClick={() => setCurrentSlide(i)}
+                    className={`h-1.5 rounded-full transition-all ${i === currentSlide ? "w-5 bg-white" : "w-1.5 bg-white/40 hover:bg-white/60"}`}
+                    aria-label={`Слайд ${i + 1}`}
+                  />
+                ))}
+              </div>
+              <span className="text-[11px] text-white/70 tabular-nums px-1 min-w-[28px] text-center">
+                {Math.min(currentSlide, slides.length - 1) + 1} / {slides.length}
+              </span>
+              <button
+                onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))}
+                disabled={currentSlide >= slides.length - 1}
+                className="size-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                aria-label="Далее"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Под слайдом — лёгкая подсказка про AI, если выводов ещё нет */}
         {!aiConclusion && !aiDraft && (
-          <div className="rounded-xl border p-3 flex items-center justify-between gap-3 flex-wrap"
+          <div className="rounded-xl border p-3 flex items-center justify-between gap-3 flex-wrap mx-2 sm:mx-0"
             style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
             <div className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>
               <Sparkles className="inline size-3.5 mr-1.5" />Слайд «Итоги» использует шаблонные тезисы — можно заменить AI-выводами.
@@ -5629,51 +5705,17 @@ function SlidesView({
           {/* LEFT: design controls */}
           <div className="space-y-5">
 
-            {/* Style presets */}
-            <section>
-              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                <div>
-                  <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Стиль фона</h3>
-                  <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Пресеты фона, изменения применяются мгновенно</p>
-                </div>
-                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={onResetPresBg}>
-                  ↺ Сбросить
-                </Button>
+            {/* Phase 6: Info — цвета привязаны к теме трекера */}
+            <section className="rounded-xl border p-3 flex items-center justify-between gap-3 flex-wrap"
+              style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-accent-bg)" }}>
+              <div className="text-xs flex items-center gap-2" style={{ color: "var(--tracker-accent-fg-dark)" }}>
+                <span className="text-base">🎨</span>
+                <span>Цвета презентации совпадают с темой трекера. Светлая/тёмная — как у сайта.</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {PRES_STYLE_PRESETS.map(preset => {
-                  const isActive = (presBg.styleId || "dark") === preset.id;
-                  return (
-                    <button
-                      key={preset.id}
-                      onClick={() => onSetPresBg({ styleId: preset.id, emojis: preset.defaultEmojis, pattern: preset.defaultPattern })}
-                      className="relative flex flex-col items-center gap-1.5 rounded-xl p-2.5 border-2 transition-all"
-                      style={{
-                        borderColor: isActive ? "var(--tracker-accent)" : "var(--tracker-border)",
-                        background: isActive ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)",
-                        boxShadow: isActive ? `0 0 0 3px var(--tracker-accent)22` : undefined,
-                      }}
-                    >
-                      <div className="w-full h-9 rounded-lg flex items-center justify-center text-base"
-                        style={{ background: preset.bodyBg }}>
-                        {preset.emoji}
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs font-semibold" style={{ color: isActive ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-main)" }}>
-                          {preset.label}
-                        </div>
-                        <div className="text-[9px] leading-tight" style={{ color: "var(--tracker-text-muted)" }}>
-                          {preset.desc}
-                        </div>
-                      </div>
-                      {isActive && (
-                        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: "var(--tracker-accent)" }}>
-                          <Check className="w-2.5 h-2.5 text-white" />
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={onResetPresBg}>
+                  ↺ Сбросить фон
+                </Button>
               </div>
             </section>
 
@@ -5994,7 +6036,7 @@ function SlidePreview({
 
   return (
     <div
-      className="mx-auto w-full max-w-[1200px] rounded-2xl border shadow-lg relative overflow-hidden"
+      className="w-full rounded-2xl border shadow-lg relative overflow-hidden bg-emoji-fullscreen-host"
       style={{
         background: theme.bodyBg,
         borderColor: `rgba(${r},${g},${b},.15)`,

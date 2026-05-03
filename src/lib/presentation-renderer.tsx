@@ -73,85 +73,112 @@ function hexToRgb(hex: string): [number, number, number] {
   ];
 }
 
-/** Канонический список пресетов фона. Дублирует PRES_STYLE_PRESETS, но
- *  здесь — без эмоджи/лейблов, только то, что нужно рендеру. Сделано
- *  отдельно, чтобы renderer не зависел от UI-стора. */
-const STYLE_DEFS: Record<
-  PresBgSettings["styleId"],
-  { bodyBg: string; overlayBg: (rgb: [number, number, number]) => string; textColor: string; mutedColor: string; cardColors: (rgb: [number, number, number]) => string[]; isLight: boolean }
-> = {
-  dark: {
-    bodyBg: "#0d1117",
-    overlayBg: ([r, g, b]) =>
-      `radial-gradient(ellipse 80% 60% at 20% 20%,rgba(${r},${g},${b},.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(${r},${g},${b},.1),transparent 60%),linear-gradient(160deg,#080d14 0%,#111827 40%,#0d1117 100%)`,
-    textColor: "#e2e8f0",
-    mutedColor: "rgba(148,163,184,.55)",
-    cardColors: ([r, g, b]) => [`rgba(${r},${g},${b},.12)`, `rgba(${r},${g},${b},.1)`, `rgba(${r},${g},${b},.08)`],
-    isLight: false,
-  },
-  spring: {
-    bodyBg: "#0a1a0f",
-    overlayBg: () =>
-      "radial-gradient(ellipse 80% 60% at 20% 20%,rgba(52,211,153,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(134,239,172,.12),transparent 60%),linear-gradient(160deg,#071510 0%,#0d2118 40%,#081a10 100%)",
-    textColor: "#d1fae5",
-    mutedColor: "rgba(167,243,208,.55)",
-    cardColors: () => ["rgba(4,108,78,.6)", "rgba(21,128,61,.5)", "rgba(63,98,18,.55)"],
-    isLight: false,
-  },
-  ocean: {
-    bodyBg: "#070e1a",
-    overlayBg: () =>
-      "radial-gradient(ellipse 80% 60% at 20% 20%,rgba(56,189,248,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(14,165,233,.12),transparent 60%),linear-gradient(160deg,#04090f 0%,#0c1829 40%,#060d1a 100%)",
-    textColor: "#e0f2fe",
-    mutedColor: "rgba(186,230,253,.55)",
-    cardColors: () => ["rgba(7,50,90,.65)", "rgba(10,70,130,.55)", "rgba(5,60,110,.6)"],
-    isLight: false,
-  },
-  night: {
-    bodyBg: "#07050f",
-    overlayBg: () =>
-      "radial-gradient(ellipse 80% 60% at 20% 20%,rgba(139,92,246,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(167,139,250,.12),transparent 60%),linear-gradient(160deg,#05030c 0%,#0f0a1e 40%,#070510 100%)",
-    textColor: "#ede9fe",
-    mutedColor: "rgba(221,214,254,.55)",
-    cardColors: () => ["rgba(50,20,90,.65)", "rgba(60,30,110,.55)", "rgba(40,15,80,.6)"],
-    isLight: false,
-  },
-  fire: {
-    bodyBg: "#120800",
-    overlayBg: () =>
-      "radial-gradient(ellipse 80% 60% at 20% 20%,rgba(251,191,36,.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(245,158,11,.12),transparent 60%),linear-gradient(160deg,#0d0500 0%,#1c0f00 40%,#100700 100%)",
-    textColor: "#fef3c7",
-    mutedColor: "rgba(253,230,138,.55)",
-    cardColors: () => ["rgba(90,55,5,.65)", "rgba(120,70,5,.55)", "rgba(75,45,5,.6)"],
-    isLight: false,
-  },
-  minimal: {
-    bodyBg: "#f8fafc",
-    overlayBg: () => "linear-gradient(160deg,#f8fafc 0%,#f1f5f9 100%)",
-    textColor: "#1e293b",
-    mutedColor: "rgba(100,116,139,.7)",
-    cardColors: () => ["rgba(241,245,249,1)", "rgba(248,250,252,1)", "rgba(226,232,240,1)"],
-    isLight: true,
-  },
-};
+/** Цвета темы трекера, переданные при сборке темы презентации.
+ *  Это нужно потому, что в SSR-экспорте недоступны CSS-переменные
+ *  (--tracker-bg-main и т.п.), и их значения нужно явно прокинуть. */
+export interface TrackerThemeTokens {
+  /** Основной фон сайта (light: ~#f8f9fa, dark: ~#0d1117) */
+  bgMain: string;
+  /** Фон карточек (немного контрастнее bgMain) */
+  bgCard: string;
+  /** Основной цвет текста */
+  textMain: string;
+  /** Приглушённый текст */
+  textMuted: string;
+  /** Граница (светло-серая в light, тёмно-серая в dark) */
+  border: string;
+  /** Тёмная ли тема (для подбора overlay-градиента) */
+  isDark: boolean;
+}
 
-/** Собирает PresentationTheme из вводных параметров приложения. */
-export function buildTheme(accentHex: string, bg: PresBgSettings): PresentationTheme {
+/** Phase 6: тема презентации = акцент трекера + темнота/светлота темы трекера.
+ *  Никаких независимых пресетов «океан/огонь/весна» — всё берётся из основной
+ *  темы сайта.
+ *
+ *  В preview можно опустить `tokens` — компонент попробует прочитать их из
+ *  CSS-variables через getComputedStyle. В export-режиме `tokens` обязательны
+ *  (передаются явно из page.tsx, который имеет доступ к computed style). */
+export function buildTheme(
+  accentHex: string,
+  bg: PresBgSettings,
+  tokens?: TrackerThemeTokens,
+): PresentationTheme {
   const safeAccent = accentHex && /^#?[0-9a-fA-F]{6}$/.test(accentHex) ? accentHex : "#5B9BD5";
   const rgb = hexToRgb(safeAccent);
-  const def = STYLE_DEFS[bg.styleId] || STYLE_DEFS.dark;
+  const [r, g, b] = rgb;
+
+  // Если tokens не переданы и мы в браузере — читаем из CSS-переменных.
+  let resolved: TrackerThemeTokens;
+  if (tokens) {
+    resolved = tokens;
+  } else if (typeof window !== "undefined" && typeof getComputedStyle === "function") {
+    const cs = getComputedStyle(document.documentElement);
+    const v = (name: string, fallback: string) => (cs.getPropertyValue(name).trim() || fallback);
+    const bgMainResolved = v("--tracker-bg-main", "#0d1117");
+    // Грубая эвристика темной темы: если bg темнее половины — dark.
+    const isDarkResolved = isHexDark(bgMainResolved);
+    resolved = {
+      bgMain: bgMainResolved,
+      bgCard: v("--tracker-bg-card", isDarkResolved ? "#1a1f2a" : "#ffffff"),
+      textMain: v("--tracker-text-main", isDarkResolved ? "#e2e8f0" : "#1e293b"),
+      textMuted: v("--tracker-text-muted", isDarkResolved ? "rgba(148,163,184,.7)" : "rgba(100,116,139,.75)"),
+      border: v("--tracker-border", isDarkResolved ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)"),
+      isDark: isDarkResolved,
+    };
+  } else {
+    // SSR fallback — нейтральная тёмная.
+    resolved = {
+      bgMain: "#0d1117",
+      bgCard: "#1a1f2a",
+      textMain: "#e2e8f0",
+      textMuted: "rgba(148,163,184,.7)",
+      border: "rgba(255,255,255,.1)",
+      isDark: true,
+    };
+  }
+
+  // Overlay-градиент с акцентом — единая логика для всех тем.
+  const overlayBg = resolved.isDark
+    ? `radial-gradient(ellipse 80% 60% at 20% 20%,rgba(${r},${g},${b},.18),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(${r},${g},${b},.10),transparent 60%),linear-gradient(160deg,${shade(resolved.bgMain, -8)} 0%,${resolved.bgMain} 40%,${shade(resolved.bgMain, -4)} 100%)`
+    : `radial-gradient(ellipse 80% 60% at 20% 20%,rgba(${r},${g},${b},.10),transparent 60%),radial-gradient(ellipse 70% 70% at 80% 80%,rgba(${r},${g},${b},.06),transparent 60%),linear-gradient(160deg,${resolved.bgMain} 0%,${shade(resolved.bgMain, -3)} 100%)`;
+
+  // Карточки внутри слайдов — слегка контрастнее bgCard, с лёгкой накладкой акцента.
+  const cardColors = resolved.isDark
+    ? [`rgba(${r},${g},${b},.10)`, `rgba(${r},${g},${b},.08)`, `rgba(${r},${g},${b},.06)`]
+    : [resolved.bgCard, shade(resolved.bgCard, -2), shade(resolved.bgCard, -4)];
+
   return {
     accentHex: safeAccent.startsWith("#") ? safeAccent : `#${safeAccent}`,
     rgb,
-    styleId: bg.styleId,
-    bodyBg: def.bodyBg,
-    overlayBg: def.overlayBg(rgb),
-    textColor: def.textColor,
-    mutedColor: def.mutedColor,
-    cardColors: def.cardColors(rgb),
-    isLight: def.isLight,
+    styleId: bg.styleId, // legacy field, не используется в рендере
+    bodyBg: resolved.bgMain,
+    overlayBg,
+    textColor: resolved.textMain,
+    mutedColor: resolved.textMuted,
+    cardColors,
+    isLight: !resolved.isDark,
     bg,
   };
+}
+
+/** Тёмный ли цвет (по luminance). */
+function isHexDark(color: string): boolean {
+  const hex = color.replace("#", "").trim();
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return true; // если нечитаемо — считаем тёмным
+  const [r, g, b] = hexToRgb(hex);
+  // Relative luminance, упрощённо
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum < 0.5;
+}
+
+/** Чуть-чуть осветлить/затемнить hex-цвет. amt: -100..100. */
+function shade(hex: string, amt: number): string {
+  const cleaned = hex.replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(cleaned)) return hex;
+  const [r, g, b] = hexToRgb(cleaned);
+  const adj = (c: number) => Math.max(0, Math.min(255, Math.round(c + (amt * 255) / 100)));
+  const toHex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${toHex(adj(r))}${toHex(adj(g))}${toHex(adj(b))}`;
 }
 
 /** Цвет статуса — функциональный, не зависит от темы.
