@@ -235,10 +235,29 @@ export function PresentationBgLayer({ theme }: { theme: PresentationTheme }) {
       break;
   }
 
+  // Phase 5: режим анимации. По умолчанию drift (мягкий дрейф).
+  const animMode: "off" | "drift" | "fall" = bg.emojiAnim || "drift";
+  const speedMul = bg.emojiSpeed && bg.emojiSpeed > 0 ? bg.emojiSpeed : 1;
+  const fixedOpacity = typeof bg.emojiOpacity === "number"
+    ? Math.max(0, Math.min(1, bg.emojiOpacity / 100))
+    : null;
+
   // Эмодзи: детерминированный seeded random, чтобы расположение было
   // одинаковым в превью и в экспорте.
   const emojiList = (bg.emojis || "").split(" ").filter(Boolean);
-  const emojis: { e: string; x: number; y: number; size: number; opacity: number; rotate: number; key: number }[] = [];
+  type EmojiItem = {
+    e: string;
+    x: number;
+    y: number;
+    size: number;
+    opacity: number;
+    rotate: number;
+    duration: number;
+    delay: number;
+    sway: number;
+    key: number;
+  };
+  const emojis: EmojiItem[] = [];
   if (emojiList.length > 0 && bg.emojiCount > 0) {
     let seed = 42;
     const rand = () => {
@@ -246,13 +265,32 @@ export function PresentationBgLayer({ theme }: { theme: PresentationTheme }) {
       return (seed - 1) / 2147483646;
     };
     for (let i = 0; i < bg.emojiCount; i++) {
+      const r1 = rand();
+      const r2 = rand();
+      const r3 = rand();
+      const r4 = rand();
+      const r5 = rand();
+      const r6 = rand();
+      const r7 = rand();
+      const r8 = rand();
+      // Длительность: 6..14s в drift, 12..25s в fall, базовая делится на speedMul.
+      const baseDur = animMode === "fall" ? 12 + r6 * 13 : 6 + r6 * 8;
+      const duration = +(baseDur / speedMul).toFixed(2);
+      // Delay: распределяем равномерно [-duration; 0], чтобы в момент монтажа
+      // эмодзи уже были в разных фазах своего цикла, а не все стартовали одновременно.
+      const delay = -(r7 * duration);
+      // Горизонтальное покачивание для fall: ±25..70px
+      const sway = Math.round((r8 * 2 - 1) * (25 + r1 * 45));
       emojis.push({
-        e: emojiList[Math.floor(rand() * emojiList.length)],
-        x: rand() * 100,
-        y: rand() * 100,
-        size: Math.round(bg.emojiMinSize + rand() * (bg.emojiMaxSize - bg.emojiMinSize)),
-        opacity: 0.1 + rand() * 0.2,
-        rotate: Math.floor(rand() * 40 - 20),
+        e: emojiList[Math.floor(r1 * emojiList.length)],
+        x: r2 * 100,
+        y: r3 * 100,
+        size: Math.round(bg.emojiMinSize + r4 * (bg.emojiMaxSize - bg.emojiMinSize)),
+        opacity: fixedOpacity != null ? fixedOpacity : 0.1 + r5 * 0.2,
+        rotate: Math.floor(r5 * 40 - 20),
+        duration,
+        delay: +delay.toFixed(2),
+        sway,
         key: i,
       });
     }
@@ -262,6 +300,49 @@ export function PresentationBgLayer({ theme }: { theme: PresentationTheme }) {
 
   return (
     <>
+      {/* CSS анимаций — инлайн в каждый рендер. В превью браузер парсит
+          один раз, в экспорте уезжает в HTML вместе с разметкой. */}
+      {animMode !== "off" && emojis.length > 0 && (
+        <style>{`
+          .pres-emoji {
+            position: absolute;
+            pointer-events: none;
+            user-select: none;
+            z-index: 0;
+            will-change: transform, opacity;
+          }
+          .pres-emoji[data-anim="drift"] {
+            animation-name: pres-emoji-drift;
+            animation-timing-function: ease-in-out;
+            animation-iteration-count: infinite;
+            animation-direction: alternate;
+          }
+          .pres-emoji[data-anim="fall"] {
+            top: -10vh !important;
+            animation-name: pres-emoji-fall;
+            animation-timing-function: linear;
+            animation-iteration-count: infinite;
+          }
+          @keyframes pres-emoji-drift {
+            from { transform: translate3d(0,0,0) rotate(var(--rot,0deg)); }
+            to   { transform: translate3d(18px,12px,0) rotate(calc(var(--rot,0deg) + 6deg)); }
+          }
+          @keyframes pres-emoji-fall {
+            0%   { transform: translate3d(0,0,0) rotate(var(--rot,0deg)); opacity: 0; }
+            10%  { opacity: var(--op,0.25); }
+            50%  { transform: translate3d(var(--sway,0px),60vh,0) rotate(calc(var(--rot,0deg) + 180deg)); opacity: var(--op,0.25); }
+            90%  { opacity: var(--op,0.25); }
+            100% { transform: translate3d(0,130vh,0) rotate(calc(var(--rot,0deg) + 360deg)); opacity: 0; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .pres-emoji[data-anim] { animation: none !important; }
+          }
+          @media print {
+            .pres-emoji[data-anim] { animation: none !important; }
+          }
+        `}</style>
+      )}
+
       {/* overlay-gradient */}
       <div
         style={{
@@ -283,24 +364,34 @@ export function PresentationBgLayer({ theme }: { theme: PresentationTheme }) {
           }}
         />
       )}
-      {emojis.map((em) => (
-        <span
-          key={em.key}
-          style={{
-            position: "absolute",
-            left: `${em.x.toFixed(1)}%`,
-            top: `${em.y.toFixed(1)}%`,
-            fontSize: `${em.size}px`,
-            opacity: em.opacity,
-            transform: `rotate(${em.rotate}deg)`,
-            pointerEvents: "none",
-            zIndex: 0,
-            userSelect: "none",
-          }}
-        >
-          {em.e}
-        </span>
-      ))}
+      {emojis.map((em) => {
+        // Базовый стиль (общий для всех режимов). Анимация задаётся
+        // через data-anim + CSS-переменные. Если режим off — никаких
+        // animation-свойств вообще, статика как раньше.
+        const cssVars: React.CSSProperties = {
+          left: `${em.x.toFixed(1)}%`,
+          top: `${em.y.toFixed(1)}%`,
+          fontSize: `${em.size}px`,
+          opacity: em.opacity,
+          transform: `rotate(${em.rotate}deg)`,
+          // Custom properties для keyframes
+          ["--rot" as never]: `${em.rotate}deg`,
+          ["--op" as never]: em.opacity,
+          ["--sway" as never]: `${em.sway}px`,
+          animationDuration: animMode !== "off" ? `${em.duration}s` : undefined,
+          animationDelay: animMode !== "off" ? `${em.delay}s` : undefined,
+        };
+        return (
+          <span
+            key={em.key}
+            className="pres-emoji"
+            data-anim={animMode === "off" ? undefined : animMode}
+            style={cssVars}
+          >
+            {em.e}
+          </span>
+        );
+      })}
     </>
   );
 }

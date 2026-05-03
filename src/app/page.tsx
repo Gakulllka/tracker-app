@@ -5745,6 +5745,53 @@ function SlidesView({
                       className="w-full mt-1" />
                   </label>
                 </div>
+
+                {/* Phase 5: animation mode */}
+                <div>
+                  <p className="text-xs mb-1.5" style={{ color: "var(--tracker-text-muted)" }}>Анимация</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { id: "off",   label: "Без анимации", emoji: "⏸" },
+                      { id: "drift", label: "Дрейф",         emoji: "💫" },
+                      { id: "fall",  label: "Падение",       emoji: "🌧" },
+                    ] as const).map(opt => {
+                      const active = (presBg.emojiAnim || "drift") === opt.id;
+                      return (
+                        <button key={opt.id} onClick={() => onSetPresBg({ emojiAnim: opt.id })}
+                          className="rounded-lg p-2 border-2 text-center transition-all flex flex-col items-center gap-0.5"
+                          style={{
+                            borderColor: active ? "var(--tracker-accent)" : "var(--tracker-border)",
+                            background: active ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)",
+                          }}>
+                          <span className="text-base" style={{ filter: active ? "none" : "grayscale(0.4)" }}>{opt.emoji}</span>
+                          <span className="text-[10px] font-medium" style={{ color: active ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)" }}>
+                            {opt.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Phase 5: speed + opacity sliders */}
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)", opacity: (presBg.emojiAnim || "drift") === "off" ? 0.4 : 1 }}>
+                    Скорость <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{(presBg.emojiSpeed ?? 1).toFixed(2)}×</span>
+                    <input type="range" min={0.25} max={2} step={0.05} value={presBg.emojiSpeed ?? 1}
+                      onChange={e => onSetPresBg({ emojiSpeed: Number(e.target.value) })}
+                      className="w-full mt-1"
+                      disabled={(presBg.emojiAnim || "drift") === "off"} />
+                  </label>
+                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+                    Прозрачность <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiOpacity ?? 25}%</span>
+                    <input type="range" min={5} max={50} value={presBg.emojiOpacity ?? 25}
+                      onChange={e => onSetPresBg({ emojiOpacity: Number(e.target.value) })}
+                      className="w-full mt-1" />
+                  </label>
+                </div>
+                <p className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+                  Анимации автоматически выключаются при системной настройке «уменьшить движение» и при печати.
+                </p>
               </div>
             </section>
 

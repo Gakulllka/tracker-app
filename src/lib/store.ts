@@ -42,6 +42,12 @@ export interface PresBgSettings {
   patternSize: number;
   patternOpacity: number;
   styleId: "dark" | "spring" | "ocean" | "night" | "fire" | "minimal";
+  /** Phase 5: режим анимации эмодзи. */
+  emojiAnim?: "off" | "drift" | "fall";
+  /** Phase 5: скорость анимации, 0.25..2 (1 = базовая). */
+  emojiSpeed?: number;
+  /** Phase 5: прозрачность эмодзи, 5..50 (% числом). Если undefined — рандомная как раньше (для совместимости со старым state). */
+  emojiOpacity?: number;
 }
 
 export interface PresStylePreset {
@@ -148,6 +154,9 @@ export const DEFAULT_PRES_BG: PresBgSettings = {
   patternSize: 40,
   patternOpacity: 5,
   styleId: "dark",
+  emojiAnim: "drift",
+  emojiSpeed: 1,
+  emojiOpacity: 25,
 };
 
 /* ================================================================ *
