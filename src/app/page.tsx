@@ -351,7 +351,7 @@ const PATTERN_OPTIONS = [
 /*  Slide Generation                                                   */
 /* ------------------------------------------------------------------ */
 
-function generateSlides(month: number, allData: Record<number, Task[]>, accentHex: string, totalFactMap: Record<string, number>): SlideData[] {
+function generateSlides(month: number, year: number, allData: Record<number, Task[]>, accentHex: string, totalFactMap: Record<string, number>): SlideData[] {
   const rows = (allData[month] || []).filter((r) => r.name || r.num);
   let total = rows.length;
   let completed = 0;
@@ -378,12 +378,13 @@ function generateSlides(month: number, allData: Record<number, Task[]>, accentHe
 
   const compPct = total > 0 ? Math.round((completed / total) * 100) : 0;
   const slides: SlideData[] = [];
+  const monthLabel = `${MONTHS[month]} ${year}`;
 
   // 1. Title slide
   slides.push({
     type: "title",
     content: {
-      month: MONTHS[month],
+      month: monthLabel,
       total,
       completed,
       pct: compPct,
@@ -437,7 +438,7 @@ function generateSlides(month: number, allData: Record<number, Task[]>, accentHe
   slides.push({
     type: "summary",
     content: {
-      month: MONTHS[month],
+      month: monthLabel,
       accent: accentHex,
       total,
       completed,
@@ -1064,6 +1065,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   const domains = useTaskStore((s) => s.domains);
   const activeDomainId = useTaskStore((s) => s.activeDomainId);
   const currentMonth = useTaskStore((s) => s.currentMonth);
+  const currentYear = useTaskStore((s) => s.currentYear);
+  const setCurrentYearStore = useTaskStore((s) => s.setCurrentYear);
+  const getAvailableYears = useTaskStore((s) => s.getAvailableYears);
   const view = useTaskStore((s) => s.view);
   const clientMode = useTaskStore((s) => s.clientMode);
   const themeId = useTaskStore((s) => s.themeId);
@@ -1073,6 +1077,8 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   const storeSetTheme = useTaskStore((s) => s.setTheme);
   const presBg = useTaskStore((s) => s.presBg);
   const storeSetPresBg = useTaskStore((s) => s.setPresBg);
+  const presSubTab = useTaskStore((s) => s.presSubTab);
+  const setPresSubTab = useTaskStore((s) => s.setPresSubTab);
   const monthBudget = useTaskStore((s) => s.monthBudget);
   const setMonthBudget = useTaskStore((s) => s.setMonthBudget);
   const filterStatuses = useTaskStore((s) => s.filterStatuses);
@@ -1204,8 +1210,8 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     });
   }, [allData, currentMonth, storeSetAllData, toast]);
 
-  // Slide data
-  const [slides, setSlides] = useState<SlideData[]>([]);
+  // Slide data — Phase 3: больше не state, а useMemo от данных.
+  // Кнопка «Создать презентацию» убрана. Слайды всегда есть, если есть задачи.
   const [currentSlide, setCurrentSlide] = useState(0);
   const [aiConclusion, setAiConclusion] = useState<{
     achievements: string[];
@@ -1281,10 +1287,24 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     isSyncingRef.current = true;
     try {
       const s = useTaskStore.getState();
-      // Always snapshot current live data into domainData before pushing
+      // Phase 2: снапшотим живой allData в dataByYearMonth активного домена,
+      // под текущим годом — иначе данные других годов потеряются при push.
+      const activeDom = s.domainData[s.activeDomainId];
+      const existingByKey: Record<string, typeof s.allData[number]> = activeDom?.dataByYearMonth ?? {};
+      const updatedByKey: Record<string, typeof s.allData[number]> = { ...existingByKey };
+      for (let m = 0; m < 12; m++) {
+        const key = `${s.currentYear}-${String(m + 1).padStart(2, "0")}`;
+        updatedByKey[key] = s.allData[m] || [];
+      }
+      // На сервер уходит dataByYearMonth (полная база) — для совместимости
+      // сервер по-прежнему ждёт поле allData, но теперь там Record<MonthKey,…>
+      // вместо Record<"0..11",…>. Сервер их не различает (Record<string,Task[]>).
       const domainData = {
         ...s.domainData,
-        [s.activeDomainId]: { allData: s.allData, backlog: s.backlog },
+        [s.activeDomainId]: {
+          allData: updatedByKey,
+          backlog: s.backlog,
+        },
       };
       const payload = {
         id: workspaceId,
@@ -1567,6 +1587,23 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     },
     [allData]
   );
+
+  /* Phase 3: slides — производное от данных. Никаких setSlides, никакой
+   * кнопки «Создать». Если данных нет — массив пустой, UI показывает
+   * заглушку. Если есть — слайды всегда актуальны. */
+  const slides = useMemo(() => {
+    const monthRows = (allData[currentMonth] || []).filter((r) => r.name || r.num);
+    if (monthRows.length === 0) return [];
+    return generateSlides(currentMonth, currentYear, allData, accentHex, totalFactMap);
+  }, [allData, currentMonth, currentYear, accentHex, totalFactMap]);
+
+  /* Когда меняется набор слайдов (например, переключился месяц/год),
+   * сбрасываем currentSlide на первый, чтобы не было «пустых» состояний. */
+  useEffect(() => {
+    if (currentSlide >= slides.length && slides.length > 0) {
+      setCurrentSlide(0);
+    }
+  }, [slides.length, currentSlide]);
 
   /* TotalH dialog breakdown */
   const monthBreakdown = useMemo(() => {
@@ -1891,17 +1928,12 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   );
 
   /* ---- Presentation ---- */
-  const handleCreatePresentation = useCallback(() => {
-    const monthRows = (allData[currentMonth] || []).filter((r) => r.name || r.num);
-    if (monthRows.length === 0) {
-      toast({ title: "Нет данных", description: "Нет задач для создания презентации", variant: "destructive" });
-      return;
-    }
-    const newSlides = generateSlides(currentMonth, allData, accentHex, totalFactMap);
-    setSlides(newSlides);
-    setCurrentSlide(0);
+  /* Phase 3: handleCreatePresentation удалён — слайды теперь производное
+   * от данных через useMemo. Кнопка «Создать» больше не нужна.
+   * Открытие таба «Презентация»: setView("slides"). */
+  const openPresentation = useCallback(() => {
     setView("slides");
-  }, [allData, currentMonth, accentHex, totalFactMap, setView, toast]);
+  }, [setView]);
 
   const handleExportSlidesHTML = useCallback(() => {
     if (slides.length === 0) return;
@@ -1910,13 +1942,14 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `presentation_${MONTHS[currentMonth]}.html`;
+    // Phase 2: имя файла включает год для уникальности между разными годами
+    a.download = `presentation_${currentYear}-${String(currentMonth + 1).padStart(2, "0")}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toast({ title: "📥 Скачать HTML", description: "Презентация сохранена как HTML" });
-  }, [slides, currentMonth, toast, presBg, aiConclusion]);
+  }, [slides, currentMonth, currentYear, toast, presBg, aiConclusion]);
 
   const handleAiAnalysis = useCallback(async () => {
     const apiKey = apiKeyRef.current;
@@ -1931,7 +1964,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       const summary = rows.map(r =>
         `#${r.num} "${r.name}" — статус: ${r.status}, план: ${r.planH||"—"}ч, факт: ${r.factH||"—"}ч`
       ).join("\n");
-      const prompt = `Ты аналитик проекта. На основе списка задач за ${MONTHS[currentMonth]} напиши краткие выводы на русском языке. Ответь строго в формате JSON без пояснений:
+      const prompt = `Ты аналитик проекта. На основе списка задач за ${MONTHS[currentMonth]} ${currentYear} напиши краткие выводы на русском языке. Ответь строго в формате JSON без пояснений:
 {"achievements":["...","..."],"risks":["...","..."],"inProgress":["...","..."],"nextSteps":["...","..."]}
 Каждый массив — 2-3 пункта, лаконично, до 10 слов каждый.
 Задачи:\n${summary}`;
@@ -1956,7 +1989,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     } finally {
       setAiConclusionBusy(false);
     }
-  }, [allData, currentMonth, apiKeyRef, chatModel, setApiKeyDialogOpen, toast]);
+  }, [allData, currentMonth, currentYear, apiKeyRef, chatModel, setApiKeyDialogOpen, toast]);
 
   /* ---- Transfer ---- */
   const handleApproveDraft = useCallback(() => {
@@ -2308,33 +2341,73 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
         {/* ---- MONTH SELECTOR ---- */}
         {(view === "table" || view === "dashboard" || view === "slides") && (
-          <ScrollArea className="w-full mt-4" type="scrollbar">
-            <div className="flex gap-1.5 pb-1 sm:justify-center">
-              {MONTHS.map((m, i) => (
-                <button
-                  key={m}
-                  onClick={() => setCurrentMonth(i)}
-                  className={`relative flex items-center justify-center gap-1.5 shrink-0 sm:flex-1 sm:min-w-0 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
-                    currentMonth === i
-                      ? "bg-[var(--tracker-accent)] text-white shadow-sm"
-                      : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  {monthHasData(i) && (
-                    <span
-                      className={`size-1.5 rounded-full shrink-0 ${
-                        currentMonth === i
-                          ? "bg-white/70"
-                          : "bg-[var(--tracker-accent)]"
-                      }`}
-                    />
-                  )}
-                  <span className="truncate hidden sm:inline">{m}</span>
-                  <span className="sm:hidden text-[11px] font-semibold">{MONTHS_SHORT[i]}</span>
-                </button>
-              ))}
+          <div className="w-full mt-4 space-y-2">
+            {/* Year selector — Phase 2 */}
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => setCurrentYearStore(currentYear - 1)}
+                className="size-7 rounded-md text-sm font-medium bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center justify-center"
+                aria-label="Предыдущий год"
+                title="Предыдущий год"
+              >
+                ‹
+              </button>
+              <Select value={String(currentYear)} onValueChange={(v) => setCurrentYearStore(Number(v))}>
+                <SelectTrigger className="h-7 w-[110px] text-sm font-medium">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(() => {
+                    const yrs = new Set<number>(getAvailableYears());
+                    // Включим ±2 года вокруг текущего на всякий случай (для перехода в новый год без данных).
+                    const now = new Date().getFullYear();
+                    for (let dy = -2; dy <= 2; dy++) yrs.add(now + dy);
+                    yrs.add(currentYear);
+                    return Array.from(yrs).sort((a, b) => b - a).map((y) => (
+                      <SelectItem key={y} value={String(y)} className="text-sm">
+                        {y}{getAvailableYears().includes(y) ? "" : " ·"}
+                      </SelectItem>
+                    ));
+                  })()}
+                </SelectContent>
+              </Select>
+              <button
+                onClick={() => setCurrentYearStore(currentYear + 1)}
+                className="size-7 rounded-md text-sm font-medium bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center justify-center"
+                aria-label="Следующий год"
+                title="Следующий год"
+              >
+                ›
+              </button>
             </div>
-          </ScrollArea>
+            <ScrollArea className="w-full" type="scrollbar">
+              <div className="flex gap-1.5 pb-1 sm:justify-center">
+                {MONTHS.map((m, i) => (
+                  <button
+                    key={m}
+                    onClick={() => setCurrentMonth(i)}
+                    className={`relative flex items-center justify-center gap-1.5 shrink-0 sm:flex-1 sm:min-w-0 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
+                      currentMonth === i
+                        ? "bg-[var(--tracker-accent)] text-white shadow-sm"
+                        : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {monthHasData(i) && (
+                      <span
+                        className={`size-1.5 rounded-full shrink-0 ${
+                          currentMonth === i
+                            ? "bg-white/70"
+                            : "bg-[var(--tracker-accent)]"
+                        }`}
+                      />
+                    )}
+                    <span className="truncate hidden sm:inline">{m}</span>
+                    <span className="sm:hidden text-[11px] font-semibold">{MONTHS_SHORT[i]}</span>
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
         )}
 
         {/* ---- VIEWS ---- */}
@@ -2369,7 +2442,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             setSearchQuery={setSearchQuery}
             clearFilters={clearFilters}
             addTask={addTask}
-            onCreatePresentation={handleCreatePresentation}
+            onCreatePresentation={openPresentation}
             onOpenTransfer={() => { setTransferTarget(-1); setTransferDialog(true); }}
             setTotalHDialog={setTotalHDialog}
             setCommentArchiveDialog={setCommentArchiveDialog}
@@ -2397,6 +2470,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             monthBudget={monthBudget[currentMonth]}
             onBudgetChange={(v) => setMonthBudget(currentMonth, v)}
             currentMonth={currentMonth}
+            currentYear={currentYear}
             backlogCount={(backlog || []).length}
             isDark={customDark}
           />
@@ -2434,6 +2508,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             setChatModel={setChatModel}
             rows={rows}
             month={currentMonth}
+            year={currentYear}
             allData={allData}
             backlog={backlog}
             totalFactMap={totalFactMap}
@@ -2464,8 +2539,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             setCurrentSlide={setCurrentSlide}
             accentHex={accentHex}
             presBg={presBg}
+            onSetPresBg={storeSetPresBg}
+            onResetPresBg={() => storeSetPresBg(DEFAULT_PRES_BG)}
             onExportHTML={handleExportSlidesHTML}
-            onCreateNew={handleCreatePresentation}
             hasData={(allData[currentMonth] || []).some((r) => r.name || r.num)}
             onAiAnalysis={handleAiAnalysis}
             aiAnalysisBusy={aiConclusionBusy}
@@ -2475,7 +2551,11 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             onApproveDraft={handleApproveDraft}
             onDiscardDraft={handleDiscardDraft}
             onRemoveConclusion={handleRemoveConclusion}
-            onSetAiConclusion={setAiConclusion}
+            presSubTab={presSubTab}
+            setPresSubTab={setPresSubTab}
+            onOpenGlobalDesign={() => setView("design")}
+            currentMonth={currentMonth}
+            currentYear={currentYear}
           />
         )}
       </main>
@@ -2749,7 +2829,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             <DialogDescription>
               {importConfirm.type === "json"
                 ? "Текущие данные будут заменены данными из файла. Продолжить?"
-                : `Задачи из файла будут добавлены в ${MONTHS[currentMonth]}. Продолжить?`}
+                : `Задачи из файла будут добавлены в ${MONTHS[currentMonth]} ${currentYear}. Продолжить?`}
             </DialogDescription>
           </DialogHeader>
           {importConfirm.file && (
@@ -4402,6 +4482,7 @@ interface DashboardViewProps {
   monthBudget: string;
   onBudgetChange: (v: string) => void;
   currentMonth: number;
+  currentYear: number;
   backlogCount: number;
   isDark: boolean;
 }
@@ -4474,7 +4555,7 @@ function MiniSparkline({ values, color, height = 40 }: { values: number[]; color
   );
 }
 
-function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, backlogCount }: DashboardViewProps) {
+function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, currentYear, backlogCount }: DashboardViewProps) {
   const budget = evalExpr(monthBudget);
   const budgetH = isNaN(budget) || budget <= 0 ? 0 : budget;
   const completionRate = data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0;
@@ -4484,7 +4565,7 @@ function DashboardView({ data, monthBudget, onBudgetChange, currentMonth, backlo
   const budgetFree = budgetH > 0 ? R2(budgetH - data.factH) : 0;
 
   const accentDark = "var(--tracker-accent-fg-dark)";
-  const monthName = MONTHS[currentMonth];
+  const monthName = `${MONTHS[currentMonth]} ${currentYear}`;
   const yearTotalFact = R2(data.monthlyFact.reduce((a, b) => a + b, 0));
   const yearPeakFact  = R2(Math.max(...data.monthlyFact));
 
@@ -5264,12 +5345,15 @@ function QuestionsView({
 
 
 /* ================================================================ */
-/*  SLIDES VIEW                                                      */
+/*  SLIDES VIEW — Phase 3: sub-tabs (Slides / Design / AI insights)  */
 /* ================================================================ */
 
-/* ================================================================ */
-/*  SLIDES VIEW — REDESIGNED                                         */
-/* ================================================================ */
+type AiConclusionShape = {
+  achievements: string[];
+  risks: string[];
+  inProgress: string[];
+  nextSteps: string[];
+};
 
 interface SlidesViewProps {
   slides: SlideData[];
@@ -5277,20 +5361,34 @@ interface SlidesViewProps {
   setCurrentSlide: (i: number) => void;
   accentHex: string;
   presBg: PresBgSettings;
+  onSetPresBg: (patch: Partial<PresBgSettings>) => void;
+  onResetPresBg: () => void;
   onExportHTML: () => void;
-  onCreateNew: () => void;
   hasData: boolean;
   onAiAnalysis: () => void;
   aiAnalysisBusy: boolean;
-  // NEW: two-stage AI flow
-  aiDraft: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null;
-  aiConclusion: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null;
-  onSetAiDraft: (v: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null) => void;
+  aiDraft: AiConclusionShape | null;
+  aiConclusion: AiConclusionShape | null;
+  onSetAiDraft: (v: AiConclusionShape | null) => void;
   onApproveDraft: () => void;
   onDiscardDraft: () => void;
   onRemoveConclusion: () => void;
-  onSetAiConclusion: (v: { achievements: string[]; risks: string[]; inProgress: string[]; nextSteps: string[] } | null) => void;
+  /** Phase 3: активный под-таб + сеттер. */
+  presSubTab: "slides" | "design" | "ai";
+  setPresSubTab: (v: "slides" | "design" | "ai") => void;
+  /** Phase 3: открыть глобальный таб «Дизайн» (для полных настроек темы трекера). */
+  onOpenGlobalDesign: () => void;
+  /** Phase 3: текущий месяц/год для шапки слайдов. */
+  currentMonth: number;
+  currentYear: number;
 }
+
+const AI_SECTION_LABELS: Record<string, string> = {
+  achievements: "✅ Достижения",
+  risks: "⚠️ Риски",
+  inProgress: "⚙️ В процессе",
+  nextSteps: "🎯 Следующие шаги",
+};
 
 function SlidesView({
   slides,
@@ -5298,8 +5396,9 @@ function SlidesView({
   setCurrentSlide,
   accentHex,
   presBg,
+  onSetPresBg,
+  onResetPresBg,
   onExportHTML,
-  onCreateNew,
   hasData,
   onAiAnalysis,
   aiAnalysisBusy,
@@ -5309,99 +5408,324 @@ function SlidesView({
   onApproveDraft,
   onDiscardDraft,
   onRemoveConclusion,
-  onSetAiConclusion,
+  presSubTab,
+  setPresSubTab,
+  onOpenGlobalDesign,
+  currentMonth,
+  currentYear,
 }: SlidesViewProps) {
 
-  const AI_SECTION_LABELS: Record<string, string> = {
-    achievements: "✅ Достижения",
-    risks: "⚠️ Риски",
-    inProgress: "⚙️ В процессе",
-    nextSteps: "🎯 Следующие шаги",
-  };
+  /* Sub-tabs header — общий для всех трёх режимов */
+  const subTabsHeader = (
+    <div className="flex items-center gap-1 p-1 rounded-xl border self-start"
+      style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+      {([
+        { key: "slides", label: "📑 Слайды" },
+        { key: "design", label: "🎨 Дизайн" },
+        { key: "ai",     label: "✨ AI-инсайты" + (aiConclusion || aiDraft ? " ·" : "") },
+      ] as const).map(t => {
+        const active = presSubTab === t.key;
+        return (
+          <button
+            key={t.key}
+            onClick={() => setPresSubTab(t.key)}
+            className="px-3 py-1.5 text-xs sm:text-sm rounded-lg transition-colors font-medium"
+            style={{
+              background: active ? "var(--tracker-accent)" : "transparent",
+              color: active ? "#fff" : "var(--tracker-text-muted)",
+            }}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 
-  if (slides.length === 0) {
+  /* ── Empty state ── */
+  if (!hasData) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 space-y-4">
-        <Presentation className="size-16 text-muted-foreground/30" />
-        <p className="text-lg text-muted-foreground">Презентация не создана</p>
-        <p className="text-sm text-muted-foreground">Перейдите в таблицу и нажмите «Презентация» для создания</p>
-        <Button onClick={onCreateNew}
-          className="gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-          disabled={!hasData}>
-          <Presentation className="size-4" />
-          Создать презентацию
-        </Button>
+      <div className="space-y-4">
+        {subTabsHeader}
+        <div className="flex flex-col items-center justify-center py-16 space-y-4">
+          <Presentation className="size-16 text-muted-foreground/30" />
+          <p className="text-lg text-muted-foreground">Нет задач за {MONTHS[currentMonth]} {currentYear}</p>
+          <p className="text-sm text-muted-foreground">Добавьте задачи в таблицу, и презентация появится автоматически</p>
+        </div>
       </div>
     );
   }
 
-  const slide = slides[currentSlide];
-  if (!slide) return null;
+  const slide = slides[Math.min(currentSlide, slides.length - 1)];
 
+  /* ════════════════════════════════════════════════════════════════ */
+  /* SUB-TAB: SLIDES                                                  */
+  /* ════════════════════════════════════════════════════════════════ */
+  if (presSubTab === "slides") {
+    return (
+      <div className="space-y-4">
+        {subTabsHeader}
+
+        {/* Toolbar */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm"
+              onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
+              disabled={currentSlide === 0} className="gap-1.5">
+              <ChevronLeft className="size-4" />Назад
+            </Button>
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {Math.min(currentSlide, slides.length - 1) + 1} / {slides.length}
+            </span>
+            <Button variant="outline" size="sm"
+              onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))}
+              disabled={currentSlide >= slides.length - 1} className="gap-1.5">
+              Далее<ChevronRight className="size-4" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={onExportHTML}>
+              <Download className="size-3.5" />Скачать HTML
+            </Button>
+          </div>
+        </div>
+
+        {/* Dots */}
+        <div className="flex gap-1.5 justify-center flex-wrap">
+          {slides.map((s, i) => (
+            <button key={i} onClick={() => setCurrentSlide(i)} title={s.type}
+              className={`h-2 rounded-full transition-all ${
+                i === currentSlide ? "w-7 bg-[var(--tracker-accent)]" : "w-2 bg-muted-foreground/25 hover:bg-muted-foreground/40"
+              }`} />
+          ))}
+        </div>
+
+        {/* Slide preview */}
+        {slide && <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} aiConclusion={aiConclusion} />}
+
+        {/* Под слайдом — лёгкая подсказка про AI, если выводов ещё нет */}
+        {!aiConclusion && !aiDraft && (
+          <div className="rounded-xl border p-3 flex items-center justify-between gap-3 flex-wrap"
+            style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+            <div className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>
+              <Sparkles className="inline size-3.5 mr-1.5" />Слайд «Итоги» использует шаблонные тезисы — можно заменить AI-выводами.
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setPresSubTab("ai")} className="gap-1.5">
+              <Sparkles className="size-3.5" />Открыть AI-инсайты
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ════════════════════════════════════════════════════════════════ */
+  /* SUB-TAB: DESIGN                                                  */
+  /* ════════════════════════════════════════════════════════════════ */
+  if (presSubTab === "design") {
+    return (
+      <div className="space-y-4">
+        {subTabsHeader}
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+
+          {/* LEFT: design controls */}
+          <div className="space-y-5">
+
+            {/* Style presets */}
+            <section>
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Стиль фона</h3>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Пресеты фона, изменения применяются мгновенно</p>
+                </div>
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={onResetPresBg}>
+                  ↺ Сбросить
+                </Button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {PRES_STYLE_PRESETS.map(preset => {
+                  const isActive = (presBg.styleId || "dark") === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      onClick={() => onSetPresBg({ styleId: preset.id, emojis: preset.defaultEmojis, pattern: preset.defaultPattern })}
+                      className="relative flex flex-col items-center gap-1.5 rounded-xl p-2.5 border-2 transition-all"
+                      style={{
+                        borderColor: isActive ? "var(--tracker-accent)" : "var(--tracker-border)",
+                        background: isActive ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)",
+                        boxShadow: isActive ? `0 0 0 3px var(--tracker-accent)22` : undefined,
+                      }}
+                    >
+                      <div className="w-full h-9 rounded-lg flex items-center justify-center text-base"
+                        style={{ background: preset.bodyBg }}>
+                        {preset.emoji}
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs font-semibold" style={{ color: isActive ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-main)" }}>
+                          {preset.label}
+                        </div>
+                        <div className="text-[9px] leading-tight" style={{ color: "var(--tracker-text-muted)" }}>
+                          {preset.desc}
+                        </div>
+                      </div>
+                      {isActive && (
+                        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: "var(--tracker-accent)" }}>
+                          <Check className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* Pattern */}
+            <section>
+              <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--tracker-text-main)" }}>Паттерн</h3>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+                {(["none", "grid", "diagonal", "diamond", "waves", "zigzag"] as const).map(p => {
+                  const active = (presBg.pattern || "none") === p;
+                  const labels: Record<string, string> = { none: "Нет", grid: "Сетка", diagonal: "Линии", diamond: "Ромбы", waves: "Волны", zigzag: "Зигзаг" };
+                  return (
+                    <button key={p} onClick={() => onSetPresBg({ pattern: p })}
+                      className="rounded-lg p-2 border-2 text-center transition-all"
+                      style={{
+                        borderColor: active ? "var(--tracker-accent)" : "var(--tracker-border)",
+                        background: active ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)",
+                      }}>
+                      <div className="text-xs font-medium" style={{ color: active ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-main)" }}>
+                        {labels[p]}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {presBg.pattern !== "none" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+                    Прозрачность <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.patternOpacity}%</span>
+                    <input type="range" min={0} max={30} value={presBg.patternOpacity}
+                      onChange={e => onSetPresBg({ patternOpacity: Number(e.target.value) })}
+                      className="w-full mt-1" />
+                  </label>
+                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+                    Размер <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.patternSize}px</span>
+                    <input type="range" min={10} max={100} step={5} value={presBg.patternSize}
+                      onChange={e => onSetPresBg({ patternSize: Number(e.target.value) })}
+                      className="w-full mt-1" />
+                  </label>
+                </div>
+              )}
+            </section>
+
+            {/* Emoji */}
+            <section>
+              <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--tracker-text-main)" }}>Эмодзи в фоне</h3>
+              <div className="space-y-3">
+                <input type="text" value={presBg.emojis}
+                  onChange={e => onSetPresBg({ emojis: e.target.value })}
+                  placeholder="🚀 ✨ 💡"
+                  className="w-full h-9 rounded-lg border px-3 text-sm bg-transparent outline-none"
+                  style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }} />
+                <div className="grid grid-cols-3 gap-3">
+                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+                    Кол-во <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiCount}</span>
+                    <input type="range" min={0} max={40} value={presBg.emojiCount}
+                      onChange={e => onSetPresBg({ emojiCount: Number(e.target.value) })}
+                      className="w-full mt-1" />
+                  </label>
+                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+                    Мин. размер <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiMinSize}px</span>
+                    <input type="range" min={10} max={60} value={presBg.emojiMinSize}
+                      onChange={e => onSetPresBg({ emojiMinSize: Number(e.target.value) })}
+                      className="w-full mt-1" />
+                  </label>
+                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+                    Макс. размер <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiMaxSize}px</span>
+                    <input type="range" min={20} max={120} value={presBg.emojiMaxSize}
+                      onChange={e => onSetPresBg({ emojiMaxSize: Number(e.target.value) })}
+                      className="w-full mt-1" />
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            {/* Link to global design */}
+            <section className="rounded-xl border p-3 flex items-center justify-between gap-3 flex-wrap"
+              style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+              <div className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>
+                Нужны настройки цвета и темы всего трекера?
+              </div>
+              <Button variant="outline" size="sm" onClick={onOpenGlobalDesign} className="gap-1.5">
+                Глобальный Дизайн
+              </Button>
+            </section>
+          </div>
+
+          {/* RIGHT: live preview — текущий слайд */}
+          <div className="space-y-2 lg:sticky lg:top-4 self-start">
+            <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Предпросмотр</h3>
+            {slide && <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} aiConclusion={aiConclusion} />}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ════════════════════════════════════════════════════════════════ */
+  /* SUB-TAB: AI                                                      */
+  /* ════════════════════════════════════════════════════════════════ */
   return (
     <div className="space-y-4">
+      {subTabsHeader}
 
-      {/* ── TOOLBAR ── */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm"
-            onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
-            disabled={currentSlide === 0} className="gap-1.5">
-            <ChevronLeft className="size-4" />Назад
-          </Button>
-          <span className="text-sm text-muted-foreground tabular-nums">
-            {currentSlide + 1} / {slides.length}
-          </span>
-          <Button variant="outline" size="sm"
-            onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))}
-            disabled={currentSlide === slides.length - 1} className="gap-1.5">
-            Далее<ChevronRight className="size-4" />
-          </Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={onAiAnalysis} disabled={aiAnalysisBusy}>
-            {aiAnalysisBusy
-              ? <><Loader2 className="size-3.5 animate-spin" />Анализирую...</>
-              : <><Sparkles className="size-3.5" />AI анализ</>}
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={onExportHTML}>
-            <Download className="size-3.5" />Скачать HTML
-          </Button>
+      {/* Header — статус */}
+      <div className="rounded-2xl border p-5 space-y-3"
+        style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="text-base font-semibold flex items-center gap-2" style={{ color: "var(--tracker-text-main)" }}>
+              <Sparkles className="size-4" />Анализ за {MONTHS[currentMonth]} {currentYear}
+            </h3>
+            <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>
+              {aiDraft
+                ? "Черновик готов — проверьте и примените"
+                : aiConclusion
+                  ? "AI-выводы применены к слайду «Итоги»"
+                  : "Сгенерируйте AI-выводы или заполните вручную"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5"
+              onClick={() => onSetAiDraft({ achievements: [""], risks: [""], inProgress: [""], nextSteps: [""] })}
+              disabled={!!aiDraft}>
+              ✏️ Заполнить вручную
+            </Button>
+            <Button size="sm" className="gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
+              onClick={onAiAnalysis} disabled={aiAnalysisBusy || !!aiDraft}>
+              {aiAnalysisBusy
+                ? <><Loader2 className="size-3.5 animate-spin" />Анализирую...</>
+                : <><Sparkles className="size-3.5" />Сгенерировать</>}
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* ── SLIDE DOTS ── */}
-      <div className="flex gap-1.5 justify-center flex-wrap">
-        {slides.map((s, i) => (
-          <button key={i} onClick={() => setCurrentSlide(i)} title={s.type}
-            className={`h-2 rounded-full transition-all ${
-              i === currentSlide ? "w-7 bg-[var(--tracker-accent)]" : "w-2 bg-muted-foreground/25 hover:bg-muted-foreground/40"
-            }`} />
-        ))}
-      </div>
-
-      {/* ── SLIDE PREVIEW ── */}
-      <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} aiConclusion={aiConclusion} />
-
-      {/* ── AI DRAFT PANEL (Step 2 — editable buffer) ── */}
+      {/* Draft editor */}
       {aiDraft && (
         <div className="rounded-2xl border-2 p-5 space-y-4"
           style={{ borderColor: "var(--tracker-accent)", background: "var(--tracker-accent-bg)" }}>
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <p className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--tracker-accent-fg-dark)" }}>
-                <Sparkles className="size-4" />AI черновик
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>
-                Проверьте и отредактируйте тезисы перед добавлением в презентацию
-              </p>
-            </div>
+            <p className="text-sm font-semibold" style={{ color: "var(--tracker-accent-fg-dark)" }}>
+              Черновик (редактируемый)
+            </p>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={onDiscardDraft}>
                 <X className="size-3" />Отклонить
               </Button>
               <Button size="sm" className="h-8 gap-1.5 text-xs bg-[var(--tracker-accent)] text-white" onClick={onApproveDraft}>
-                <Check className="size-3" />Применить в презентацию
+                <Check className="size-3" />Применить
               </Button>
             </div>
           </div>
@@ -5440,23 +5764,18 @@ function SlidesView({
         </div>
       )}
 
-      {/* ── APPROVED AI PANEL (Step 3 — injected) ── */}
+      {/* Approved insights */}
       {aiConclusion && !aiDraft && (
         <div className="rounded-2xl border p-4 space-y-3"
           style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <p className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--tracker-text-main)" }}>
-                <Check className="size-4 text-green-600" />AI анализ применён
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>
-                Тезисы включены в слайд «Итоги»
-              </p>
-            </div>
+            <p className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--tracker-text-main)" }}>
+              <Check className="size-4 text-green-600" />Применено
+            </p>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
                 onClick={() => onSetAiDraft({ ...aiConclusion })}>
-                <span className="text-xs">✏️</span>Редактировать
+                ✏️ Редактировать
               </Button>
               <Button size="sm" variant="ghost" className="h-8 text-xs text-muted-foreground"
                 onClick={onRemoveConclusion}>
@@ -5483,6 +5802,17 @@ function SlidesView({
         </div>
       )}
 
+      {/* Превью слайда «Итоги» */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-muted)" }}>
+          Как это попадёт в слайд
+        </h3>
+        {(() => {
+          const summarySlide = slides.find(s => s.type === "summary");
+          if (!summarySlide) return null;
+          return <SlidePreview slide={summarySlide} accentHex={accentHex} presBg={presBg} aiConclusion={aiConclusion} />;
+        })()}
+      </div>
     </div>
   );
 }
@@ -5558,6 +5888,8 @@ interface ChatViewProps {
   setChatModel: (v: string) => void;
   rows: Task[];
   month: number;
+  /** Phase 2: текущий год для контекста AI */
+  year: number;
   allData: Record<number, Task[]>;
   backlog: Task[];
   totalFactMap: Record<string, number>;
@@ -5610,6 +5942,7 @@ function ChatView({
   setChatModel,
   rows,
   month,
+  year,
   allData,
   backlog,
   totalFactMap,
@@ -5635,7 +5968,7 @@ function ChatView({
     const now = new Date();
     const lines: string[] = [];
 
-    lines.push(`Дата: ${now.toLocaleDateString("ru-RU")}, текущий месяц трекера: ${MONTHS[month]}`);
+    lines.push(`Дата: ${now.toLocaleDateString("ru-RU")}, текущий месяц трекера: ${MONTHS[month]} ${year}`);
     lines.push("");
 
     // All 12 months summary table
@@ -5653,7 +5986,7 @@ function ChatView({
 
     // Current month detailed
     const curRows = (allData[month] || []).filter(r => !r._deleted && (r.name || r.num));
-    lines.push(`=== ДЕТАЛИ: ${MONTHS[month].toUpperCase()} ===`);
+    lines.push(`=== ДЕТАЛИ: ${MONTHS[month].toUpperCase()} ${year} ===`);
     lines.push(`Всего задач: ${curRows.length}`);
     if (curRows.length) {
       lines.push("Список задач:");
@@ -5717,7 +6050,7 @@ function ChatView({
     }
 
     return lines.join("\n");
-  }, [allData, month, backlog, questions, totalFactMap]);
+  }, [allData, month, year, backlog, questions, totalFactMap]);
 
   const buildSystemPrompt = useCallback((): string => {
     const ctx = buildContext();
@@ -5817,15 +6150,15 @@ ${ctx}
     const backlogCount = (backlog || []).filter(r => !r._deleted).length;
     const unansweredCount = questions.filter(q => !(q.answers || []).length).length;
     return [
-      { label: "📊 Отчёт за месяц", text: `Составь краткий отчёт по задачам за ${MONTHS[month]}: выполнение, ключевые результаты, проблемы.` },
-      { label: "⚠️ Зона риска" + (atRiskCount > 0 ? ` (${atRiskCount})` : ""), text: `Проанализируй задачи которые превышают план по часам в ${MONTHS[month]}. Что может быть причиной и как скорректировать?` },
-      { label: "💡 Предложи вопросы для команды", text: `На основе данных трекера за ${MONTHS[month]} предложи 5 ключевых вопросов для обсуждения с командой. Оформи их в блоке "### Предлагаемые вопросы:".` },
+      { label: "📊 Отчёт за месяц", text: `Составь краткий отчёт по задачам за ${MONTHS[month]} ${year}: выполнение, ключевые результаты, проблемы.` },
+      { label: "⚠️ Зона риска" + (atRiskCount > 0 ? ` (${atRiskCount})` : ""), text: `Проанализируй задачи которые превышают план по часам в ${MONTHS[month]} ${year}. Что может быть причиной и как скорректировать?` },
+      { label: "💡 Предложи вопросы для команды", text: `На основе данных трекера за ${MONTHS[month]} ${year} предложи 5 ключевых вопросов для обсуждения с командой. Оформи их в блоке "### Предлагаемые вопросы:".` },
       ...(backlogCount > 0 ? [{ label: `📦 Беклог (${backlogCount})`, text: `Проанализируй беклог. Какие задачи приоритетнее всего перенести в следующий месяц? Почему?` }] : []),
       ...(unansweredCount > 0 ? [{ label: `❓ Открытые вопросы (${unansweredCount})`, text: `Посмотри на открытые вопросы в трекере. Какие из них наиболее критичны для команды, исходя из задач?` }] : []),
-      { label: "📅 Сравни два месяца", text: `Сравни ${MONTHS[month]} с предыдущим месяцем: загрузка, выполнение задач, динамика часов.` },
+      { label: "📅 Сравни два месяца", text: `Сравни ${MONTHS[month]} ${year} с предыдущим месяцем: загрузка, выполнение задач, динамика часов.` },
       { label: "🎯 Рекомендации", text: `Какие 3-5 конкретных улучшений ты бы порекомендовал на основе данных трекера?` },
     ];
-  }, [allData, month, backlog, questions]);
+  }, [allData, month, year, backlog, questions]);
 
   const taskCount = (rows || []).filter(r => r.name || r.num).length;
   const hasKey = !!apiKeyRef.current;
@@ -5917,7 +6250,7 @@ ${ctx}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>
             <span className="font-semibold">✦ AI</span>
             <span className="opacity-60">·</span>
-            <span>{MONTHS[month]}</span>
+            <span>{MONTHS[month]} {year}</span>
             <span className="opacity-60">·</span>
             <span>{taskCount} задач</span>
             {(backlog || []).filter(r => !r._deleted).length > 0 && (
