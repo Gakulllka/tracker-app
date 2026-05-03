@@ -40,6 +40,11 @@ import {
   STATUS_ORDER,
   PRIO_START,
 } from "@/lib/types";
+import {
+  parseFormulas,
+  applyFormula,
+  describeFormula,
+} from "@/lib/comment-formulas";
 
 import {
   getTaskMetrics,
@@ -1175,6 +1180,8 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     nextSteps: string[];
   } | null>(null);
   const [aiConclusionBusy, setAiConclusionBusy] = useState(false);
+  /** Phase 7.3: ошибка последней AI-генерации (для красного баннера в Презентации). */
+  const [aiAnalysisError, setAiAnalysisError] = useState<string | null>(null);
   /* Phase 4: текущий хеш задач месяца — для детекции stale-инсайтов. */
   const [currentDataHash, setCurrentDataHash] = useState<string>("");
 
@@ -1197,6 +1204,8 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
   // Chat state
   const apiKeyRef = useRef<string>("");
+  /** Phase 7.3: реактивный флаг наличия ключа — для индикатора в SlidesView. */
+  const [hasApiKey, setHasApiKey] = useState(false);
   const [chatModel, setChatModel] = useState("gemini-2.5-flash");
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
 
@@ -1687,6 +1696,44 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     setEditingCell(null);
   }, []);
 
+  /* Phase 7.3: при выходе из редактирования комментария — пробуем
+   * распознать формулы (@факт+10, @план*2 и т.п.). Если найдены —
+   * меняем factH/planH и заменяем комментарий на системную запись. */
+  const commitCommentFormulas = useCallback((month: number, taskId: string) => {
+    const task = (allData[month] || []).find((r) => r.id === taskId);
+    if (!task) return;
+    const { formulas, remainingText } = parseFormulas(task.comment || "");
+    if (formulas.length === 0) return;
+
+    let newFactH = evalExpr(task.factH);
+    let newPlanH = evalExpr(task.planH);
+    const systemNotes: string[] = [];
+
+    for (const f of formulas) {
+      if (f.target === "fact") {
+        const oldVal = newFactH;
+        newFactH = applyFormula(oldVal, f.op, f.operand);
+        systemNotes.push(describeFormula(f, oldVal, newFactH));
+      } else {
+        const oldVal = newPlanH;
+        newPlanH = applyFormula(oldVal, f.op, f.operand);
+        systemNotes.push(describeFormula(f, oldVal, newPlanH));
+      }
+    }
+
+    // Применяем изменения. Делаем snapshot для undo.
+    useTaskStore.getState().snapshot();
+    if (systemNotes.length > 0 && evalExpr(task.factH) !== newFactH) {
+      updateTask(month, taskId, "factH", String(Math.round(newFactH * 100) / 100));
+    }
+    if (systemNotes.length > 0 && evalExpr(task.planH) !== newPlanH) {
+      updateTask(month, taskId, "planH", String(Math.round(newPlanH * 100) / 100));
+    }
+    // Заменяем комментарий: системные строки + остаток обычного текста (если был).
+    const newComment = systemNotes.join("\n") + (remainingText ? "\n" + remainingText : "");
+    updateTask(month, taskId, "comment", newComment);
+  }, [allData, updateTask]);
+
   const isEditing = useCallback(
     (rowId: string, col: string) =>
       editingCell?.rowId === rowId && editingCell?.col === col,
@@ -2040,10 +2087,15 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     const apiKey = apiKeyRef.current;
     if (!apiKey) {
       setApiKeyDialogOpen(true);
+      setAiAnalysisError("Сначала введите API ключ Gemini");
       return;
     }
     const rows = (allData[currentMonth] || []).filter(r => r.name || r.num);
-    if (rows.length === 0) return;
+    if (rows.length === 0) {
+      setAiAnalysisError("В этом месяце нет задач для анализа");
+      return;
+    }
+    setAiAnalysisError(null);
     setAiConclusionBusy(true);
     try {
       const summary = rows.map(r =>
@@ -2070,7 +2122,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       setAiDraft(parsed);
       toast({ title: "✨ AI черновик готов", description: "Проверьте тезисы и нажмите «Применить в презентацию»" });
     } catch (err) {
-      toast({ title: "Ошибка AI анализа", description: err instanceof Error ? err.message : "Неизвестная ошибка", variant: "destructive" });
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      setAiAnalysisError(msg);
+      toast({ title: "Ошибка AI анализа", description: msg, variant: "destructive" });
     } finally {
       setAiConclusionBusy(false);
     }
@@ -2572,6 +2626,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             isEditing={isEditing}
             startEditing={startEditing}
             stopEditing={stopEditing}
+            commitCommentFormulas={commitCommentFormulas}
             updateTask={updateTask}
             deleteTask={deleteTask}
             reorderTask={reorderTask}
@@ -2650,6 +2705,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             apiKeyRef={apiKeyRef}
             apiKeyDialogOpen={apiKeyDialogOpen}
             setApiKeyDialogOpen={setApiKeyDialogOpen}
+            onApiKeySaved={() => setHasApiKey(true)}
             chatModel={chatModel}
             setChatModel={setChatModel}
             rows={rows}
@@ -2701,6 +2757,11 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             onDiscardDraft={handleDiscardDraft}
             onRemoveConclusion={handleRemoveConclusion}
             aiInsightStale={aiInsightStale}
+            aiAnalysisError={aiAnalysisError}
+            onOpenApiKeyDialog={() => setApiKeyDialogOpen(true)}
+            chatModel={chatModel}
+            setChatModel={setChatModel}
+            hasApiKey={hasApiKey}
             presSubTab={presSubTab}
             setPresSubTab={setPresSubTab}
             onOpenGlobalDesign={() => setView("design")}
@@ -3285,6 +3346,8 @@ interface TableViewProps {
   isEditing: (rowId: string, col: string) => boolean;
   startEditing: (rowId: string, col: string) => void;
   stopEditing: () => void;
+  /** Phase 7.3: коммит формул @факт/@план в комментарии при выходе из ячейки. */
+  commitCommentFormulas: (month: number, taskId: string) => void;
   updateTask: (
     month: number,
     taskId: string,
@@ -3339,6 +3402,7 @@ function TableView({
   isEditing,
   startEditing,
   stopEditing,
+  commitCommentFormulas,
   updateTask,
   deleteTask,
   reorderTask,
@@ -4004,7 +4068,11 @@ function TableView({
                               e.target.value
                             )
                           }
-                          onBlur={stopEditing}
+                          onBlur={() => {
+                            // Phase 7.3: попытка распознать @факт/@план формулы перед закрытием.
+                            commitCommentFormulas(month, task.id);
+                            stopEditing();
+                          }}
                           onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
                             if (e.key === "Escape")
                               stopEditing();
@@ -5540,6 +5608,16 @@ interface SlidesViewProps {
   onRemoveConclusion: () => void;
   /** Phase 4: данные изменились с момента генерации текущего инсайта. */
   aiInsightStale: boolean;
+  /** Phase 7.3: ошибка последней AI-генерации (если была). */
+  aiAnalysisError: string | null;
+  /** Phase 7.3: открыть диалог ввода Gemini API ключа. */
+  onOpenApiKeyDialog: () => void;
+  /** Phase 7.3: текущая выбранная модель Gemini. */
+  chatModel: string;
+  /** Phase 7.3: установить модель Gemini. */
+  setChatModel: (m: string) => void;
+  /** Phase 7.3: есть ли валидный ключ Gemini в памяти сессии. */
+  hasApiKey: boolean;
   /** Phase 3: активный под-таб + сеттер. */
   presSubTab: "slides" | "design" | "ai";
   setPresSubTab: (v: "slides" | "design" | "ai") => void;
@@ -5579,6 +5657,11 @@ function SlidesView({
   onDiscardDraft,
   onRemoveConclusion,
   aiInsightStale,
+  aiAnalysisError,
+  onOpenApiKeyDialog,
+  chatModel,
+  setChatModel,
+  hasApiKey,
   presSubTab,
   setPresSubTab,
   onOpenGlobalDesign,
@@ -5741,9 +5824,9 @@ function SlidesView({
       <div className="space-y-4">
         {subTabsHeader}
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+        <div className="max-w-3xl mx-auto">
 
-          {/* LEFT: design controls */}
+          {/* Design controls — теперь во всю ширину (макс 768px) */}
           <div className="space-y-5">
 
             {/* Phase 6: Info — цвета привязаны к теме трекера */}
@@ -5890,11 +5973,9 @@ function SlidesView({
             </section>
           </div>
 
-          {/* RIGHT: live preview — текущий слайд */}
-          <div className="space-y-2 lg:sticky lg:top-4 self-start">
-            <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Предпросмотр</h3>
-            {slide && <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} aiConclusion={aiConclusion} />}
-          </div>
+          {/* Phase 7.3: правая колонка «Предпросмотр» удалена.
+           * Слайды видно в под-табе «Слайды», смысла дублировать не было —
+           * лишь зажимало основные настройки в узкую полосу. */}
         </div>
       </div>
     );
@@ -5907,6 +5988,53 @@ function SlidesView({
     <div className="space-y-4">
       {subTabsHeader}
 
+      {/* Phase 7.3: AI control bar — ключ + модель + кнопки. Идентичен чату. */}
+      <div className="rounded-xl border p-3 flex items-center justify-between flex-wrap gap-2"
+        style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs px-2.5" onClick={onOpenApiKeyDialog}>
+            <KeyRound className="size-3.5" />
+            {hasApiKey ? "Ключ ✓" : "API ключ"}
+          </Button>
+          <Select value={chatModel} onValueChange={setChatModel}>
+            <SelectTrigger className="h-8 w-auto text-xs px-2 gap-1 border-[var(--tracker-border)]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gemini-2.5-flash" className="text-xs">2.5 Flash</SelectItem>
+              <SelectItem value="gemini-2.5-flash-lite" className="text-xs">2.5 Flash Lite</SelectItem>
+              <SelectItem value="gemini-3-flash-preview" className="text-xs">3 Flash</SelectItem>
+              <SelectItem value="gemini-3.1-flash-lite-preview" className="text-xs">3.1 Flash Lite</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs"
+            onClick={() => onSetAiDraft({ achievements: [""], risks: [""], inProgress: [""], nextSteps: [""] })}
+            disabled={!!aiDraft}>
+            ✏️ Заполнить вручную
+          </Button>
+          <Button size="sm" className="h-8 gap-1.5 text-xs bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
+            onClick={onAiAnalysis} disabled={aiAnalysisBusy || !!aiDraft}>
+            {aiAnalysisBusy
+              ? <><Loader2 className="size-3.5 animate-spin" />Анализирую...</>
+              : <><Sparkles className="size-3.5" />Сгенерировать</>}
+          </Button>
+        </div>
+      </div>
+
+      {/* Phase 7.3: красный баннер ошибки — отображается до следующей попытки */}
+      {aiAnalysisError && !aiAnalysisBusy && (
+        <div className="rounded-xl border p-3 flex items-start gap-2"
+          style={{ background: "rgba(226,75,74,.06)", borderColor: "rgba(226,75,74,.3)" }}>
+          <span className="text-base shrink-0" style={{ color: "#A32D2D" }}>⚠</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold" style={{ color: "#A32D2D" }}>Ошибка AI-генерации</p>
+            <p className="text-[11px] mt-0.5 break-words" style={{ color: "#A32D2D", opacity: 0.85 }}>{aiAnalysisError}</p>
+          </div>
+        </div>
+      )}
+
       {/* Header — статус */}
       <div className="rounded-2xl border p-5 space-y-3"
         style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
@@ -5916,11 +6044,15 @@ function SlidesView({
               <Sparkles className="size-4" />Анализ за {MONTHS[currentMonth]} {currentYear}
             </h3>
             <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>
-              {aiDraft
-                ? "Черновик готов — проверьте и примените"
-                : aiConclusion
-                  ? (aiConclusion.source === "manual" ? "Тезисы применены вручную" : aiConclusion.source === "edited" ? "Тезисы применены (отредактированы)" : "AI-выводы применены к слайду «Итоги»")
-                  : "Сгенерируйте AI-выводы или заполните вручную"}
+              {aiAnalysisBusy
+                ? "AI обрабатывает запрос..."
+                : aiDraft
+                  ? "Черновик готов — проверьте и примените"
+                  : aiConclusion
+                    ? (aiConclusion.source === "manual" ? "Тезисы применены вручную" : aiConclusion.source === "edited" ? "Тезисы применены (отредактированы)" : "AI-выводы применены к слайду «Итоги»")
+                    : hasApiKey
+                      ? "Сгенерируйте AI-выводы или заполните вручную"
+                      : "Введите API ключ Gemini чтобы сгенерировать AI-выводы"}
             </p>
             {/* Phase 4: бейдж stale — данные изменились с момента генерации */}
             {aiInsightStale && !aiDraft && (
@@ -5929,19 +6061,6 @@ function SlidesView({
                 ⚠️ Данные изменились с момента генерации — стоит обновить
               </div>
             )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5"
-              onClick={() => onSetAiDraft({ achievements: [""], risks: [""], inProgress: [""], nextSteps: [""] })}
-              disabled={!!aiDraft}>
-              ✏️ Заполнить вручную
-            </Button>
-            <Button size="sm" className="gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-              onClick={onAiAnalysis} disabled={aiAnalysisBusy || !!aiDraft}>
-              {aiAnalysisBusy
-                ? <><Loader2 className="size-3.5 animate-spin" />Анализирую...</>
-                : <><Sparkles className="size-3.5" />Сгенерировать</>}
-            </Button>
           </div>
         </div>
       </div>
@@ -6118,6 +6237,9 @@ interface ChatViewProps {
   apiKeyRef: React.MutableRefObject<string>;
   apiKeyDialogOpen: boolean;
   setApiKeyDialogOpen: (v: boolean) => void;
+  /** Phase 7.3: callback после успешного сохранения ключа — сообщает родителю
+   *  что ключ теперь есть. Нужно для реактивного индикатора в SlidesView. */
+  onApiKeySaved: () => void;
   chatModel: string;
   setChatModel: (v: string) => void;
   rows: Task[];
@@ -6172,6 +6294,7 @@ function ChatView({
   apiKeyRef,
   apiKeyDialogOpen,
   setApiKeyDialogOpen,
+  onApiKeySaved,
   chatModel,
   setChatModel,
   rows,
@@ -6374,8 +6497,9 @@ ${ctx}
       apiKeyRef.current = apiKeyInput.trim();
       setApiKeyDialogOpen(false);
       setApiKeyInput("");
+      onApiKeySaved();
     }
-  }, [apiKeyInput, apiKeyRef, setApiKeyDialogOpen]);
+  }, [apiKeyInput, apiKeyRef, setApiKeyDialogOpen, onApiKeySaved]);
 
   /* ── Quick actions ───────────────────────────────────────────── */
   const quickActions = useMemo(() => {
