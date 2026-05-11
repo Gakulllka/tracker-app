@@ -2654,7 +2654,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             onExportAllXLSX={handleExportAllXLSX}
             onExportPDF={handleExportPDF}
             onImportJSON={() => fileInputRef.current?.click()}
-            onImportXLSX={() => xlsxInputRef.current?.click()}
+            onImportXLSX={() => setIsImportOpen(true)}
           />
         )}
 
