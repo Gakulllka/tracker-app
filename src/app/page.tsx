@@ -1148,39 +1148,29 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   const handleSyncApply = useCallback(({ updatedTasks, newTasks }: { updatedTasks: Task[]; newTasks: any[] }) => {
     useTaskStore.getState().snapshot();
 
-    // Update existing tasks field-by-field
-    if (updatedTasks.length > 0) {
-      const updatedIds = new Set(updatedTasks.map((t) => t.id));
-      const currentRows = [...(allData[currentMonth] || [])];
-      const newRows = currentRows.map((row) => {
-        if (!updatedIds.has(row.id)) return row;
-        const updated = updatedTasks.find((t) => t.id === row.id);
-        return updated ? { ...row, ...updated } : row;
-      });
-      storeSetAllData({ ...allData, [currentMonth]: newRows });
-    }
+    const updatedIds = new Set(updatedTasks.map((t) => t.id));
 
-    // Add new tasks
-    if (newTasks.length > 0) {
-      const newTaskObjs: Task[] = newTasks.map((imp: any) => ({
-        id: crypto.randomUUID(),
-        num: imp.num || "",
-        name: imp.name || "",
-        planH: String(imp.planH || ""),
-        factH: String(imp.factH || ""),
-        priority: imp.priority || PRIORITIES.MEDIUM,
-        status: imp.status || STATUSES.IDEA,
-        comment: imp.comment || "",
-        commentLog: [] as any[],
-      }));
-      const currentRows = updatedTasks.length > 0
-        ? (allData[currentMonth] || []).map((row) => {
-            const updated = updatedTasks.find((t) => t.id === row.id);
-            return updated ? { ...row, ...updated } : row;
-          })
-        : (allData[currentMonth] || []);
-      storeSetAllData({ ...allData, [currentMonth]: [...currentRows, ...newTaskObjs] });
-    }
+    // Apply updates to existing rows
+    const mergedRows = (allData[currentMonth] || []).map((row) => {
+      if (!updatedIds.has(row.id)) return row;
+      const updated = updatedTasks.find((t) => t.id === row.id);
+      return updated ? { ...row, ...updated } : row;
+    });
+
+    // Append new tasks
+    const newTaskObjs: Task[] = newTasks.map((imp: any) => ({
+      id: crypto.randomUUID(),
+      num: String(imp.num || "").startsWith("_nonum_") ? "" : (imp.num || ""),
+      name: imp.name || "",
+      planH: String(imp.planH || ""),
+      factH: String(imp.factH || ""),
+      priority: imp.priority || PRIORITIES.MEDIUM,
+      status: imp.status || STATUSES.IDEA,
+      comment: imp.comment || "",
+      commentLog: [] as any[],
+    }));
+
+    storeSetAllData({ ...allData, [currentMonth]: [...mergedRows, ...newTaskObjs] });
 
     setIsImportOpen(false);
     toast({

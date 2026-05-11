@@ -125,126 +125,143 @@ export async function exportMonthXLSX(
   accentHex: string,
 ): Promise<void> {
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet(MONTHS[month], {
-    properties: { defaultColWidth: 14 },
-  });
+  const ws = wb.addWorksheet(MONTHS[month]);
 
-  const accentRgb = hexToRgbObj(accentHex);
-  const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
-  const headerFill: Partial<ExcelJS.Fill> = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: accentRgb },
-  };
-  const headerBorder: Partial<ExcelJS.Border> = { style: "thin", color: { argb: "FFD0D0D0" } };
-  const thinBorder: Partial<ExcelJS.Border> = { style: "thin", color: { argb: "FFE0E0E0" } };
+  const acc = accentHex.replace("#", "FF");
+  const accLight = accentHex.replace("#", "1A"); // ~10% opacity bg
 
-  // Column definitions
+  // ── Columns — matching user's format exactly ──────────────────────
+  // Номер | Задача | Трудоёмкость предв, ч | Часы фактические | Приоритет | Статус
+  // + extra: Итого, ч | Прогресс | Комментарий
   ws.columns = [
-    { header: "#", key: "idx", width: 5 },
-    { header: "№", key: "num", width: 10 },
-    { header: "Наименование", key: "name", width: 40 },
-    { header: "План, ч", key: "planH", width: 12 },
-    { header: "Факт, ч", key: "factH", width: 12 },
-    { header: "Итого, ч", key: "totalH", width: 12 },
-    { header: "Приоритет", key: "priority", width: 16 },
-    { header: "Статус", key: "status", width: 24 },
-    { header: "Прогресс", key: "progress", width: 12 },
-    { header: "Комментарий", key: "comment", width: 36 },
+    { key: "num",      width: 12  },
+    { key: "name",     width: 48  },
+    { key: "planH",    width: 22  },
+    { key: "factH",    width: 20  },
+    { key: "priority", width: 18  },
+    { key: "status",   width: 26  },
+    { key: "totalH",   width: 14  },
+    { key: "progress", width: 13  },
+    { key: "comment",  width: 40  },
   ];
 
-  // Style header row
-  const headerRow = ws.getRow(1);
+  // ── Header row ────────────────────────────────────────────────────
+  const HEADERS = ["Номер", "Задача", "Трудоёмкость предв, ч", "Часы фактические", "Приоритет", "Статус", "Итого, ч", "Прогресс", "Комментарий"];
+  const headerRow = ws.addRow(HEADERS);
+  headerRow.height = 30;
   headerRow.eachCell((cell) => {
-    cell.font = headerFont;
-    cell.fill = headerFill;
-    cell.alignment = { horizontal: "center", vertical: "middle" };
-    cell.border = { bottom: headerBorder };
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10, name: "Arial" };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: acc } };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
+    cell.border = {
+      bottom: { style: "medium", color: { argb: "FFFFFFFF" } },
+      right: { style: "thin", color: { argb: "33FFFFFF" } },
+    };
   });
-  headerRow.height = 28;
 
-  // Data rows
+  // ── Data rows ─────────────────────────────────────────────────────
   rows.forEach((task, idx) => {
-    const plan = evalExpr(task.planH);
-    const fact = evalExpr(task.factH);
+    const plan   = evalExpr(task.planH);
+    const fact   = evalExpr(task.factH);
     const totalH = task.num ? (totalFactMap[task.num] || 0) : fact;
-    const isDone = task.status === STATUSES.DONE;
-    const prog = isDone ? 100 : (plan > 0 ? Math.min(100, Math.round(totalH / plan * 100)) : 0);
+    const isClosed = [STATUSES.DONE, STATUSES.COMPLETED, STATUSES.PROD_CHECK].includes(task.status as typeof STATUSES.DONE);
+    const prog   = isClosed ? 100 : (plan > 0 ? Math.min(100, Math.round(totalH / plan * 100)) : 0);
+    const over   = isClosed && totalH > plan;
+    const isEven = idx % 2 === 0;
 
     const row = ws.addRow({
-      idx: idx + 1,
-      num: task.num || "",
-      name: task.name || "",
-      planH: fmt2(plan),
-      factH: fmt2(fact),
-      totalH: fmt2(R2(totalH)),
+      num:      task.num || "",
+      name:     task.name || "",
+      planH:    plan  > 0 ? fmt2(plan)   : "",
+      factH:    fact  > 0 ? fmt2(fact)   : "",
       priority: task.priority,
-      status: task.status,
-      progress: `${prog}%`,
-      comment: task.comment || "",
+      status:   task.status,
+      totalH:   totalH > 0 ? fmt2(R2(totalH)) : "",
+      progress: prog > 0 ? `${prog}%` : "",
+      comment:  task.comment || "",
     });
+    row.height = 20;
 
-    const rowIdx = idx + 2;
-    const isEven = idx % 2 === 0;
-    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    // Base row style
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.font = { size: 10, name: "Arial" };
+      cell.alignment = { vertical: "middle" };
+      cell.fill = isEven
+        ? { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } }
+        : { type: "pattern", pattern: "solid", fgColor: { argb: "FFF7F7F9" } };
       cell.border = {
-        bottom: { style: "hair", color: { argb: isEven ? "FFF0F0F0" : "FFFFFFFF" } },
+        bottom: { style: "hair", color: { argb: "FFE0E0E0" } },
       };
-      if (!isEven) {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8F8F8" } };
-      }
     });
 
-    // Priority cell color
-    const prioCell = row.getCell(7);
-    prioCell.value = task.priority;
+    // Num — monospace, muted
+    const numCell = row.getCell(1);
+    numCell.font = { size: 10, name: "Courier New", color: { argb: "FF8888AA" } };
+    numCell.alignment = { horizontal: "center", vertical: "middle" };
+
+    // Name — left aligned, slightly bolder
+    const nameCell = row.getCell(2);
+    nameCell.font = { size: 10, name: "Arial", bold: false };
+
+    // Plan / Fact — right aligned, numeric
+    [3, 4, 7].forEach(c => {
+      const cell = row.getCell(c);
+      cell.alignment = { horizontal: "right", vertical: "middle" };
+      cell.font = { size: 10, name: "Arial" };
+    });
+
+    // Priority — colored
+    const prioCell = row.getCell(5);
     const prioColor = PCOL[task.priority];
     if (prioColor) {
-      prioCell.font = { color: { argb: prioColor.replace("#", "FF") }, bold: true, size: 10 };
+      prioCell.font = { color: { argb: prioColor.replace("#", "FF") }, bold: true, size: 10, name: "Arial" };
     }
+    prioCell.alignment = { horizontal: "center", vertical: "middle" };
 
-    // Status cell color
-    const statusCell = row.getCell(8);
-    statusCell.value = task.status;
+    // Status — colored
+    const statusCell = row.getCell(6);
     const statColor = SCOL[task.status];
     if (statColor) {
-      statusCell.font = { color: { argb: statColor.replace("#", "FF") }, bold: true, size: 10 };
+      statusCell.font = { color: { argb: statColor.replace("#", "FF") }, bold: true, size: 10, name: "Arial" };
     }
+    statusCell.alignment = { horizontal: "center", vertical: "middle" };
 
-    // Progress cell color
-    const progCell = row.getCell(9);
-    const progColor = prog >= 100 ? "FF4A9A5A" : prog >= 50 ? "FF5090B8" : "FFB89830";
-    progCell.font = { color: { argb: progColor }, bold: true, size: 10 };
+    // Progress — colored
+    const progCell = row.getCell(8);
+    const progArgb = isClosed
+      ? (over ? "FFEF4444" : "FF22C55E")
+      : "FFF59E0B";
+    progCell.font = { color: { argb: progArgb }, bold: true, size: 10, name: "Arial" };
+    progCell.alignment = { horizontal: "center", vertical: "middle" };
   });
 
-  // Footer row
+  // ── Footer ────────────────────────────────────────────────────────
   if (rows.length > 0) {
-    let totPlan = 0;
-    let totFact = 0;
-    let totTotalH = 0;
+    let totPlan = 0, totFact = 0, totTotalH = 0;
     rows.forEach((t) => {
-      const p = evalExpr(t.planH);
-      const f = evalExpr(t.factH);
-      const th = t.num ? (totalFactMap[t.num] || 0) : f;
-      totPlan += p;
-      totFact += f;
-      totTotalH += th;
+      totPlan  += evalExpr(t.planH);
+      totFact  += evalExpr(t.factH);
+      totTotalH += t.num ? (totalFactMap[t.num] || 0) : evalExpr(t.factH);
     });
 
-    const footerRow = ws.addRow({});
-    footerRow.height = 24;
-    const fc = footerRow.getCell(3);
-    fc.value = "ИТОГО";
-    fc.font = { bold: true, size: 11, color: { argb: accentRgb } };
-    footerRow.getCell(4).value = fmt2(R2(totPlan));
-    footerRow.getCell(5).value = fmt2(R2(totFact));
-    footerRow.getCell(6).value = fmt2(R2(totTotalH));
-    footerRow.getCell(4).font = { bold: true, size: 10 };
-    footerRow.getCell(5).font = { bold: true, size: 10 };
-    footerRow.getCell(6).font = { bold: true, size: 10 };
-    footerRow.eachCell({ includeEmpty: true }, (cell) => {
-      cell.border = { top: { style: "thin", color: { argb: accentRgb } } };
+    // Blank separator row
+    const sepRow = ws.addRow([]);
+    sepRow.height = 4;
+    sepRow.eachCell({ includeEmpty: true }, cell => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: acc } };
     });
+
+    const footerRow = ws.addRow(["", "ИТОГО", fmt2(R2(totPlan)), fmt2(R2(totFact)), "", "", fmt2(R2(totTotalH))]);
+    footerRow.height = 24;
+    footerRow.eachCell({ includeEmpty: true }, (cell) => {
+      cell.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F4FF" } };
+      cell.font  = { bold: true, size: 10, name: "Arial", color: { argb: acc } };
+      cell.alignment = { vertical: "middle" };
+      cell.border = { top: { style: "medium", color: { argb: acc } } };
+    });
+    footerRow.getCell(3).alignment = { horizontal: "right", vertical: "middle" };
+    footerRow.getCell(4).alignment = { horizontal: "right", vertical: "middle" };
+    footerRow.getCell(7).alignment = { horizontal: "right", vertical: "middle" };
   }
 
   const buffer = await wb.xlsx.writeBuffer();

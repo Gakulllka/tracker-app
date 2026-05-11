@@ -1,41 +1,17 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import {
-  Upload,
-  Check,
-  X,
-  Plus,
-  ArrowRight,
-  ArrowUpDown,
-  Loader2,
-  FileSpreadsheet,
-  ChevronDown,
-  ChevronUp,
-  CheckSquare,
-  Square,
-} from "lucide-react";
-import { type Task, type Status, type Priority, STATUSES, PRIORITIES } from "@/lib/types";
+import { Check, Loader2, FileSpreadsheet, X, Upload, Plus, ArrowRight } from "lucide-react";
+import { type Task } from "@/lib/types";
 import { fixStatus, fixPriority, evalExpr } from "@/lib/metrics";
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
+/* ── Types ─────────────────────────────────────────────────────────── */
 
-interface ParsedExcelTask {
+interface ParsedRow {
   num: string;
   name: string;
   planH: string;
@@ -45,798 +21,412 @@ interface ParsedExcelTask {
   comment: string;
 }
 
-type DiffFieldType = "name" | "planH" | "factH" | "priority" | "status" | "comment";
+type RowKind = "new" | "changed" | "same";
 
-interface FieldDiff {
-  field: DiffFieldType;
-  label: string;
-  oldValue: string;
-  newValue: string;
-  approved: boolean;
+interface FieldChange { label: string; from: string; to: string; }
+
+interface DiffRow {
+  kind: RowKind;
+  imported: ParsedRow;
+  current: Task | null;
+  changes: FieldChange[];
+  selected: boolean;         // include in apply
+  selectedChanges: boolean[]; // per-field include (for "changed")
 }
 
-interface TaskDiff {
-  num: string;
-  type: "new" | "changed";
-  currentTask: Task | null;
-  importedTask: ParsedExcelTask;
-  fieldDiffs: FieldDiff[];
-  allApproved: boolean;
-  expanded: boolean;
-}
+/* ── Parsing ────────────────────────────────────────────────────────── */
 
-/* ------------------------------------------------------------------ */
-/*  Field labels & helpers                                             */
-/* ------------------------------------------------------------------ */
+function str(v: unknown): string { return String(v ?? "").trim(); }
 
-const FIELD_LABELS: Record<DiffFieldType, string> = {
-  name: "Наименование",
-  planH: "План, ч",
-  factH: "Факт, ч",
-  priority: "Приоритет",
-  status: "Статус",
-  comment: "Комментарий",
-};
-
-function normalizeNum(n: unknown): string {
-  return String(n || "").trim();
-}
-
-function normalizeStr(v: unknown): string {
-  return String(v ?? "").trim();
-}
-
-function valuesDiffer(a: string, b: string): boolean {
-  return a !== b;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Excel Parsing                                                      */
-/* ------------------------------------------------------------------ */
-
-function parseExcelFile(file: File): Promise<ParsedExcelTask[]> {
+async function parseFile(file: File): Promise<ParsedRow[]> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (evt) => {
+    const r = new FileReader();
+    r.onload = (e) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: "binary" });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as string[][];
-
-        const tasks: ParsedExcelTask[] = [];
-        for (let i = 1; i < data.length; i++) {
-          const row = data[i];
-          // Columns: 0=Номер, 1=Задача, 2=План(ч), 3=Факт(ч), 4=Приоритет, 5=Статус
-          if (!row || (!row[0] && !row[1])) continue;
-
-          const name = normalizeStr(row[1]);
-          if (!name) continue;
-
-          tasks.push({
-            num: normalizeStr(row[0]),
-            name,
-            planH: normalizeStr(row[2]),
-            factH: normalizeStr(row[3]),
-            priority: fixPriority(row[4]),
-            status: fixStatus(row[5]),
-            comment: "",
+        const wb = XLSX.read(e.target!.result, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+        const out: ParsedRow[] = [];
+        for (const row of rows) {
+          const num  = str(row["Номер"] ?? row["№"] ?? row["num"] ?? "");
+          const name = str(row["Задача"] ?? row["Наименование"] ?? row["Название"] ?? row["name"] ?? "");
+          if ((!num && !name) || name === "ИТОГО") continue;
+          out.push({
+            num, name,
+            planH:    str(row["Трудоемкость предв, ч"] ?? row["Трудоёмкость предв, ч"] ?? row["План, ч"] ?? row["planH"] ?? ""),
+            factH:    str(row["Часы фактические"] ?? row["Факт, ч"] ?? row["factH"] ?? ""),
+            priority: fixPriority(row["Приоритет"] ?? row["priority"] ?? ""),
+            status:   fixStatus(row["Статус"] ?? row["status"] ?? ""),
+            comment:  str(row["Комментарий"] ?? row["comment"] ?? ""),
           });
         }
-        resolve(tasks);
-      } catch (err) {
-        reject(err);
-      }
+        resolve(out);
+      } catch (err) { reject(err); }
     };
-    reader.onerror = () => reject(new Error("Не удалось прочитать файл"));
-    reader.readAsBinaryString(file);
+    r.onerror = () => reject(new Error("Ошибка чтения файла"));
+    r.readAsArrayBuffer(file);
   });
 }
 
-/* ------------------------------------------------------------------ */
-/*  Diff Engine                                                        */
-/* ------------------------------------------------------------------ */
+const LABELS: Record<string, string> = {
+  name: "Название", planH: "План", factH: "Факт",
+  priority: "Приоритет", status: "Статус", comment: "Комментарий",
+};
+const FIELDS = ["name", "planH", "factH", "priority", "status", "comment"] as const;
 
-function buildDiffs(
-  currentTasks: Task[],
-  importedTasks: ParsedExcelTask[]
-): TaskDiff[] {
-  const currentMap = new Map<string, Task>();
+function buildRows(currentTasks: Task[], imported: ParsedRow[]): DiffRow[] {
+  // Map current month tasks by their Номер
+  const byNum = new Map<string, Task>();
   for (const t of currentTasks) {
-    const n = normalizeNum(t.num);
-    if (n) currentMap.set(n, t);
+    const n = str(t.num);
+    if (n) byNum.set(n, t);
   }
 
-  const importedNums = new Set<string>();
-  const diffs: TaskDiff[] = [];
-
-  for (const imp of importedTasks) {
-    const num = imp.num;
-    if (!num) continue;
-    importedNums.add(num);
-
-    const cur = currentMap.get(num) || null;
+  return imported.map((imp): DiffRow => {
+    const cur = imp.num ? (byNum.get(imp.num) ?? null) : null;
 
     if (!cur) {
-      // New task
-      diffs.push({
-        num,
-        type: "new",
-        currentTask: null,
-        importedTask: imp,
-        fieldDiffs: [],
-        allApproved: true,
-        expanded: true,
-      });
-    } else {
-      // Compare fields
-      const fieldDiffs: FieldDiff[] = [];
+      // Task number not found in current month → NEW
+      return { kind: "new", imported: imp, current: null, changes: [], selected: true, selectedChanges: [] };
+    }
 
-      const fields: DiffFieldType[] = ["name", "planH", "factH", "priority", "status", "comment"];
-      for (const f of fields) {
-        let oldVal: string;
-        let newVal: string;
-
-        if (f === "priority") {
-          oldVal = cur.priority;
-          newVal = imp.priority;
-        } else if (f === "status") {
-          oldVal = cur.status;
-          newVal = imp.status;
-        } else {
-          oldVal = String((cur as any)[f] || "");
-          newVal = String((imp as any)[f] || "");
-        }
-
-        // For numeric fields, compare as numbers
-        if (f === "planH" || f === "factH") {
-          const oldNum = evalExpr(oldVal);
-          const newNum = evalExpr(newVal);
-          if (Math.abs(oldNum - newNum) > 0.001) {
-            fieldDiffs.push({
-              field: f,
-              label: FIELD_LABELS[f],
-              oldValue: oldVal,
-              newValue: newVal,
-              approved: true,
-            });
-          }
-        } else {
-          if (valuesDiffer(oldVal, newVal)) {
-            fieldDiffs.push({
-              field: f,
-              label: FIELD_LABELS[f],
-              oldValue: oldVal,
-              newValue: newVal,
-              approved: true,
-            });
-          }
-        }
-      }
-
-      if (fieldDiffs.length > 0) {
-        diffs.push({
-          num,
-          type: "changed",
-          currentTask: cur,
-          importedTask: imp,
-          fieldDiffs,
-          allApproved: true,
-          expanded: true,
-        });
+    // Compare fields
+    const changes: FieldChange[] = [];
+    for (const f of FIELDS) {
+      const from = str((cur as unknown as Record<string, unknown>)[f]);
+      const to   = str((imp as unknown as Record<string, unknown>)[f]);
+      if (f === "planH" || f === "factH") {
+        if (Math.abs(evalExpr(from) - evalExpr(to)) > 0.001)
+          changes.push({ label: LABELS[f], from, to });
+      } else if (from !== to) {
+        changes.push({ label: LABELS[f], from, to });
       }
     }
-  }
 
-  return diffs;
+    const kind: RowKind = changes.length > 0 ? "changed" : "same";
+    return { kind, imported: imp, current: cur, changes, selected: kind !== "same", selectedChanges: changes.map(() => true) };
+  });
 }
 
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
-
-export function ExcelImportModal({
-  isOpen,
-  onClose,
-  currentMonthTasks,
-  currentMonth,
-  onApplyChanges,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  currentMonthTasks: Task[];
-  currentMonth: number;
-  onApplyChanges: (changes: { updatedTasks: Task[]; newTasks: ParsedExcelTask[] }) => void;
-}) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isApplying, setIsApplying] = useState(false);
-  const [fileName, setFileName] = useState("");
-  const [importedTasks, setImportedTasks] = useState<ParsedExcelTask[]>([]);
-  const [diffs, setDiffs] = useState<TaskDiff[]>([]);
-  const [activeTab, setActiveTab] = useState<"overview" | "diff">("overview");
-
-  /* ---- File Upload ---- */
-  const handleFileUpload = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      setFileName(file.name);
-      setIsLoading(true);
-
-      try {
-        const parsed = await parseExcelFile(file);
-        setImportedTasks(parsed);
-        const computedDiffs = buildDiffs(currentMonthTasks, parsed);
-        setDiffs(computedDiffs);
-        setActiveTab(computedDiffs.length > 0 ? "diff" : "overview");
-      } catch (err) {
-        alert("Ошибка чтения файла: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [currentMonthTasks]
+/* ── Kind badge ─────────────────────────────────────────────────────── */
+function KindBadge({ kind }: { kind: RowKind }) {
+  const map = {
+    new:     { label: "НОВАЯ",     bg: "var(--tracker-accent)",     color: "#fff" },
+    changed: { label: "ИЗМЕНЕНА",  bg: "rgba(245,158,11,.15)",      color: "#d97706" },
+    same:    { label: "БЕЗ ИЗМЕНЕНИЙ", bg: "rgba(148,163,184,.12)", color: "var(--tracker-text-muted)" },
+  };
+  const s = map[kind];
+  return (
+    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 99,
+      background: s.bg, color: s.color, letterSpacing: ".05em", flexShrink: 0, whiteSpace: "nowrap" }}>
+      {s.label}
+    </span>
   );
+}
 
-  /* ---- Toggle helpers ---- */
-  const toggleFieldApproval = useCallback((diffIndex: number, fieldIndex: number) => {
-    setDiffs((prev) => {
-      const next = [...prev];
-      const diff = { ...next[diffIndex] };
-      const fields = [...diff.fieldDiffs];
-      fields[fieldIndex] = { ...fields[fieldIndex], approved: !fields[fieldIndex].approved };
-      diff.fieldDiffs = fields;
-      diff.allApproved = fields.every((f) => f.approved);
-      next[diffIndex] = diff;
-      return next;
-    });
-  }, []);
+/* ── Single task row ────────────────────────────────────────────────── */
+function TaskRow({ row, onToggle, onToggleChange }: {
+  row: DiffRow;
+  onToggle: () => void;
+  onToggleChange: (i: number) => void;
+}) {
+  const borderColor = row.kind === "new" ? "var(--tracker-accent)" : row.kind === "changed" ? "#d97706" : "var(--tracker-border)";
+  const dimmed = !row.selected && row.kind !== "same";
 
-  const toggleTaskApproval = useCallback((diffIndex: number) => {
-    setDiffs((prev) => {
-      const next = [...prev];
-      const diff = { ...next[diffIndex] };
-      diff.allApproved = !diff.allApproved;
-      diff.fieldDiffs = diff.fieldDiffs.map((f) => ({
-        ...f,
-        approved: diff.allApproved,
-      }));
-      next[diffIndex] = diff;
-      return next;
-    });
-  }, []);
+  return (
+    <div style={{
+      display: "grid", gridTemplateColumns: "1fr 1fr", borderRadius: 10, overflow: "hidden",
+      border: `1px solid ${borderColor}`, opacity: dimmed ? 0.4 : 1, transition: "opacity .15s",
+    }}>
+      {/* LEFT — num + name + checkbox */}
+      <div
+        onClick={row.kind !== "same" ? onToggle : undefined}
+        style={{
+          display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 14px",
+          background: "var(--tracker-bg-card)",
+          cursor: row.kind !== "same" ? "pointer" : "default",
+          borderRight: `1px solid var(--tracker-border)`,
+        }}
+      >
+        {/* Checkbox for new/changed */}
+        {row.kind !== "same" && (
+          <div style={{
+            width: 18, height: 18, borderRadius: 4, flexShrink: 0, marginTop: 1,
+            border: `2px solid ${row.selected ? borderColor : "var(--tracker-border)"}`,
+            background: row.selected ? borderColor : "transparent",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {row.selected && <Check style={{ width: 11, height: 11, color: "#fff", strokeWidth: 3 }} />}
+          </div>
+        )}
 
-  const toggleExpand = useCallback((diffIndex: number) => {
-    setDiffs((prev) => {
-      const next = [...prev];
-      next[diffIndex] = { ...next[diffIndex], expanded: !next[diffIndex].expanded };
-      return next;
-    });
-  }, []);
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
+            {row.imported.num && (
+              <span style={{ fontSize: 11, fontFamily: "monospace", fontWeight: 700,
+                color: row.kind === "new" ? "var(--tracker-accent)" : "var(--tracker-text-muted)" }}>
+                #{row.imported.num}
+              </span>
+            )}
+            <KindBadge kind={row.kind} />
+          </div>
+          <p style={{ fontSize: 13, color: "var(--tracker-text-main)", lineHeight: 1.4,
+            overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+            {row.imported.name || <span style={{ color: "var(--tracker-text-muted)", fontStyle: "italic" }}>без названия</span>}
+          </p>
+        </div>
+      </div>
 
-  const toggleAllApprovals = useCallback((approve: boolean) => {
-    setDiffs((prev) =>
-      prev.map((diff) => ({
-        ...diff,
-        allApproved: approve,
-        fieldDiffs: diff.fieldDiffs.map((f) => ({ ...f, approved: approve })),
-      }))
-    );
-  }, []);
+      {/* RIGHT — changes or summary */}
+      <div style={{ padding: "11px 14px", background: "var(--tracker-bg-main)", display: "flex", flexDirection: "column", gap: 6, justifyContent: "center" }}>
+        {row.kind === "new" && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {row.imported.status && <Chip label={row.imported.status} color="var(--tracker-accent)" />}
+            {row.imported.priority && <Chip label={row.imported.priority} color="var(--tracker-text-muted)" />}
+            {row.imported.planH && <Chip label={`план ${row.imported.planH} ч`} color="var(--tracker-text-muted)" />}
+            {row.imported.factH && <Chip label={`факт ${row.imported.factH} ч`} color="var(--tracker-text-muted)" />}
+          </div>
+        )}
 
-  /* ---- Computed stats ---- */
-  const stats = useMemo(() => {
-    const newTasks = diffs.filter((d) => d.type === "new");
-    const changedTasks = diffs.filter((d) => d.type === "changed");
-    const approvedNew = newTasks.filter((d) => d.allApproved).length;
-    const approvedChanged = changedTasks.filter((d) =>
-      d.fieldDiffs.some((f) => f.approved)
-    ).length;
-    const totalApprovedFields = changedTasks.reduce(
-      (sum, d) => sum + d.fieldDiffs.filter((f) => f.approved).length,
-      0
-    );
-    return {
-      newCount: newTasks.length,
-      changedCount: changedTasks.length,
-      approvedNew,
-      approvedChanged,
-      totalApprovedFields,
-      hasAnyApproval: approvedNew > 0 || totalApprovedFields > 0,
-    };
-  }, [diffs]);
+        {row.kind === "changed" && row.changes.map((c, i) => (
+          <div
+            key={c.label}
+            onClick={() => onToggleChange(i)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
+              opacity: row.selectedChanges[i] ? 1 : 0.35, transition: "opacity .15s",
+            }}
+          >
+            {/* per-field checkbox */}
+            <div style={{
+              width: 14, height: 14, borderRadius: 3, flexShrink: 0,
+              border: `1.5px solid ${row.selectedChanges[i] ? "#d97706" : "var(--tracker-border)"}`,
+              background: row.selectedChanges[i] ? "#d97706" : "transparent",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              {row.selectedChanges[i] && <Check style={{ width: 9, height: 9, color: "#fff", strokeWidth: 3 }} />}
+            </div>
+            <span style={{ fontSize: 11, color: "var(--tracker-text-muted)", flexShrink: 0, width: 64 }}>{c.label}</span>
+            <span style={{ fontSize: 12, color: "var(--tracker-text-muted)", flexShrink: 1, minWidth: 0,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {c.from || "—"}
+            </span>
+            <ArrowRight style={{ width: 12, height: 12, color: "var(--tracker-accent)", flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tracker-accent)", flexShrink: 1, minWidth: 0,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {c.to || "—"}
+            </span>
+          </div>
+        ))}
 
-  /* ---- Current task map for overview ---- */
-  const currentMap = useMemo(() => {
-    const m = new Map<string, Task>();
-    for (const t of currentMonthTasks) {
-      const n = normalizeNum(t.num);
-      if (n) m.set(n, t);
-    }
-    return m;
+        {row.kind === "same" && (
+          <span style={{ fontSize: 12, color: "var(--tracker-text-muted)", fontStyle: "italic" }}>
+            совпадает с текущей
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Chip({ label, color }: { label: string; color: string }) {
+  return (
+    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 99,
+      border: `1px solid ${color}33`, color, background: `${color}15`,
+      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
+      {label}
+    </span>
+  );
+}
+
+/* ── Drop zone ──────────────────────────────────────────────────────── */
+function DropZone({ onFile, loading }: { onFile: (f: File) => void; loading: boolean }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [drag, setDrag] = useState(false);
+  return (
+    <div
+      onDragOver={e => { e.preventDefault(); setDrag(true); }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={e => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) onFile(f); }}
+      onClick={() => ref.current?.click()}
+      style={{
+        display: "flex", alignItems: "center", gap: 12, padding: "14px 20px",
+        borderRadius: 10, cursor: "pointer", transition: "all .15s",
+        border: `2px dashed ${drag ? "var(--tracker-accent)" : "var(--tracker-border)"}`,
+        background: drag ? "var(--tracker-accent-bg)" : "transparent",
+      }}
+    >
+      <input ref={ref} type="file" accept=".xlsx,.xls" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
+      {loading
+        ? <><Loader2 style={{ width: 20, height: 20, color: "var(--tracker-accent)" }} className="animate-spin" />
+            <span style={{ fontSize: 13, color: "var(--tracker-text-muted)" }}>Читаем файл…</span></>
+        : <><div style={{ width: 36, height: 36, borderRadius: 8, background: "var(--tracker-accent-bg)",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <FileSpreadsheet style={{ width: 18, height: 18, color: "var(--tracker-accent)" }} />
+            </div>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--tracker-text-main)" }}>Выберите или перетащите .xlsx</p>
+              <p style={{ fontSize: 11, color: "var(--tracker-text-muted)", marginTop: 2 }}>Нужна колонка «Номер» для сверки</p>
+            </div>
+            <Upload style={{ width: 16, height: 16, color: "var(--tracker-text-muted)", marginLeft: "auto", flexShrink: 0 }} /></>
+      }
+    </div>
+  );
+}
+
+/* ── Main component ─────────────────────────────────────────────────── */
+export function ExcelImportModal({ isOpen, onClose, currentMonthTasks, currentMonth, onApplyChanges }: {
+  isOpen: boolean; onClose: () => void; currentMonthTasks: Task[]; currentMonth: number;
+  onApplyChanges: (changes: { updatedTasks: Task[]; newTasks: any[] }) => void;
+}) {
+  const [loading, setLoading]   = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [fileName, setFileName] = useState("");
+  const [rows, setRows]         = useState<DiffRow[]>([]);
+  const [parsed, setParsed]     = useState<ParsedRow[]>([]);
+
+  const handleFile = useCallback(async (file: File) => {
+    setFileName(file.name); setLoading(true);
+    try {
+      const imp = await parseFile(file);
+      setParsed(imp);
+      setRows(buildRows(currentMonthTasks, imp));
+    } catch (err) {
+      alert("Ошибка: " + (err instanceof Error ? err.message : String(err)));
+    } finally { setLoading(false); }
   }, [currentMonthTasks]);
 
-  /* ---- Apply Changes ---- */
-  const handleApply = useCallback(async () => {
-    setIsApplying(true);
+  const toggle = useCallback((i: number) => {
+    setRows(prev => prev.map((r, idx) => idx !== i ? r : { ...r, selected: !r.selected }));
+  }, []);
 
+  const toggleChange = useCallback((rowIdx: number, changeIdx: number) => {
+    setRows(prev => prev.map((r, i) => {
+      if (i !== rowIdx) return r;
+      const sc = r.selectedChanges.map((v, j) => j === changeIdx ? !v : v);
+      return { ...r, selectedChanges: sc, selected: sc.some(Boolean) };
+    }));
+  }, []);
+
+  const selectAll   = useCallback(() => setRows(p => p.map(r => ({ ...r, selected: r.kind !== "same", selectedChanges: r.selectedChanges.map(() => true) }))), []);
+  const deselectAll = useCallback(() => setRows(p => p.map(r => ({ ...r, selected: false, selectedChanges: r.selectedChanges.map(() => false) }))), []);
+
+  const stats = {
+    newCount:     rows.filter(r => r.kind === "new").length,
+    changedCount: rows.filter(r => r.kind === "changed").length,
+    sameCount:    rows.filter(r => r.kind === "same").length,
+    toAdd:        rows.filter(r => r.kind === "new" && r.selected).length,
+    toUpdate:     rows.filter(r => r.kind === "changed" && r.selected).length,
+    hasAny:       rows.some(r => r.selected && r.kind !== "same"),
+  };
+
+  const apply = useCallback(async () => {
+    setApplying(true);
     try {
+      const newTasks: ParsedRow[] = [];
       const updatedTasks: Task[] = [];
-      const newTasks: ParsedExcelTask[] = [];
-
-      for (const diff of diffs) {
-        if (diff.type === "new" && diff.allApproved) {
-          newTasks.push(diff.importedTask);
-        } else if (diff.type === "changed" && diff.currentTask) {
-          const approvedFieldDiffs = diff.fieldDiffs.filter((f) => f.approved);
-          if (approvedFieldDiffs.length === 0) continue;
-
-          const updated = { ...diff.currentTask };
-          for (const fd of approvedFieldDiffs) {
-            (updated as any)[fd.field] = fd.newValue;
-          }
+      for (const row of rows) {
+        if (!row.selected) continue;
+        if (row.kind === "new") { newTasks.push(row.imported); continue; }
+        if (row.kind === "changed" && row.current) {
+          const updated = { ...row.current };
+          row.changes.forEach((c, i) => {
+            if (row.selectedChanges[i])
+              (updated as Record<string, unknown>)[["name","planH","factH","priority","status","comment"].find(f => LABELS[f] === c.label) || ""] = c.to;
+          });
           updatedTasks.push(updated);
         }
       }
-
       onApplyChanges({ updatedTasks, newTasks });
-    } finally {
-      setIsApplying(false);
-    }
-  }, [diffs, onApplyChanges]);
+    } finally { setApplying(false); }
+  }, [rows, onApplyChanges]);
 
-  /* ---- Reset on close ---- */
-  const handleClose = useCallback(() => {
-    setFileName("");
-    setImportedTasks([]);
-    setDiffs([]);
-    setIsLoading(false);
-    setIsApplying(false);
-    setActiveTab("overview");
-    onClose();
+  const close = useCallback(() => {
+    setFileName(""); setRows([]); setParsed([]); setLoading(false); setApplying(false); onClose();
   }, [onClose]);
 
-  /* ---- Render ---- */
-  const newDiffs = diffs.filter((d) => d.type === "new");
-  const changedDiffs = diffs.filter((d) => d.type === "changed");
+  const hasLoaded = !loading && parsed.length > 0;
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-[1100px] h-[90vh] flex flex-col p-0 gap-0">
-        {/* Header */}
-        <DialogHeader className="px-6 pt-6 pb-3">
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <FileSpreadsheet className="w-5 h-5" />
-            Синхронизация данных из Excel
-          </DialogTitle>
-          <p className="text-sm text-muted-foreground mt-1">
-            Загрузите Excel файл, чтобы сравнить задачи с текущими данными и выборочно применить изменения
-          </p>
-        </DialogHeader>
+    <Dialog open={isOpen} onOpenChange={close}>
+      <DialogContent className="p-0 gap-0 flex flex-col" style={{
+        maxWidth: 900, width: "96vw", maxHeight: "90vh", borderRadius: 14,
+        border: "1px solid var(--tracker-border)", background: "var(--tracker-bg-main)", overflow: "hidden",
+      }}>
+        <DialogHeader className="sr-only"><DialogTitle>Импорт из Excel</DialogTitle></DialogHeader>
 
-        {/* File Upload */}
-        <div className="px-6 pb-3">
-          <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center hover:border-muted-foreground/50 transition-colors cursor-pointer relative">
-            <input
-              type="file"
-              accept=".xlsx, .xls"
-              onChange={handleFileUpload}
-              className="hidden"
-              id="excel-sync-upload"
-            />
-            <label htmlFor="excel-sync-upload" className="cursor-pointer flex flex-col items-center gap-1">
-              <Upload className="w-6 h-6 text-muted-foreground" />
-              {fileName ? (
-                <span className="text-sm font-medium">{fileName}</span>
-              ) : (
-                <span className="text-sm text-muted-foreground">Нажмите, чтобы выбрать Excel файл</span>
-              )}
-            </label>
+        {/* ── Header ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 22px", borderBottom: "1px solid var(--tracker-border)", flexShrink: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, background: "var(--tracker-accent-bg)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <FileSpreadsheet style={{ width: 18, height: 18, color: "var(--tracker-accent)" }} />
           </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--tracker-text-main)" }}>Импорт из Excel</p>
+            {fileName && <p style={{ fontSize: 11, color: "var(--tracker-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName}</p>}
+          </div>
+          {hasLoaded && (
+            <div style={{ display: "flex", gap: 6 }}>
+              {stats.newCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: "var(--tracker-accent-bg)", color: "var(--tracker-accent)", border: "1px solid var(--tracker-accent)" }}>+ {stats.newCount} новых</span>}
+              {stats.changedCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: "rgba(245,158,11,.1)", color: "#d97706", border: "1px solid rgba(245,158,11,.3)" }}>~ {stats.changedCount} изменений</span>}
+              {stats.sameCount > 0 && <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, color: "var(--tracker-text-muted)", border: "1px solid var(--tracker-border)" }}>{stats.sameCount} совпадают</span>}
+            </div>
+          )}
+          <button onClick={close} className="hover:bg-muted/60 transition-colors" style={{ width: 30, height: 30, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--tracker-text-muted)", flexShrink: 0 }}>
+            <X style={{ width: 15, height: 15 }} />
+          </button>
         </div>
 
-        {/* Loading */}
-        {isLoading && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <span className="text-sm text-muted-foreground">Обработка файла...</span>
-            </div>
+        {/* ── Body ── */}
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <div style={{ padding: "14px 22px 10px", flexShrink: 0 }}>
+            <DropZone onFile={handleFile} loading={loading} />
           </div>
-        )}
 
-        {/* Main Content */}
-        {!isLoading && importedTasks.length > 0 && (
-          <>
-            {/* Stats Bar */}
-            <div className="px-6 pb-3">
-              <div className="flex items-center gap-4 flex-wrap">
-                <Badge variant="secondary" className="text-xs gap-1">
-                  <FileSpreadsheet className="w-3 h-3" />
-                  В файле: {importedTasks.length}
-                </Badge>
-                <Badge variant="outline" className="text-xs gap-1">
-                  Новых: {stats.newCount}
-                </Badge>
-                <Badge variant="outline" className="text-xs gap-1">
-                  Изменённых: {stats.changedCount}
-                </Badge>
-                <div className="ml-auto flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() => toggleAllApprovals(true)}
-                  >
-                    <CheckSquare className="w-3.5 h-3.5 mr-1" />
-                    Выбрать все
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() => toggleAllApprovals(false)}
-                  >
-                    <Square className="w-3.5 h-3.5 mr-1" />
-                    Снять все
-                  </Button>
+          {hasLoaded && (
+            <>
+              {/* Column headers + controls */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", padding: "0 22px 6px", flexShrink: 0, gap: "0 1px" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--tracker-text-muted)", paddingLeft: 4 }}>
+                  Задача ({parsed.length} из файла)
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--tracker-text-muted)" }}>Изменения</span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <button onClick={selectAll} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, color: "var(--tracker-accent)", border: "1px solid var(--tracker-accent)", background: "transparent", cursor: "pointer" }}>Всё</button>
+                    <button onClick={deselectAll} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, color: "var(--tracker-text-muted)", border: "1px solid var(--tracker-border)", background: "transparent", cursor: "pointer" }}>Снять</button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Tab Switcher */}
-            <div className="px-6 pb-2">
-              <div className="flex border-b">
-                <button
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === "overview"
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
-                  onClick={() => setActiveTab("overview")}
-                >
-                  Обзор ({currentMonthTasks.filter(t => t.num || t.name).length} текущих / {importedTasks.length} из файла)
-                </button>
-                <button
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === "diff"
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
-                  onClick={() => setActiveTab("diff")}
-                >
-                  Изменения ({diffs.length})
-                </button>
-              </div>
-            </div>
-
-            {/* Content Area */}
-            <div className="flex-1 overflow-hidden px-6 pb-3">
-              {activeTab === "overview" ? (
-                <ScrollArea className="h-full">
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    {/* Left: Current tasks */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                        <h3 className="text-sm font-semibold">Текущие задачи</h3>
-                        <Badge variant="secondary" className="text-xs">
-                          {currentMonthTasks.filter((t) => t.num || t.name).length}
-                        </Badge>
-                      </div>
-                      <div className="space-y-1.5">
-                        {currentMonthTasks
-                          .filter((t) => t.num || t.name)
-                          .map((task) => {
-                            const isChanged = diffs.some((d) => d.num === normalizeNum(task.num));
-                            const isNewInFile = importedTasks.some(
-                              (imp) => normalizeNum(imp.num) === normalizeNum(task.num)
-                            );
-                            return (
-                              <div
-                                key={task.id}
-                                className={`rounded-md border px-3 py-2 text-xs transition-colors ${
-                                  isChanged
-                                    ? "border-amber-300 bg-amber-50 dark:bg-amber-950/20"
-                                    : isNewInFile
-                                    ? "border-muted bg-background"
-                                    : "border-muted/50 bg-muted/30"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="font-mono font-bold text-muted-foreground">
-                                    #{task.num}
-                                  </span>
-                                  <span className="font-medium truncate flex-1">{task.name}</span>
-                                  {isChanged && (
-                                    <Badge className="text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700 border-amber-200">
-                                      Изменено
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="flex gap-3 text-muted-foreground">
-                                  <span>План: {task.planH || "—"}</span>
-                                  <span>Факт: {task.factH || "—"}</span>
-                                  <span>{task.priority}</span>
-                                  <span>{task.status}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        {currentMonthTasks.filter((t) => t.num || t.name).length === 0 && (
-                          <div className="text-xs text-muted-foreground text-center py-8">
-                            Нет текущих задач
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right: Imported tasks */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                        <h3 className="text-sm font-semibold">Задачи из файла</h3>
-                        <Badge variant="secondary" className="text-xs">
-                          {importedTasks.length}
-                        </Badge>
-                      </div>
-                      <div className="space-y-1.5">
-                        {importedTasks.map((task, idx) => {
-                          const cur = currentMap.get(task.num);
-                          const diff = diffs.find((d) => d.num === task.num);
-                          const isChanged = diff?.type === "changed";
-                          const isNew = diff?.type === "new";
-                          return (
-                            <div
-                              key={task.num || idx}
-                              className={`rounded-md border px-3 py-2 text-xs transition-colors ${
-                                isNew
-                                  ? "border-green-300 bg-green-50 dark:bg-green-950/20"
-                                  : isChanged
-                                  ? "border-amber-300 bg-amber-50 dark:bg-amber-950/20"
-                                  : "border-muted/50 bg-muted/30"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-mono font-bold text-muted-foreground">
-                                  #{task.num}
-                                </span>
-                                <span className="font-medium truncate flex-1">{task.name}</span>
-                                {isNew && (
-                                  <Badge className="text-[10px] px-1.5 py-0 h-4 bg-green-100 text-green-700 border-green-200">
-                                    Новая
-                                  </Badge>
-                                )}
-                                {isChanged && (
-                                  <Badge className="text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700 border-amber-200">
-                                    Изменено
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex gap-3 text-muted-foreground">
-                                <span>План: {task.planH || "—"}</span>
-                                <span>Факт: {task.factH || "—"}</span>
-                                <span>{task.priority}</span>
-                                <span>{task.status}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </ScrollArea>
-              ) : (
-                /* Diff Tab */
-                <ScrollArea className="h-full">
-                  <div className="space-y-2 pt-2">
-                    {diffs.length === 0 && (
-                      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        <Check className="w-10 h-10 mb-3 opacity-40" />
-                        <p className="text-sm font-medium">Нет различий</p>
-                        <p className="text-xs">Все задачи в файле совпадают с текущими данными</p>
-                      </div>
-                    )}
-
-                    {/* New Tasks Section */}
-                    {newDiffs.length > 0 && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Plus className="w-4 h-4 text-green-600" />
-                          <span className="text-sm font-semibold text-green-700 dark:text-green-400">
-                            Новые задачи ({newDiffs.length})
-                          </span>
-                        </div>
-                        {newDiffs.map((diff, idx) => {
-                          const origIdx = diffs.indexOf(diff);
-                          return (
-                            <div
-                              key={diff.num}
-                              className="rounded-lg border border-green-200 bg-green-50/50 dark:bg-green-950/10 dark:border-green-900/50 overflow-hidden"
-                            >
-                              <div className="flex items-center gap-3 px-4 py-2.5">
-                                <Checkbox
-                                  checked={diff.allApproved}
-                                  onCheckedChange={() => toggleTaskApproval(origIdx)}
-                                  className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
-                                />
-                                <span className="font-mono text-xs font-bold text-muted-foreground">
-                                  #{diff.num}
-                                </span>
-                                <span className="text-sm font-medium flex-1 truncate">
-                                  {diff.importedTask.name}
-                                </span>
-                                <div className="flex gap-2 text-xs text-muted-foreground">
-                                  <span>План: {diff.importedTask.planH}</span>
-                                  <span>Факт: {diff.importedTask.factH}</span>
-                                  <span>{diff.importedTask.priority}</span>
-                                  <span>{diff.importedTask.status}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Changed Tasks Section */}
-                    {changedDiffs.length > 0 && (
-                      <div className="space-y-1.5 mt-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          <ArrowUpDown className="w-4 h-4 text-amber-600" />
-                          <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-                            Изменённые задачи ({changedDiffs.length})
-                          </span>
-                        </div>
-                        {changedDiffs.map((diff) => {
-                          const origIdx = diffs.indexOf(diff);
-                          const approvedFields = diff.fieldDiffs.filter((f) => f.approved).length;
-                          return (
-                            <div
-                              key={diff.num}
-                              className="rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/10 dark:border-amber-900/50 overflow-hidden"
-                            >
-                              {/* Task Header */}
-                              <div
-                                className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/20 transition-colors"
-                                onClick={() => toggleExpand(origIdx)}
-                              >
-                                <Checkbox
-                                  checked={diff.allApproved}
-                                  onCheckedChange={(e) => {
-                                    e && toggleTaskApproval(origIdx);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
-                                />
-                                <span className="font-mono text-xs font-bold text-muted-foreground">
-                                  #{diff.num}
-                                </span>
-                                <span className="text-sm font-medium flex-1 truncate">
-                                  {diff.importedTask.name}
-                                </span>
-                                <Badge variant="outline" className="text-[10px] h-5">
-                                  {approvedFields}/{diff.fieldDiffs.length} изменений
-                                </Badge>
-                                {diff.expanded ? (
-                                  <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                                ) : (
-                                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                                )}
-                              </div>
-
-                              {/* Expanded: Field diffs */}
-                              {diff.expanded && (
-                                <div className="border-t border-amber-200/50 dark:border-amber-900/30 px-4 py-2">
-                                  <table className="w-full text-xs">
-                                    <thead>
-                                      <tr className="text-muted-foreground">
-                                        <th className="text-left py-1.5 pr-2 w-8"></th>
-                                        <th className="text-left py-1.5 pr-2 w-28">Поле</th>
-                                        <th className="text-left py-1.5 pr-2">Текущее</th>
-                                        <th className="text-center py-1.5 px-1 w-6"></th>
-                                        <th className="text-left py-1.5">Из файла</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {diff.fieldDiffs.map((fd, fi) => (
-                                        <tr
-                                          key={fd.field}
-                                          className={`${
-                                            fd.approved
-                                              ? "bg-transparent"
-                                              : "opacity-50"
-                                          }`}
-                                        >
-                                          <td className="py-1.5 pr-2">
-                                            <Checkbox
-                                              checked={fd.approved}
-                                              onCheckedChange={() =>
-                                                toggleFieldApproval(origIdx, fi)
-                                              }
-                                              className="scale-90"
-                                            />
-                                          </td>
-                                          <td className="py-1.5 pr-2 font-medium">
-                                            {fd.label}
-                                          </td>
-                                          <td className="py-1.5 pr-2">
-                                            <span className="line-through text-red-500/80">
-                                              {fd.oldValue || "—"}
-                                            </span>
-                                          </td>
-                                          <td className="py-1.5 px-1 text-center">
-                                            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground inline" />
-                                          </td>
-                                          <td className="py-1.5">
-                                            <span className="font-medium text-green-600 dark:text-green-400">
-                                              {fd.newValue || "—"}
-                                            </span>
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t bg-muted/30 flex items-center justify-between">
-              <div className="text-xs text-muted-foreground space-y-0.5">
-                <div>
-                  К применению:{" "}
-                  <span className="font-bold text-green-600">{stats.approvedNew} новых</span>
-                  {" и "}
-                  <span className="font-bold text-amber-600">
-                    {stats.approvedChanged} обновлённых
-                  </span>
-                  {" задач"}
+              {/* Task list */}
+              <ScrollArea style={{ flex: 1, minHeight: 0 }}>
+                <div style={{ padding: "2px 22px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+                  {rows.map((row, i) => (
+                    <TaskRow key={row.imported.num || `nonum-${i}`} row={row}
+                      onToggle={() => toggle(i)} onToggleChange={j => toggleChange(i, j)} />
+                  ))}
                 </div>
-                {stats.totalApprovedFields > 0 && (
-                  <div className="text-muted-foreground/70">
-                    Полей для обновления: {stats.totalApprovedFields}
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={handleClose}>
-                  Отмена
-                </Button>
-                <Button
-                  onClick={handleApply}
-                  disabled={isApplying || !stats.hasAnyApproval}
-                >
-                  {isApplying ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Check className="w-4 h-4 mr-2" />
-                  )}
-                  Применить выбранные
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
+              </ScrollArea>
+            </>
+          )}
+        </div>
 
-        {/* Empty State (no file loaded) */}
-        {!isLoading && importedTasks.length === 0 && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3 text-muted-foreground">
-              <FileSpreadsheet className="w-12 h-12 opacity-30" />
-              <p className="text-sm">Загрузите Excel файл для сравнения</p>
-              <p className="text-xs opacity-70">
-                Формат: .xlsx с колонками №, Наименование, План, Факт, Приоритет, Статус
-              </p>
+        {/* ── Footer ── */}
+        {hasLoaded && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 22px", borderTop: "1px solid var(--tracker-border)", background: "var(--tracker-bg-card)", flexShrink: 0 }}>
+            <p style={{ fontSize: 12, color: "var(--tracker-text-muted)" }}>
+              {stats.hasAny
+                ? <>{stats.toAdd > 0 && <><b style={{ color: "var(--tracker-text-main)" }}>{stats.toAdd}</b> добавится &nbsp;</>}{stats.toUpdate > 0 && <><b style={{ color: "var(--tracker-text-main)" }}>{stats.toUpdate}</b> обновится</>}</>
+                : "Ничего не выбрано"}
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button variant="outline" size="sm" className="h-8" onClick={close}>Отмена</Button>
+              <Button size="sm" className="h-8 gap-1.5" disabled={applying || !stats.hasAny} onClick={apply}
+                style={{ background: "var(--tracker-accent)", color: "#fff" }}>
+                {applying ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                Применить
+              </Button>
             </div>
           </div>
         )}
