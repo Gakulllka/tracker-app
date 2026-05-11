@@ -292,7 +292,7 @@ export async function exportAllXLSX(
 
     const accentRgb = hexToRgbObj(accentHex);
     const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
-    const headerFill: Partial<ExcelJS.Fill> = {
+    const headerFill: ExcelJS.FillPattern = {
       type: "pattern",
       pattern: "solid",
       fgColor: { argb: accentRgb },

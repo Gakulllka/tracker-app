@@ -64,7 +64,6 @@ import {
   importJSON,
   exportMonthXLSX,
   exportAllXLSX,
-  importMonthXLSX,
 } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
@@ -451,7 +450,8 @@ function generateSlides(month: number, year: number, allData: Record<number, Tas
 
   // 7. Summary slide
   const overTasks = rows.filter(r => evalExpr(r.factH) > evalExpr(r.planH) && evalExpr(r.planH) > 0).length;
-  const factOverPlan = evalExpr(factH) > evalExpr(planH);
+  // factH / planH здесь уже числа (накоплены в цикле выше), evalExpr не нужен.
+  const factOverPlan = factH > planH;
   slides.push({
     type: "summary",
     content: {
@@ -1135,47 +1135,70 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   const [transferDialog, setTransferDialog] = useState(false);
   const [transferTarget, setTransferTarget] = useState<number>(-1);
 
-  // Import confirmation dialog
+  // Import confirmation dialog (только для JSON; для XLSX используется ExcelImportModal со сверкой).
   const [importConfirm, setImportConfirm] = useState<{
     open: boolean;
-    type: "json" | "xlsx";
+    type: "json";
     file: File | null;
   }>({ open: false, type: "json", file: null });
 
   // Excel import modal
   const [isImportOpen, setIsImportOpen] = useState(false);
+  // Файл, переданный в модалку из drag&drop, чтобы она открылась
+  // уже с подгруженным содержимым и сразу показала diff.
+  const [pendingXlsxFile, setPendingXlsxFile] = useState<File | null>(null);
 
-  const handleSyncApply = useCallback(({ updatedTasks, newTasks }: { updatedTasks: Task[]; newTasks: any[] }) => {
+  const handleSyncApply = useCallback((payload: {
+    updatedTasks: Task[];
+    newTasks: Array<{
+      num: string;
+      name: string;
+      planH: string;
+      factH: string;
+      priority: Priority;
+      status: Status;
+      comment: string;
+    }>;
+  }) => {
+    const { updatedTasks, newTasks } = payload;
     useTaskStore.getState().snapshot();
 
     const updatedIds = new Set(updatedTasks.map((t) => t.id));
+    const now = Date.now();
 
-    // Apply updates to existing rows
+    // Apply updates to existing rows; bump _ts so server-sync видит изменение.
     const mergedRows = (allData[currentMonth] || []).map((row) => {
       if (!updatedIds.has(row.id)) return row;
       const updated = updatedTasks.find((t) => t.id === row.id);
-      return updated ? { ...row, ...updated } : row;
+      return updated ? { ...row, ...updated, _ts: now } : row;
     });
 
-    // Append new tasks
-    const newTaskObjs: Task[] = newTasks.map((imp: any) => ({
+    // Append new tasks (типизированные, без any и без мёртвого префикса _nonum_).
+    const newTaskObjs: Task[] = newTasks.map((imp) => ({
       id: crypto.randomUUID(),
-      num: String(imp.num || "").startsWith("_nonum_") ? "" : (imp.num || ""),
+      num: imp.num || "",
       name: imp.name || "",
-      planH: String(imp.planH || ""),
-      factH: String(imp.factH || ""),
-      priority: imp.priority || PRIORITIES.MEDIUM,
-      status: imp.status || STATUSES.IDEA,
+      planH: imp.planH || "",
+      factH: imp.factH || "",
+      priority: imp.priority,
+      status: imp.status,
       comment: imp.comment || "",
-      commentLog: [] as any[],
+      commentLog: [],
+      _ts: now,
     }));
 
     storeSetAllData({ ...allData, [currentMonth]: [...mergedRows, ...newTaskObjs] });
 
     setIsImportOpen(false);
+    setPendingXlsxFile(null);
+
+    // Понятное резюме без «синхронизация», ближе к языку трекера.
+    const parts: string[] = [];
+    if (newTasks.length) parts.push(`добавлено ${newTasks.length}`);
+    if (updatedTasks.length) parts.push(`обновлено ${updatedTasks.length}`);
     toast({
-      title: "Синхронизация",
-      description: `Обновлено ${updatedTasks.length} задач, добавлено ${newTasks.length} новых`,
+      title: "📥 Импорт применён",
+      description: parts.length ? parts.join(" · ") : "Изменений не было",
     });
   }, [allData, currentMonth, storeSetAllData, toast]);
 
@@ -1927,35 +1950,28 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      setImportConfirm({ open: true, type: "xlsx", file });
+      // Открываем ту же модалку сверки, что и drag&drop / кнопка меню —
+      // унифицированный путь для XLSX, никаких слепых импортов.
+      setPendingXlsxFile(file);
+      setIsImportOpen(true);
       e.target.value = "";
     },
     []
   );
 
   const handleConfirmImport = useCallback(async () => {
-    const { type, file } = importConfirm;
+    const { file } = importConfirm;
     if (!file) return;
 
     try {
-      if (type === "json") {
-        const result = await importJSON(file);
-        storeSetAllData(result.allData);
-        storeSetBacklog(result.backlog);
-        storeSetDomains(result.domains);
-        storeSetActiveDomainId(result.activeDomainId);
-        storeSetThemeId(result.themeId);
-        storeSetCustomColor(result.customColor || "", false);
-        toast({ title: "📂 Импорт", description: "Данные успешно загружены из JSON" });
-      } else if (type === "xlsx") {
-        const importedRows = await importMonthXLSX(file, currentMonth);
-        if (importedRows.length === 0) {
-          toast({ title: "Нет данных", description: "Файл не содержит задач", variant: "destructive" });
-        } else {
-          storeAddTasksToMonth(currentMonth, importedRows);
-          toast({ title: "📂 Импорт", description: `Добавлено ${importedRows.length} задач из Excel` });
-        }
-      }
+      const result = await importJSON(file);
+      storeSetAllData(result.allData);
+      storeSetBacklog(result.backlog);
+      storeSetDomains(result.domains);
+      storeSetActiveDomainId(result.activeDomainId);
+      storeSetThemeId(result.themeId);
+      storeSetCustomColor(result.customColor || "", false);
+      toast({ title: "📂 Импорт", description: "Данные успешно загружены из JSON" });
     } catch (err) {
       toast({
         title: "Ошибка импорта",
@@ -1964,7 +1980,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       });
     }
     setImportConfirm({ open: false, type: "json", file: null });
-  }, [importConfirm, currentMonth, storeSetAllData, storeSetBacklog, storeSetDomains, storeSetActiveDomainId, storeSetThemeId, storeSetCustomColor, storeAddTasksToMonth, toast]);
+  }, [importConfirm, storeSetAllData, storeSetBacklog, storeSetDomains, storeSetActiveDomainId, storeSetThemeId, storeSetCustomColor, toast]);
 
   /* ---- Drag & Drop (file import) ---- */
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -1995,7 +2011,10 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       if (ext === "json") {
         setImportConfirm({ open: true, type: "json", file });
       } else if (ext === "xlsx" || ext === "xls") {
-        setImportConfirm({ open: true, type: "xlsx", file });
+        // XLSX больше не идёт через быстрый импорт — открываем модалку сверки
+        // с уже подгруженным файлом, чтобы юзер увидел отличия и подтвердил.
+        setPendingXlsxFile(file);
+        setIsImportOpen(true);
       } else {
         toast({ title: "Неподдерживаемый формат", description: "Поддерживаются только .json и .xlsx файлы", variant: "destructive" });
       }
@@ -2565,7 +2584,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         {(view === "table" || view === "dashboard" || view === "slides") && (
           <div className="w-full mt-4 space-y-2">
             {/* Phase 7: переключатель года перенесён в шапку (см. <header>). */}
-            <ScrollArea className="w-full" type="scrollbar">
+            <ScrollArea className="w-full" type="scroll">
               <div className="flex gap-1.5 pb-1 sm:justify-center">
                 {MONTHS.map((m, i) => (
                   <button
@@ -3016,7 +3035,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
 
 
-      {/* ---- IMPORT CONFIRM DIALOG ---- */}
+      {/* ---- IMPORT CONFIRM DIALOG (только JSON; XLSX идёт через ExcelImportModal) ---- */}
       <Dialog
         open={importConfirm.open}
         onOpenChange={(open) => {
@@ -3025,13 +3044,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {importConfirm.type === "json" ? "📂 Загрузить JSON?" : "📂 Загрузить Excel?"}
-            </DialogTitle>
+            <DialogTitle>📂 Загрузить JSON?</DialogTitle>
             <DialogDescription>
-              {importConfirm.type === "json"
-                ? "Текущие данные будут заменены данными из файла. Продолжить?"
-                : `Задачи из файла будут добавлены в ${MONTHS[currentMonth]} ${currentYear}. Продолжить?`}
+              Текущие данные будут заменены данными из файла. Продолжить?
             </DialogDescription>
           </DialogHeader>
           {importConfirm.file && (
@@ -3303,10 +3318,14 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     </div>
       <ExcelImportModal
         isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
+        onClose={() => {
+          setIsImportOpen(false);
+          setPendingXlsxFile(null);
+        }}
         currentMonthTasks={allData[currentMonth] || []}
         currentMonth={currentMonth}
         onApplyChanges={handleSyncApply}
+        initialFile={pendingXlsxFile}
       />
     </>
   );
@@ -3890,7 +3909,7 @@ function TableView({
                   >
                     {isEditing(task.id, "name") ? (
                       <AutoResizeTextarea
-                        ref={editRef}
+                        ref={editRef as React.RefObject<HTMLTextAreaElement>}
                         className="text-sm"
                         value={task.name}
                         onChange={(e) =>
@@ -6503,8 +6522,12 @@ function ChatView({
     if (questions && questions.length) {
       lines.push(`=== ВОПРОСЫ/ПРОБЛЕМЫ (${questions.length}) ===`);
       questions.slice(0, 10).forEach((q, i) => {
-        lines.push(`  ${i+1}. [${(q.answers||[]).length > 0 ? "✅ отвечен" : "⏳ открытый"}] "${q.text}" — автор: ${q.author || "аноним"}`);
-        if (q.answer) lines.push(`     Ответ: "${q.answer}"`);
+        const ans = q.answers || [];
+        lines.push(`  ${i+1}. [${ans.length > 0 ? "✅ отвечен" : "⏳ открытый"}] "${q.text}" — автор: ${q.author || "аноним"}`);
+        if (ans.length > 0) {
+          const last = ans[ans.length - 1];
+          lines.push(`     Ответ (${last.author || "аноним"}): "${last.text}"`);
+        }
       });
       if (questions.length > 10) lines.push(`  ...и ещё ${questions.length - 10} вопросов`);
       lines.push("");

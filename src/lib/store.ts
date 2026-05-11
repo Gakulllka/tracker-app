@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { Task, Domain, AllData, Status, Priority, PRIORITIES, STATUSES, MONTHS, PRIO_START, STATUS_ORDER } from "./types";
+import { Task, Domain, AllData, Status, Priority, PRIORITIES, STATUSES, MONTHS, PRIO_START, STATUS_ORDER, type CommentEntry } from "./types";
 import { createNewTask } from "./metrics";
 import { createUndoHelpers } from "./undo";
 
@@ -15,7 +15,7 @@ function getWeekNumber(d: Date): number {
 }
 
 
-function makeSystemLog(text: string): { date: string; week: string; text: string; planH: string; factH: string; status: string } {
+function makeSystemLog(text: string): CommentEntry {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return {
@@ -24,7 +24,8 @@ function makeSystemLog(text: string): { date: string; week: string; text: string
     text,
     planH: "—",
     factH: "—",
-    status: "—",
+    // "—" — отображаемый плейсхолдер «нет статуса»; UI рендерит как обычный текст.
+    status: "—" as Status,
   };
 }
 
@@ -419,7 +420,7 @@ function withDomainSync(
 
 export const useTaskStore = create<AppState>()(
   persist(
-    (set, get) => ({
+    (set, get): AppState => ({
       allData: initAllData(),
       backlog: [] as Task[],
       domainData: {} as Record<string, DomainData>,
@@ -427,8 +428,8 @@ export const useTaskStore = create<AppState>()(
       activeDomainId: "default",
       currentMonth: new Date().getMonth(),
       currentYear: new Date().getFullYear(),
-      view: "table",
-      presSubTab: "slides",
+      view: "table" as const,
+      presSubTab: "slides" as const,
       clientMode: false,
       themeId: "#9B72CF",
       customColor: "",
@@ -561,7 +562,7 @@ export const useTaskStore = create<AppState>()(
         // If setting status to POSTPONED — move to backlog automatically
         if (key === "status" && value === STATUSES.POSTPONED) {
           const task = rows.find(r => r.id === taskId);
-          if (!task) return state;
+          if (!task) return {}; // no-op patch
           const newAllData = {
             ...state.allData,
             [month]: rows.filter(r => r.id !== taskId),
@@ -639,7 +640,7 @@ export const useTaskStore = create<AppState>()(
         set(state => {
           const fromRows = state.allData[fromMonth] || [];
           const task = fromRows.find(r => r.id === taskId);
-          if (!task) return state;
+          if (!task) return {}; // no-op patch
           const toRows = state.allData[toMonth] || [];
           const newAllData = {
             ...state.allData,
@@ -656,7 +657,7 @@ export const useTaskStore = create<AppState>()(
           const rows = [...(state.allData[month] || [])];
           const fi = rows.findIndex(r => r.id === fromId);
           const ti = rows.findIndex(r => r.id === toId);
-          if (fi < 0 || ti < 0) return state;
+          if (fi < 0 || ti < 0) return {}; // no-op patch
           const [item] = rows.splice(fi, 1);
           rows.splice(ti, 0, item);
           const newAllData = { ...state.allData, [month]: rows };
@@ -683,7 +684,7 @@ export const useTaskStore = create<AppState>()(
         set(state => {
           const rows = state.allData[month] || [];
           const task = rows.find(r => r.id === taskId);
-          if (!task) return state;
+          if (!task) return {}; // no-op patch
           const newAllData = {
             ...state.allData,
             [month]: rows.filter(r => r.id !== taskId),
@@ -704,7 +705,7 @@ export const useTaskStore = create<AppState>()(
         undoHelpers.snapshot(getStateSnapshot);
         set(state => {
           const task = state.backlog.find(t => t.id === taskId);
-          if (!task) return state;
+          if (!task) return {}; // no-op patch
           const clean: Task = {
             id: task.id,
             num: task.num,
@@ -731,7 +732,7 @@ export const useTaskStore = create<AppState>()(
         undoHelpers.snapshot(getStateSnapshot);
         set(state => {
           const task = state.backlog.find(t => t.id === taskId);
-          if (!task) return state;
+          if (!task) return {}; // no-op patch
           const clean: Task = {
             id: task.id,
             num: edits.num,
@@ -770,7 +771,7 @@ export const useTaskStore = create<AppState>()(
         set(state => {
           const fromIdx = state.backlog.findIndex(t => t.id === fromId);
           const toIdx = state.backlog.findIndex(t => t.id === toId);
-          if (fromIdx === -1 || toIdx === -1) return state;
+          if (fromIdx === -1 || toIdx === -1) return {}; // no-op patch
           const newBacklog = [...state.backlog];
           const [moved] = newBacklog.splice(fromIdx, 1);
           newBacklog.splice(toIdx, 0, moved);
@@ -828,7 +829,7 @@ export const useTaskStore = create<AppState>()(
       })),
 
       deleteDomain: (id) => set(state => {
-        if (state.domains.length <= 1) return state;
+        if (state.domains.length <= 1) return {}; // no-op patch
         const remaining = state.domains.filter(d => d.id !== id);
         const isCurrent = state.activeDomainId === id;
         // Remove deleted domain's data
@@ -933,7 +934,7 @@ export const useTaskStore = create<AppState>()(
       /** Phase 7.2: записать план часов в monthlyPlanByYearMonth активного домена. */
       setMonthlyPlan: (monthKey, hours) => set((s) => {
         const dom = s.domainData[s.activeDomainId];
-        if (!dom) return s;
+        if (!dom) return {}; // no-op: домена нет, ничего не меняем
         const existing = dom.monthlyPlanByYearMonth || {};
         const next: Record<MonthKey, number> = { ...existing };
         if (!hours || isNaN(hours) || hours <= 0) {
@@ -1110,7 +1111,7 @@ export const useTaskStore = create<AppState>()(
         set(state => {
           const fromRows = state.allData[fromMonth] || [];
           const toRows = state.allData[toMonth] || [];
-          if (fromRows.length === 0) return state;
+          if (fromRows.length === 0) return {}; // no-op patch
           const newAllData = {
             ...state.allData,
             [fromMonth]: [createNewTask()],

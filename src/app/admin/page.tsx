@@ -409,7 +409,7 @@ function LogsTab() {
 
   const uniqueActions = [...new Set(logs.map((l) => l.action))];
 
-  const hasDetails = (log: LogEntry) => log.details || log.oldValue || log.newValue;
+  const hasDetails = (log: LogEntry) => log.oldValue || log.newValue;
 
   return (
     <div className="space-y-4">
@@ -450,7 +450,9 @@ function LogsTab() {
                   {ACTION_LABELS[log.action] || log.action}
                 </span>
                 <span className="text-sm font-medium text-gray-700">{log.username || "Система"}</span>
-                <span className="text-sm text-gray-500 flex-1 truncate">{log.details}</span>
+                <span className="text-sm text-gray-500 flex-1 truncate">
+                  {log.entityType ? `${log.entityType}${log.entityId ? ` #${log.entityId}` : ""}` : ""}
+                </span>
                 {hasDetails(log) && (expandedId === log.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />)}
               </div>
               {expandedId === log.id && hasDetails(log) && (
@@ -466,12 +468,6 @@ function LogsTab() {
                       <div>
                         <div className="font-medium text-gray-500 mb-1">Стало:</div>
                         <pre className="bg-white rounded p-2 text-gray-600 overflow-x-auto max-h-32">{JSON.stringify(JSON.parse(log.newValue), null, 2)}</pre>
-                      </div>
-                    )}
-                    {log.details && !log.oldValue && !log.newValue && (
-                      <div className="col-span-2">
-                        <div className="font-medium text-gray-500 mb-1">Подробности:</div>
-                        <div className="bg-white rounded p-2 text-gray-600">{log.details}</div>
                       </div>
                     )}
                     {log.ipAddress && (
