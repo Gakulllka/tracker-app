@@ -529,6 +529,26 @@ const NAMED_THEMES = [
   { hex: "#DB2777", label: "Рубин",      desc: "Яркий малиновый",        emoji: "💎" },
 ];
 
+/** Маппинг цвета темы трекера → пресет презентации (эмодзи, паттерн, анимация). */
+const THEME_TO_PRES: Record<string, { emojis: string; pattern: "none"|"grid"|"diagonal"|"diamond"|"waves"|"zigzag"; emojiAnim: "off"|"drift"|"fall" }> = {
+  "#9B72CF": { emojis: "🌙 ⭐ ✨ 🔮 💫",   pattern: "diamond",  emojiAnim: "drift" },
+  "#5B9BD5": { emojis: "🚀 ✨ 💡 🎯 🌐",   pattern: "grid",     emojiAnim: "drift" },
+  "#4DB6AC": { emojis: "🌿 🍃 🌱 🌸 🍀",   pattern: "grid",     emojiAnim: "fall"  },
+  "#4FC3F7": { emojis: "🌊 💧 🐬 ⛵ 🐟",   pattern: "waves",    emojiAnim: "drift" },
+  "#66BB6A": { emojis: "🍃 🌱 🌳 🍀 🌲",   pattern: "grid",     emojiAnim: "fall"  },
+  "#9CCC65": { emojis: "🍀 🌿 🌻 🎋 🌱",   pattern: "diagonal", emojiAnim: "fall"  },
+  "#D4A017": { emojis: "🌟 ⭐ ✨ 💫 🌠",   pattern: "diamond",  emojiAnim: "drift" },
+  "#E8813A": { emojis: "🔥 ⚡ 💥 🎯 🏆",   pattern: "zigzag",   emojiAnim: "drift" },
+  "#E86B6B": { emojis: "🔥 ❤️ 🌹 💥 🌋",   pattern: "zigzag",   emojiAnim: "drift" },
+  "#E07BAD": { emojis: "🌸 🌺 🌷 💐 🦋",   pattern: "diagonal", emojiAnim: "fall"  },
+  "#7986CB": { emojis: "💠 🌊 ⚡ 🌀 🔷",   pattern: "waves",    emojiAnim: "drift" },
+  "#C49A6C": { emojis: "📊 📈 🎯 💡 ✅",   pattern: "none",     emojiAnim: "off"   },
+  "#6B7280": { emojis: "📊 📈 🎯 💡 ✅",   pattern: "none",     emojiAnim: "off"   },
+  "#0F766E": { emojis: "🌿 🌱 🌳 🍃 💚",   pattern: "grid",     emojiAnim: "fall"  },
+  "#7C3AED": { emojis: "🔮 ✨ 💜 🌙 ⭐",   pattern: "diamond",  emojiAnim: "drift" },
+  "#DB2777": { emojis: "💎 🌺 🌸 💗 ✨",   pattern: "diagonal", emojiAnim: "fall"  },
+};
+
 interface DesignViewProps {
   themeId: string;
   customColor: string;
@@ -1199,6 +1219,15 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   useEffect(() => {
     setCustomColorInput(customColor || themeId || "#9B72CF");
   }, [customColor, themeId]);
+
+  // Sync tracker color theme → presentation preset (emojis, pattern, animation)
+  useEffect(() => {
+    const hex = themeId;
+    if (!hex || customColor) return; // custom colors have no preset
+    const preset = THEME_TO_PRES[hex];
+    if (!preset) return;
+    storeSetPresBg({ emojis: preset.emojis, pattern: preset.pattern, emojiAnim: preset.emojiAnim, emojiCount: 20, emojiSpeed: 1, emojiOpacity: 25 });
+  }, [themeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [editingDomainId, setEditingDomainId] = useState<string | null>(null);
   const [editingDomainName, setEditingDomainName] = useState("");
   const [deleteDomainConfirm, setDeleteDomainConfirm] = useState<string | null>(null);
@@ -2515,7 +2544,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         <nav className="hidden md:flex gap-1 rounded-lg bg-muted/60 p-1">
           {(
             [
-              { key: "table", emoji: "📋", label: "Таблица" },
+              { key: "table", emoji: "📋", label: "Задачи" },
               { key: "backlog", emoji: "📦", label: "Беклог" },
               ...(canSeeQuestions ? [{ key: "questions" as const, emoji: "❓", label: "Вопросы" }] : []),
               { key: "dashboard", emoji: "📊", label: "Дашборд" },
@@ -2898,24 +2927,19 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       >
         <DialogContent
           className="sm:max-w-lg"
-          style={{
-            background: "#ffffff",
-            color: "#1a1a2e",
-            border: "1px solid #e2e8f0",
-          }}
         >
           <DialogHeader className="gap-0.5">
-            <DialogTitle className="text-base leading-tight" style={{ color: "#1a1a2e" }}>
+            <DialogTitle className="text-base leading-tight">
               📜 Архив комментариев
             </DialogTitle>
-            <span style={{ fontSize: "12px", color: "#94a3b8" }}>
+            <span className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
               {commentArchiveDialog.taskName}
             </span>
             <DialogDescription>История комментариев и статусов задачи по неделям</DialogDescription>
           </DialogHeader>
 
           {commentArchiveDialog.logs.length === 0 ? (
-            <p style={{ fontSize: "14px", color: "#94a3b8", padding: "16px 0", textAlign: "center" }}>
+            <p className="text-sm text-center py-4" style={{ color: "var(--tracker-text-muted)" }}>
               Архив комментариев пуст.
             </p>
           ) : (
@@ -2924,24 +2948,24 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
                 <div
                   key={idx}
                   style={{
-                    background: "#f8fafc",
-                    border: "1px solid #e2e8f0",
+                    background: "var(--tracker-accent-bg)",
+                    border: "1px solid var(--tracker-border)",
                     borderRadius: "8px",
                     padding: "10px 12px",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-                    <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>
+                    <span style={{ fontSize: "11px", color: "var(--tracker-text-muted)", fontWeight: 600 }}>
                       {log.date} · Неделя {log.week}
                     </span>
                     <span style={{ fontSize: "10px", fontWeight: 500, color: scolText(log.status as Status, customDark) }}>
                       {log.status}
                     </span>
                   </div>
-                  <p style={{ fontSize: "13px", color: "#1a1a2e", lineHeight: "1.5", margin: "0 0 6px 0", whiteSpace: "pre-wrap" }}>
+                  <p style={{ fontSize: "13px", color: "var(--tracker-text-main)", lineHeight: "1.5", margin: "0 0 6px 0", whiteSpace: "pre-wrap" }}>
                     {log.text}
                   </p>
-                  <div style={{ display: "flex", gap: "12px", fontSize: "11px", color: "#94a3b8" }}>
+                  <div style={{ display: "flex", gap: "12px", fontSize: "11px", color: "var(--tracker-text-muted)" }}>
                     <span>План: {log.planH} ч</span>
                     <span>Факт: {log.factH} ч</span>
                   </div>
@@ -4110,6 +4134,29 @@ function TableView({
                   >
                     {isEditing(task.id, "comment") ? (
                       <div className="flex flex-col gap-1">
+                        <AutoResizeTextarea
+                          ref={
+                            editRef as React.RefObject<HTMLTextAreaElement>
+                          }
+                          className="text-sm"
+                          value={task.comment}
+                          onChange={(e) =>
+                            updateTask(
+                              month,
+                              task.id,
+                              "comment",
+                              e.target.value
+                            )
+                          }
+                          onBlur={() => {
+                            commitCommentFormulas(month, task.id);
+                            stopEditing();
+                          }}
+                          onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
+                            if (e.key === "Escape")
+                              stopEditing();
+                          }}
+                        />
                         {/* @-buttons row */}
                         <div className="flex items-center gap-1">
                           <Button
@@ -4163,29 +4210,6 @@ function TableView({
                             </Button>
                           )}
                         </div>
-                        <AutoResizeTextarea
-                          ref={
-                            editRef as React.RefObject<HTMLTextAreaElement>
-                          }
-                          className="text-sm"
-                          value={task.comment}
-                          onChange={(e) =>
-                            updateTask(
-                              month,
-                              task.id,
-                              "comment",
-                              e.target.value
-                            )
-                          }
-                          onBlur={() => {
-                            commitCommentFormulas(month, task.id);
-                            stopEditing();
-                          }}
-                          onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
-                            if (e.key === "Escape")
-                              stopEditing();
-                          }}
-                        />
                       </div>
                     ) : (
                       <div className="flex items-start gap-0.5">
@@ -5803,20 +5827,12 @@ function SlidesView({
     </div>
   );
 
-  /* Phase 6: keyboard nav в fullscreen режиме (стрелки ← → переключают
-   * слайды). Слушаем глобально, но реагируем только если активен
-   * fullscreen-контейнер презентации.
-   *
-   * Должен быть ВЫШЕ early-return по hasData, иначе React ругается на
-   * условный вызов хука. */
+  /* Phase 6: keyboard nav — стрелки ← → переключают слайды
+   * как в превью, так и в fullscreen режиме. */
   useEffect(() => {
     if (presSubTab !== "slides") return;
     const handler = (e: Event) => {
       const ke = e as Event & { key?: string; preventDefault: () => void };
-      const fsEl = document.fullscreenElement
-        || (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement;
-      if (!fsEl) return;
-      if (!fullscreenContainerRef.current?.contains(fsEl) && fullscreenContainerRef.current !== fsEl) return;
       if (ke.key === "ArrowRight" || ke.key === " ") {
         ke.preventDefault();
         setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1));
@@ -5827,7 +5843,7 @@ function SlidesView({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [presSubTab, currentSlide, slides.length, setCurrentSlide, fullscreenContainerRef]);
+  }, [presSubTab, currentSlide, slides.length, setCurrentSlide]);
 
   /* ── Empty state ── */
   if (!hasData) {
@@ -5873,7 +5889,7 @@ function SlidesView({
           )}
 
           {/* Floating navigation — поверх превью, не отъедает место */}
-          <div className="absolute inset-x-0 bottom-3 flex justify-center pointer-events-none">
+          <div className="absolute inset-x-0 bottom-3 flex justify-center pointer-events-none z-10">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md pointer-events-auto"
               style={{ background: "rgba(0,0,0,.45)", border: "1px solid rgba(255,255,255,.12)" }}>
               <button
