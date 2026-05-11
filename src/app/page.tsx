@@ -3615,15 +3615,6 @@ function TableView({
             <ArrowRight className="size-3.5" />
             Перенести
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 bg-[var(--tracker-accent)]/6 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent)]/14 hover:border-[var(--tracker-accent)]/50"
-            onClick={onCreatePresentation}
-          >
-            <Presentation className="size-3.5" />
-            Презентация
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -3678,6 +3669,15 @@ function TableView({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 bg-[var(--tracker-accent)]/6 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent)]/14 hover:border-[var(--tracker-accent)]/50"
+            onClick={onCreatePresentation}
+          >
+            <Presentation className="size-3.5" />
+            Презентация
+          </Button>
         </div>
       )}
 
@@ -3770,7 +3770,7 @@ function TableView({
 
       {/* ---- DESKTOP TABLE (hidden on mobile) ---- */}
       {/* ---- DESKTOP TABLE ---- */}
-      <Card className="hidden md:block max-h-[70vh] overflow-auto py-0">
+      <Card className="hidden md:block h-[calc(100vh-200px)] min-h-[300px] overflow-auto py-0">
         <Table className="border-collapse sticky-table-header w-full">
           <TableHeader className="bg-[var(--tracker-accent-bg,#f3f0fb)]">
             <TableRow className="[&_th]:text-[var(--tracker-accent-fg-dark,#3d2264)]">
@@ -4274,24 +4274,28 @@ function TableView({
           {rows.length > 0 && (
             <TableFooter className="sticky bottom-0">
               <TableRow className="font-semibold bg-[var(--tracker-accent-bg)] border-t-[1.5px] border-[var(--tracker-border)]">
-                {/* drag (!clientMode) */}
-                {!clientMode && <TableCell className="border-t border-[var(--tracker-accent)]/20" />}
+                {/* drag (!clientMode) — здесь надпись ИТОГО */}
+                {!clientMode && (
+                  <TableCell className="border-t border-[var(--tracker-accent)]/20 font-bold text-[var(--tracker-accent-fg)]">
+                    ИТОГО
+                  </TableCell>
+                )}
                 {/* № */}
-                <TableCell className="border-t border-[var(--tracker-accent)]/20" />
-                {/* Наименование — здесь надпись ИТОГО */}
-                <TableCell className="text-[var(--tracker-accent-fg)] border-t border-[var(--tracker-accent)]/20 font-bold">
-                  ИТОГО
+                <TableCell className={`border-t border-[var(--tracker-accent)]/20${clientMode ? " font-bold text-[var(--tracker-accent-fg)]" : ""}`}>
+                  {clientMode ? "ИТОГО" : ""}
                 </TableCell>
+                {/* Наименование */}
+                <TableCell className="border-t border-[var(--tracker-accent)]/20" />
                 {/* План, ч */}
-                <TableCell className="text-right border-t border-[var(--tracker-accent)]/20">
+                <TableCell className="text-left border-t border-[var(--tracker-accent)]/20">
                   {fmt2(rowsMetrics.totPlan)} ч
                 </TableCell>
                 {/* Факт, ч */}
-                <TableCell className={`text-right border-t border-[var(--tracker-accent)]/20 ${rowsMetrics.totFact > rowsMetrics.totPlan ? "text-[var(--tracker-danger)]" : rowsMetrics.totFact === rowsMetrics.totPlan && rowsMetrics.totFact > 0 ? "text-green-600 dark:text-green-400" : ""}`}>
+                <TableCell className={`text-left border-t border-[var(--tracker-accent)]/20 ${rowsMetrics.totFact > rowsMetrics.totPlan ? "text-[var(--tracker-danger)]" : rowsMetrics.totFact === rowsMetrics.totPlan && rowsMetrics.totFact > 0 ? "text-green-600 dark:text-green-400" : ""}`}>
                   {fmt2(rowsMetrics.totFact)} ч
                 </TableCell>
                 {/* Итого, ч */}
-                <TableCell className="text-right font-bold text-[var(--tracker-accent-fg)] border-t border-[var(--tracker-accent)]/20">
+                <TableCell className="text-left font-bold text-[var(--tracker-accent-fg)] border-t border-[var(--tracker-accent)]/20">
                   {fmt2(rowsMetrics.totTotalH)} ч
                 </TableCell>
                 {/* Приоритет */}
@@ -4301,9 +4305,9 @@ function TableView({
                 {/* Статус */}
                 <TableCell className="border-t border-[var(--tracker-accent)]/20" />
                 {/* Прогресс — здесь bar */}
-                <TableCell className="border-t border-[var(--tracker-accent)]/20">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-16 rounded-full bg-[var(--tracker-accent)]/10 overflow-hidden">
+                <TableCell className="border-t border-[var(--tracker-accent)]/20 px-3">
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="h-2 flex-1 rounded-full bg-[var(--tracker-accent)]/10 overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-300"
                         style={{
@@ -4314,7 +4318,7 @@ function TableView({
                         }}
                       />
                     </div>
-                    <span className="text-xs text-[var(--tracker-accent-fg)] font-semibold">
+                    <span className="text-xs text-[var(--tracker-accent-fg)] font-semibold shrink-0">
                       {rowsMetrics.avgProg}%
                     </span>
                   </div>
