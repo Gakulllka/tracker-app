@@ -1,3 +1,4 @@
+import "./buffer-polyfill";
 import ExcelJS from "exceljs";
 import {
   type Task,

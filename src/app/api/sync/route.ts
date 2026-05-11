@@ -15,6 +15,7 @@ interface Task {
 interface DomainData {
   allData: Record<string, Task[]>;
   backlog: Task[];
+  monthlyPlanByYearMonth?: Record<string, number>;
 }
 
 // ---------------------------------------------------------------------------
@@ -82,6 +83,7 @@ function mergeDomains(
           serverDomain.backlog as Task[],
           clientDomain.backlog as Task[],
         ),
+        monthlyPlanByYearMonth: clientDomain.monthlyPlanByYearMonth ?? serverDomain.monthlyPlanByYearMonth,
       };
     }
   }
@@ -105,6 +107,7 @@ function filterDeletedFromDomains(
     result[domainId] = {
       allData: filteredAllData,
       backlog: (domain.backlog as Task[]).filter((t) => !t._deleted),
+      monthlyPlanByYearMonth: domain.monthlyPlanByYearMonth,
     };
   }
   return result;

@@ -67,7 +67,6 @@ import {
 } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
-import { ExportMenu } from "@/components/export-menu";
 import { ExcelImportModal } from "@/components/excel-import-modal";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -1865,19 +1864,29 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     toast({ title: "💾 Экспорт", description: "JSON файл сохранён" });
   }, [allData, backlog, themeId, customColor, domains, activeDomainId, activeDomain, toast]);
 
-  const handleExportMonthXLSX = useCallback(() => {
+  const handleExportMonthXLSX = useCallback(async () => {
     const monthRows = (allData[currentMonth] || []).filter((r) => r.name || r.num);
     if (monthRows.length === 0) {
       toast({ title: "Нет данных", description: "Текущий месяц не содержит задач", variant: "destructive" });
       return;
     }
-    exportMonthXLSX(monthRows, currentMonth, totalFactMap, accentHex);
-    toast({ title: "📊 Экспорт", description: "Excel файл сохранён" });
+    try {
+      await exportMonthXLSX(monthRows, currentMonth, totalFactMap, accentHex);
+      toast({ title: "💾 Сохранить", description: "Excel файл сохранён" });
+    } catch (err) {
+      console.error("Excel export error:", err);
+      toast({ title: "Ошибка", description: String(err), variant: "destructive" });
+    }
   }, [allData, currentMonth, totalFactMap, accentHex, toast]);
 
-  const handleExportAllXLSX = useCallback(() => {
-    exportAllXLSX(allData, totalFactMap, accentHex);
-    toast({ title: "📊 Экспорт", description: "Excel файл (все месяцы) сохранён" });
+  const handleExportAllXLSX = useCallback(async () => {
+    try {
+      await exportAllXLSX(allData, totalFactMap, accentHex);
+      toast({ title: "💾 Сохранить", description: "Excel файл (все месяцы) сохранён" });
+    } catch (err) {
+      console.error("Excel export error:", err);
+      toast({ title: "Ошибка", description: String(err), variant: "destructive" });
+    }
   }, [allData, totalFactMap, accentHex, toast]);
 
   const handleJSONFileSelect = useCallback(
@@ -2650,6 +2659,13 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             selectedRowId={selectedRowId}
             setSelectedRowId={setSelectedRowId}
             isDark={customDark}
+            accentHex={accentHex}
+            onExportJSON={handleExportJSON}
+            onExportMonthXLSX={handleExportMonthXLSX}
+            onExportAllXLSX={handleExportAllXLSX}
+            onExportPDF={handleExportPDF}
+            onImportJSON={() => fileInputRef.current?.click()}
+            onImportXLSX={() => xlsxInputRef.current?.click()}
           />
         )}
 
@@ -3384,7 +3400,13 @@ interface TableViewProps {
   selectedRowId: string | null;
   setSelectedRowId: (id: string | null) => void;
   isDark: boolean;
-  onExportCSV?: () => void;
+  accentHex: string;
+  onExportJSON: () => void;
+  onExportMonthXLSX: () => void;
+  onExportAllXLSX: () => void;
+  onExportPDF: () => void;
+  onImportJSON: () => void;
+  onImportXLSX: () => void;
 }
 
 function TableView({
@@ -3425,6 +3447,13 @@ function TableView({
   setCommentArchiveDialog,
   selectedRowId,
   setSelectedRowId,
+  accentHex,
+  onExportJSON,
+  onExportMonthXLSX,
+  onExportAllXLSX,
+  onExportPDF,
+  onImportJSON,
+  onImportXLSX,
 }: TableViewProps) {
   /* ---- Drag & Drop state ---- */
   const [dragRowId, setDragRowId] = useState<string | null>(null);
@@ -3595,24 +3624,60 @@ function TableView({
             <Presentation className="size-3.5" />
             Презентация
           </Button>
-          <ExportMenu
-            tasks={rows.map(t => ({
-              id: t.id,
-              title: t.name,
-              status: t.status,
-              priority: t.priority,
-              planHours: evalExpr(t.planH || "0"),
-              factHours: evalExpr(t.factH || "0"),
-            }))}
-            selectedIds={selectedRowId ? [selectedRowId] : []}
-            columns={[
-              { key: 'title', label: 'Задача' },
-              { key: 'status', label: 'Статус' },
-              { key: 'priority', label: 'Приоритет' },
-              { key: 'planHours', label: 'План (ч)' },
-              { key: 'factHours', label: 'Факт (ч)' },
-            ]}
-          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 bg-[var(--tracker-accent)]/6 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent)]/14 hover:border-[var(--tracker-accent)]/50"
+              >
+                <Download className="size-3.5" />
+                Сохранить
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onClick={onExportMonthXLSX} className="gap-2 cursor-pointer">
+                <FileSpreadsheet className="size-4" />
+                <span>Excel (месяц)</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onExportAllXLSX} className="gap-2 cursor-pointer">
+                <FileSpreadsheet className="size-4" />
+                <span>Excel (все)</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onExportJSON} className="gap-2 cursor-pointer">
+                <Save className="size-4" />
+                <span>JSON</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onExportPDF} className="gap-2 cursor-pointer">
+                <FileText className="size-4" />
+                <span>PDF (печать)</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent-soft)]"
+              >
+                <Upload className="size-3.5" />
+                Загрузить
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onClick={onImportJSON} className="gap-2 cursor-pointer">
+                <FolderOpen className="size-4" />
+                <span>JSON</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onImportXLSX} className="gap-2 cursor-pointer">
+                <FolderOpen className="size-4" />
+                <span>Excel (месяц)</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
 

@@ -269,7 +269,25 @@
 
 /* ================================================================ */
 /*  Sticky Table Header                                            */
+/*  Uses border-separate + border-spacing-0 so position:sticky      */
+/*  works on thead / tfoot in all browsers.                         */
 /* ================================================================ */
+
+.sticky-table-header {
+  border-collapse: separate !important;
+  border-spacing: 0;
+}
+
+/* The shadcn Table wrapper creates its own scroll context with
+   overflow-x-auto, which breaks position:sticky on thead/tfoot.
+   When the table uses sticky headers, let the parent Card handle
+   all scrolling instead. Also make the container grow to fill
+   the flex parent so the table can be full-height. */
+[data-slot="table-container"]:has(> .sticky-table-header) {
+  overflow: visible !important;
+  flex: 1 1 0%;
+  min-height: 0;
+}
 
 .sticky-table-header thead tr th,
 .sticky-table-header tfoot tr td {

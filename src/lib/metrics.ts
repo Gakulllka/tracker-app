@@ -88,16 +88,30 @@ export const getTaskMetrics = (task: Task, totalFactMap?: Record<string, number>
 };
 
 export const getRowsMetrics = (rows: Task[], totalFactMap?: Record<string, number>) => {
-  let totPlan = 0, totFact = 0, totTotalH = 0, progSum = 0, progCount = 0;
+  let totPlan = 0, totFact = 0, progSum = 0, progCount = 0;
+  const totalHByNum = new Map<string, number>(); // deduplicate by task num
+  let totalHNoNum = 0; // for tasks without a num
+
   rows.forEach(r => {
     const m = getTaskMetrics(r, totalFactMap);
     totPlan += m.plan;
     totFact += m.fact;
-    totTotalH += m.totalH;
+
+    // For totalH: if task has a num, track the max cumulative total for that num
+    // (to avoid double-counting same task num across multiple rows)
+    if (r.num && totalFactMap) {
+      const existing = totalHByNum.get(r.num) || 0;
+      totalHByNum.set(r.num, Math.max(existing, m.totalH));
+    } else {
+      totalHNoNum += m.totalH;
+    }
+
     if (m.plan > 0 || r.status === STATUSES.DONE) { progSum += m.prog; progCount++; }
   });
+
+  const totTotalH = R2(totalHNoNum + Array.from(totalHByNum.values()).reduce((a, b) => a + b, 0));
   const avgProg = progCount ? Math.round(progSum / progCount) : 0;
-  return { totPlan: R2(totPlan), totFact: R2(totFact), totTotalH: R2(totTotalH), avgProg };
+  return { totPlan: R2(totPlan), totFact: R2(totFact), totTotalH, avgProg };
 };
 
 export const createNewTask = (): Task => ({

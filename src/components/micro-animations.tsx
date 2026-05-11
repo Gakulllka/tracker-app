@@ -94,7 +94,7 @@ export function AnimatedProgressBar({
   return (
     <div className={className}>
       <div className="w-full bg-gray-100 rounded-full overflow-hidden" style={{ height }}>
-        <div className={`h-full rounded-full transition-all duration-700 ease-out ${colorMap[color]}`} style={{ width: `${width}%` }} />
+        <div className={`h-full rounded-full ${colorMap[color]}`} style={{ width: `${width}%` }} />
       </div>
       {showLabel && (
         <div className="flex justify-between mt-1">
