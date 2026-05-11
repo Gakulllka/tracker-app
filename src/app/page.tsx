@@ -2407,54 +2407,6 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
               )}
             </Button>
 
-            <Separator
-              orientation="vertical"
-              className="header-separator mx-1 h-6 bg-[var(--tracker-border)] hidden sm:block"
-            />
-
-            {/* Save/Load dropdown */}
-            <span className="header-file-btn contents"><DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 gap-1.5 border-[var(--tracker-border)] bg-transparent text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-accent-fg-dark)]">
-                  <Save className="size-3.5" />
-                  <span className="hidden sm:inline">Файл</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Сохранить / Загрузить</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => {
-                  navigator.clipboard.writeText(window.location.origin);
-                  toast({ title: "Ссылка скопирована", description: "Отправьте ссылку для приглашения" });
-                }} className="gap-2 cursor-pointer">
-                  <Share2 className="size-4" />
-                  <span>Скопировать ссылку</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleExportJSON} className="gap-2 cursor-pointer">
-                  <Save className="size-4" />
-                  <span>💾 Сохранить JSON</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportMonthXLSX} className="gap-2 cursor-pointer">
-                  <FileSpreadsheet className="size-4" />
-                  <span>📊 Экспорт Excel (месяц)</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportAllXLSX} className="gap-2 cursor-pointer">
-                  <FileSpreadsheet className="size-4" />
-                  <span>📊 Экспорт Excel (все)</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2 cursor-pointer">
-                  <FolderOpen className="size-4" />
-                  <span>📂 Загрузить JSON</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => xlsxInputRef.current?.click()} className="gap-2 cursor-pointer">
-                  <FolderOpen className="size-4" />
-                  <span>📂 Загрузить Excel (месяц)</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu></span>
-
             {/* Hidden file inputs */}
             <input
               ref={fileInputRef}
@@ -2628,6 +2580,8 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
           <TableView
             rows={sortedRows}
             totalRows={visibleRows}
+            allData={allData}
+            backlog={backlog}
             qMap={qMap}
             totalFactMap={totalFactMap}
             rowsMetrics={rowsMetrics}
@@ -3350,6 +3304,8 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 interface TableViewProps {
   rows: Task[];
   totalRows: Task[];
+  allData: Record<number, Task[]>;
+  backlog: Task[];
   qMap: Record<string, number>;
   totalFactMap: Record<string, number>;
   rowsMetrics: {
@@ -3420,6 +3376,8 @@ function TableView({
   isDark,
   rows,
   totalRows,
+  allData,
+  backlog,
   qMap,
   totalFactMap,
   rowsMetrics,
@@ -3501,215 +3459,220 @@ function TableView({
   return (
     <div className="space-y-3">
       {/* ---- TOOLBAR ---- */}
-      {!clientMode && (
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Поиск задач..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 pl-8"
-            />
-          </div>
+      {!clientMode && (() => {
+        const totalFilters = filterStatuses.size + filterPriorities.size + (searchQuery ? 1 : 0);
+        const btnClass = "hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent-soft)]";
+        return (
+          <div className="flex flex-wrap items-center gap-2">
 
-          {/* Status filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-8"
-              >
-                <Filter className="size-3.5" />
-                Статус
-                {filterStatuses.size > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                    {filterStatuses.size}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
-              <DropdownMenuLabel>Фильтр по статусу</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {Object.values(STATUSES).map((s) => (
-                <DropdownMenuCheckboxItem
-                  key={s}
-                  checked={filterStatuses.has(s)}
-                  onCheckedChange={() => toggleStatusFilter(s)}
-                  className="text-xs"
-                >
-                  <span style={{ color: scolText(s, isDark) || "#888" }}>
-                    {s}
-                  </span>
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            {/* ── ФИЛЬТР ───────────────────────────────────────────── */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className={btnClass + " !flex"}>
+                  <Filter className="size-3.5" />
+                  Фильтр
+                  {totalFilters > 0 && (
+                    <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-xs">{totalFilters}</Badge>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64 p-2">
+                {/* Search */}
+                <div className="relative mb-2" onKeyDown={e => e.stopPropagation()}>
+                  <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Поиск задач..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="h-8 pl-8 text-sm"
+                  />
+                </div>
 
-          {/* Priority filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-8"
-              >
-                <Filter className="size-3.5" />
-                Приоритет
-                {filterPriorities.size > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                    {filterPriorities.size}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuLabel>
-                Фильтр по приоритету
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {Object.values(PRIORITIES).map((p) => (
-                <DropdownMenuCheckboxItem
-                  key={p}
-                  checked={filterPriorities.has(p)}
-                  onCheckedChange={() =>
-                    togglePriorityFilter(p)
+                {/* Global search results */}
+                {searchQuery.trim().length >= 2 && (() => {
+                  const q = searchQuery.trim().toLowerCase();
+                  const globalMatches: { label: string; num: string; name: string; monthIdx: number | null }[] = [];
+                  for (let m = 0; m < 12; m++) {
+                    const monthRows = (allData[m] || []);
+                    for (const r of monthRows) {
+                      if ((r.num || "").toLowerCase().includes(q) || (r.name || "").toLowerCase().includes(q)) {
+                        globalMatches.push({ label: MONTHS[m], num: r.num, name: r.name, monthIdx: m });
+                        if (globalMatches.length >= 8) break;
+                      }
+                    }
+                    if (globalMatches.length >= 8) break;
                   }
-                  className="text-xs"
-                >
-                  <span style={{ color: PCOL[p] }}>
-                    {p}
-                  </span>
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  // Search backlog too
+                  if (globalMatches.length < 8) {
+                    for (const r of (backlog || [])) {
+                      if ((r.num || "").toLowerCase().includes(q) || (r.name || "").toLowerCase().includes(q)) {
+                        globalMatches.push({ label: "Беклог", num: r.num, name: r.name, monthIdx: null });
+                        if (globalMatches.length >= 8) break;
+                      }
+                    }
+                  }
+                  if (globalMatches.length === 0) return null;
+                  return (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-xs text-muted-foreground">Найдено в домене</DropdownMenuLabel>
+                      <div className="max-h-48 overflow-y-auto space-y-0.5">
+                        {globalMatches.map((m, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-[var(--tracker-accent-bg)] cursor-pointer"
+                            onClick={() => {
+                              if (m.monthIdx !== null) {
+                                useTaskStore.getState().setCurrentMonth(m.monthIdx);
+                                useTaskStore.getState().setView("table");
+                              } else {
+                                useTaskStore.getState().setView("backlog");
+                              }
+                            }}
+                          >
+                            <span className="truncate text-[var(--tracker-text-main)] font-medium mr-2">
+                              {m.num ? `#${m.num} ` : ""}{m.name || "—"}
+                            </span>
+                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--tracker-accent-bg)] text-[var(--tracker-accent-fg-dark)]">
+                              {m.label}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <DropdownMenuSeparator />
+                    </>
+                  );
+                })()}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs">Статус</DropdownMenuLabel>
+                <div className="max-h-40 overflow-y-auto">
+                  {Object.values(STATUSES).map(s => (
+                    <DropdownMenuCheckboxItem
+                      key={s}
+                      checked={filterStatuses.has(s)}
+                      onCheckedChange={() => toggleStatusFilter(s)}
+                      onSelect={e => e.preventDefault()}
+                      className="text-xs"
+                    >
+                      <span style={{ color: scolText(s, isDark) || "#888" }}>{s}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs">Приоритет</DropdownMenuLabel>
+                {Object.values(PRIORITIES).map(p => (
+                  <DropdownMenuCheckboxItem
+                    key={p}
+                    checked={filterPriorities.has(p)}
+                    onCheckedChange={() => togglePriorityFilter(p)}
+                    onSelect={e => e.preventDefault()}
+                    className="text-xs"
+                  >
+                    <span style={{ color: PCOL[p] }}>{p}</span>
+                  </DropdownMenuCheckboxItem>
+                ))}
+                {totalFilters > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={clearFilters} className="text-xs gap-1.5 text-muted-foreground cursor-pointer">
+                      <X className="size-3.5" />
+                      Сбросить фильтры
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          {/* Clear filters */}
-          {(filterStatuses.size > 0 ||
-            filterPriorities.size > 0 ||
-            searchQuery) && (
+            {/* ── СОРТИРОВКА ───────────────────────────────────────── */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className={btnClass + " !flex"}>
+                  <ArrowUpDown className="size-3.5" />
+                  Сортировка
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuLabel className="text-xs">Переставить задачи</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => sortMonthTasks(month, "priority")} className="gap-2 cursor-pointer text-xs">
+                  <ArrowUpDown className="size-3.5" />
+                  По приоритету
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => sortMonthTasks(month, "status")} className="gap-2 cursor-pointer text-xs">
+                  <ArrowUpDown className="size-3.5" />
+                  По статусу
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <div className="flex-1" />
+
+            {/* ── ДОБАВИТЬ СТРОКУ ───────────────────────────────────── */}
             <Button
-              variant="ghost"
               size="sm"
-              className="h-8 gap-1.5 text-muted-foreground"
-              onClick={clearFilters}
+              className="h-8 gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
+              onClick={() => addTask(month)}
             >
-              <X className="size-3.5" />
-              Сбросить
+              <Plus className="size-3.5" />
+              Добавить строку
             </Button>
-          )}
 
-          <div className="flex-1" />
+            {/* ── ПЕРЕНЕСТИ ────────────────────────────────────────── */}
+            <Button variant="outline" size="sm" className={btnClass} onClick={onOpenTransfer}>
+              <ArrowRight className="size-3.5" />
+              Перенести
+            </Button>
 
-          {/* Sort by priority / status */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="hidden md:inline-flex h-8 gap-1.5 text-[var(--tracker-accent-fg)] border-[var(--tracker-accent)]/30 hover:bg-[var(--tracker-accent-soft)]"
-            onClick={() => sortMonthTasks(month, "priority")}
-            title="Переставить задачи по приоритету"
-          >
-            <ArrowUpDown className="size-3.5" />
-            По приоритету
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="hidden md:inline-flex h-8 gap-1.5 text-[var(--tracker-accent-fg)] border-[var(--tracker-accent)]/30 hover:bg-[var(--tracker-accent-soft)]"
-            onClick={() => sortMonthTasks(month, "status")}
-            title="Переставить задачи по статусу"
-          >
-            <ArrowUpDown className="size-3.5" />
-            По статусу
-          </Button>
+            {/* ── ФАЙЛЫ (Сохранить + Загрузить) ────────────────────── */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className={btnClass}>
+                  <FolderOpen className="size-3.5" />
+                  Файлы
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel className="text-xs">Сохранить</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onExportMonthXLSX} className="gap-2 cursor-pointer text-xs">
+                  <FileSpreadsheet className="size-3.5" />
+                  Excel (месяц)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onExportAllXLSX} className="gap-2 cursor-pointer text-xs">
+                  <FileSpreadsheet className="size-3.5" />
+                  Excel (все)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onExportJSON} className="gap-2 cursor-pointer text-xs">
+                  <Save className="size-3.5" />
+                  JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onExportPDF} className="gap-2 cursor-pointer text-xs">
+                  <FileText className="size-3.5" />
+                  PDF (печать)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs">Загрузить</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onImportJSON} className="gap-2 cursor-pointer text-xs">
+                  <Upload className="size-3.5" />
+                  JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onImportXLSX} className="gap-2 cursor-pointer text-xs">
+                  <Upload className="size-3.5" />
+                  Excel (месяц)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          {/* Action buttons */}
-          <Button
-            size="sm"
-            className="h-8 gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-            onClick={() => addTask(month)}
-          >
-            <Plus className="size-3.5" />
-            Добавить строку
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent-soft)]"
-            onClick={onOpenTransfer}
-          >
-            <ArrowRight className="size-3.5" />
-            Перенести
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 bg-[var(--tracker-accent)]/6 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent)]/14 hover:border-[var(--tracker-accent)]/50"
-              >
-                <Download className="size-3.5" />
-                Сохранить
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={onExportMonthXLSX} className="gap-2 cursor-pointer">
-                <FileSpreadsheet className="size-4" />
-                <span>Excel (месяц)</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onExportAllXLSX} className="gap-2 cursor-pointer">
-                <FileSpreadsheet className="size-4" />
-                <span>Excel (все)</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onExportJSON} className="gap-2 cursor-pointer">
-                <Save className="size-4" />
-                <span>JSON</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onExportPDF} className="gap-2 cursor-pointer">
-                <FileText className="size-4" />
-                <span>PDF (печать)</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent-soft)]"
-              >
-                <Upload className="size-3.5" />
-                Загрузить
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={onImportJSON} className="gap-2 cursor-pointer">
-                <FolderOpen className="size-4" />
-                <span>JSON</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onImportXLSX} className="gap-2 cursor-pointer">
-                <FolderOpen className="size-4" />
-                <span>Excel (месяц)</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            variant="outline"
-            size="sm"
-            className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 bg-[var(--tracker-accent)]/6 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent)]/14 hover:border-[var(--tracker-accent)]/50"
-            onClick={onCreatePresentation}
-          >
-            <Presentation className="size-3.5" />
-            Презентация
-          </Button>
-        </div>
-      )}
+            {/* ── ПРЕЗЕНТАЦИЯ ──────────────────────────────────────── */}
+            <Button variant="outline" size="sm" className={btnClass} onClick={onCreatePresentation}>
+              <Presentation className="size-3.5" />
+              Презентация
+            </Button>
+
+          </div>
+        );
+      })()}
 
 
       {/* ---- MOBILE TASK CARDS (md:hidden) ---- */}
@@ -4146,7 +4109,60 @@ function TableView({
                     style={{ minWidth: 200 }}
                   >
                     {isEditing(task.id, "comment") ? (
-                      <div className="flex items-start gap-1">
+                      <div className="flex flex-col gap-1">
+                        {/* @-buttons row */}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-xs border-[var(--tracker-accent)]/30 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent-soft)]"
+                            onMouseDown={e => {
+                              e.preventDefault();
+                              const el = (editRef as React.RefObject<HTMLTextAreaElement>).current;
+                              const tag = `@факт`;
+                              if (!el) { updateTask(month, task.id, "comment", (task.comment || "") + tag); return; }
+                              const s = el.selectionStart ?? task.comment.length;
+                              const e2 = el.selectionEnd ?? s;
+                              const next = task.comment.slice(0, s) + tag + task.comment.slice(e2);
+                              updateTask(month, task.id, "comment", next);
+                              setTimeout(() => { el.focus(); el.setSelectionRange(s + tag.length, s + tag.length); }, 0);
+                            }}
+                          >
+                            @факт
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-xs border-[var(--tracker-accent)]/30 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent-soft)]"
+                            onMouseDown={e => {
+                              e.preventDefault();
+                              const el = (editRef as React.RefObject<HTMLTextAreaElement>).current;
+                              const tag = `@план`;
+                              if (!el) { updateTask(month, task.id, "comment", (task.comment || "") + tag); return; }
+                              const s = el.selectionStart ?? task.comment.length;
+                              const e2 = el.selectionEnd ?? s;
+                              const next = task.comment.slice(0, s) + tag + task.comment.slice(e2);
+                              updateTask(month, task.id, "comment", next);
+                              setTimeout(() => { el.focus(); el.setSelectionRange(s + tag.length, s + tag.length); }, 0);
+                            }}
+                          >
+                            @план
+                          </Button>
+                          {task.comment && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 text-xs border-[var(--tracker-accent)]/30 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent-soft)] ml-auto"
+                              onMouseDown={e => {
+                                e.preventDefault();
+                                useTaskStore.getState().archiveComment(month, task.id);
+                                stopEditing();
+                              }}
+                            >
+                              Архив
+                            </Button>
+                          )}
+                        </div>
                         <AutoResizeTextarea
                           ref={
                             editRef as React.RefObject<HTMLTextAreaElement>
@@ -4162,7 +4178,6 @@ function TableView({
                             )
                           }
                           onBlur={() => {
-                            // Phase 7.3: попытка распознать @факт/@план формулы перед закрытием.
                             commitCommentFormulas(month, task.id);
                             stopEditing();
                           }}
@@ -4186,20 +4201,7 @@ function TableView({
                             </span>
                           )}
                         </span>
-                        {task.comment && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 shrink-0 opacity-60 hover:opacity-100"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              useTaskStore.getState().archiveComment(month, task.id);
-                            }}
-                            title="Заархивировать комментарий"
-                          >
-                            <span className="text-xs">🗃️</span>
-                          </Button>
-                        )}
+                        {/* RIGHT: archive emoji — only if has archived entries */}
                         {task.commentLog && task.commentLog.length > 0 && (
                           <Button
                             variant="ghost"

@@ -72,9 +72,7 @@ export function applyFormula(currentValue: number, op: FormulaOp, operand: numbe
 /** Описание формулы для системной записи. */
 export function describeFormula(f: ParsedFormula, oldValue: number, newValue: number): string {
   const targetLabel = f.target === "fact" ? "факт" : "план";
-  const oldStr = formatNumber(oldValue);
-  const newStr = formatNumber(newValue);
-  return `🧮 ${targetLabel} изменён: ${oldStr} → ${newStr} ч (${f.raw.trim()})`;
+  return `${targetLabel} ${formatNumber(oldValue)} → ${formatNumber(newValue)} ч`;
 }
 
 function formatNumber(n: number): string {
