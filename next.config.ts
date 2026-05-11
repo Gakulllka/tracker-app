@@ -1,10 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  turbopack: {
-    root: ".",
-  },
-  output: "standalone",
   generateEtags: false,
   typescript: {
     ignoreBuildErrors: true,
