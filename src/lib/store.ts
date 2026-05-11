@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { Task, Domain, AllData, Status, Priority, PRIORITIES, STATUSES, MONTHS } from "./types";
+import { Task, Domain, AllData, Status, Priority, PRIORITIES, STATUSES, MONTHS, PRIO_START, STATUS_ORDER } from "./types";
 import { createNewTask } from "./metrics";
 import { createUndoHelpers } from "./undo";
 
@@ -304,6 +304,7 @@ interface AppState {
   deleteTask: (month: number, taskId: string) => void;
   moveTasks: (taskId: string, fromMonth: number, toMonth: number) => void;
   reorderTask: (month: number, fromId: string, toId: string) => void;
+  sortMonthTasks: (month: number, key: "priority" | "status") => void;
 
   // Backlog
   moveToBacklog: (month: number, taskId: string) => void;
@@ -642,6 +643,20 @@ export const useTaskStore = create<AppState>()(
           if (fi < 0 || ti < 0) return state;
           const [item] = rows.splice(fi, 1);
           rows.splice(ti, 0, item);
+          const newAllData = { ...state.allData, [month]: rows };
+          return withDomainSync(state, { allData: newAllData });
+        });
+      },
+
+      sortMonthTasks: (month, key) => {
+        undoHelpers.snapshot(getStateSnapshot);
+        set(state => {
+          const rows = [...(state.allData[month] || [])];
+          if (key === "priority") {
+            rows.sort((a, b) => PRIO_START[a.priority] - PRIO_START[b.priority]);
+          } else {
+            rows.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+          }
           const newAllData = { ...state.allData, [month]: rows };
           return withDomainSync(state, { allData: newAllData });
         });

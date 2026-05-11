@@ -154,6 +154,7 @@ import {
   FileText,
   Sun,
   Moon,
+  ArrowUpDown,
 } from "lucide-react";
 import AuthScreen from "@/components/auth-screen";
 
@@ -1034,8 +1035,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
    * Подписываемся на текущий домен и подсчитываем план для текущего месяца+года. */
   const setMonthlyPlan = useTaskStore((s) => s.setMonthlyPlan);
   const activeDomainData = useTaskStore((s) => s.domainData[s.activeDomainId]);
+  const monthlyPlanByYearMonth = activeDomainData?.monthlyPlanByYearMonth;
   const currentMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
-  const monthlyPlan = activeDomainData?.monthlyPlanByYearMonth?.[currentMonthKey] ?? 80;
+  const monthlyPlan = monthlyPlanByYearMonth?.[currentMonthKey] ?? 80;
   const filterStatuses = useTaskStore((s) => s.filterStatuses);
   const filterPriorities = useTaskStore((s) => s.filterPriorities);
   const sortKey = useTaskStore((s) => s.sortKey);
@@ -1048,6 +1050,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   const addTask = useTaskStore((s) => s.addTask);
   const deleteTask = useTaskStore((s) => s.deleteTask);
   const reorderTask = useTaskStore((s) => s.reorderTask);
+  const sortMonthTasks = useTaskStore((s) => s.sortMonthTasks);
   const moveToBacklog = useTaskStore((s) => s.moveToBacklog);
   const deleteBacklogTask = useTaskStore((s) => s.deleteBacklogTask);
   const reorderBacklog = useTaskStore((s) => s.reorderBacklog);
@@ -1263,6 +1266,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         [s.activeDomainId]: {
           allData: updatedByKey,
           backlog: s.backlog,
+          monthlyPlanByYearMonth: activeDom?.monthlyPlanByYearMonth ?? {},
         },
       };
       const payload = {
@@ -1381,7 +1385,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       pushToServer();
     }, 400);
     return () => clearTimeout(timer);
-  }, [allData, backlog, pushToServer]);
+  }, [allData, backlog, monthlyPlanByYearMonth, pushToServer]);
 
   // Periodic pull every 12 seconds (multi-user sync)
   useEffect(() => {
@@ -2639,6 +2643,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             updateTask={updateTask}
             deleteTask={deleteTask}
             reorderTask={reorderTask}
+            sortMonthTasks={sortMonthTasks}
             moveToBacklog={moveToBacklog}
             toggleHidden={toggleHidden}
             handleSort={handleSort}
@@ -2713,6 +2718,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
               const isEmpty = existing.length === 1 && !existing[0].num && !existing[0].name;
               state.setAllData({ ...state.allData, [month]: isEmpty ? [task] : [...existing, task] });
             }}
+            isDark={customDark}
           />
         )}
 
@@ -3372,6 +3378,7 @@ interface TableViewProps {
   ) => void;
   deleteTask: (month: number, taskId: string) => void;
   reorderTask: (month: number, fromId: string, toId: string) => void;
+  sortMonthTasks: (month: number, key: "priority" | "status") => void;
   moveToBacklog: (month: number, taskId: string) => void;
   toggleHidden: (taskId: string) => void;
   handleSort: (key: string) => void;
@@ -3428,6 +3435,7 @@ function TableView({
   updateTask,
   deleteTask,
   reorderTask,
+  sortMonthTasks,
   moveToBacklog,
   toggleHidden,
   handleSort,
@@ -3596,6 +3604,28 @@ function TableView({
           )}
 
           <div className="flex-1" />
+
+          {/* Sort by priority / status */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden md:inline-flex h-8 gap-1.5 text-[var(--tracker-accent-fg)] border-[var(--tracker-accent)]/30 hover:bg-[var(--tracker-accent-soft)]"
+            onClick={() => sortMonthTasks(month, "priority")}
+            title="Переставить задачи по приоритету"
+          >
+            <ArrowUpDown className="size-3.5" />
+            По приоритету
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden md:inline-flex h-8 gap-1.5 text-[var(--tracker-accent-fg)] border-[var(--tracker-accent)]/30 hover:bg-[var(--tracker-accent-soft)]"
+            onClick={() => sortMonthTasks(month, "status")}
+            title="Переставить задачи по статусу"
+          >
+            <ArrowUpDown className="size-3.5" />
+            По статусу
+          </Button>
 
           {/* Action buttons */}
           <Button
@@ -3770,7 +3800,7 @@ function TableView({
 
       {/* ---- DESKTOP TABLE (hidden on mobile) ---- */}
       {/* ---- DESKTOP TABLE ---- */}
-      <Card className="hidden md:block h-[calc(100vh-200px)] min-h-[300px] overflow-auto py-0">
+      <Card className="hidden md:block max-h-[1000px] overflow-auto py-0">
         <Table className="border-collapse sticky-table-header w-full">
           <TableHeader className="bg-[var(--tracker-accent-bg,#f3f0fb)]">
             <TableRow className="[&_th]:text-[var(--tracker-accent-fg-dark,#3d2264)]">
@@ -4092,12 +4122,10 @@ function TableView({
                     <div className="flex items-center gap-2">
                       <div className="h-3 flex-1 rounded-full bg-muted overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-300 ${
-                            metrics.prog > 0 && metrics.prog < 100 ? "progress-bar-animated" : ""
-                          } ${metrics.over ? "progress-over-pulse bg-red-600" : ""}`}
+                          className="h-full rounded-full"
                           style={{
                             width: `${Math.min(metrics.prog, 100)}%`,
-                            backgroundColor: metrics.over ? undefined : progColor(metrics.prog),
+                            backgroundColor: metrics.over ? "#ef4444" : progColor(metrics.prog),
                           }}
                         />
                       </div>
@@ -4731,10 +4759,12 @@ function BacklogView({
               <div>
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">Статус</label>
                 <Select value={dialog.status} onValueChange={(v) => setDialog(prev => ({ ...prev, status: v as Status }))}>
-                  <SelectTrigger className="h-9 text-sm w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm w-full" style={{ color: scolText(dialog.status, isDark) || undefined }}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {statusValues.map((s) => (
-                      <SelectItem key={s} value={s} className="text-sm">{s}</SelectItem>
+                      <SelectItem key={s} value={s} className="text-sm">
+                        <span style={{ color: scolText(s, isDark) || "#888" }}>{s}</span>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -5213,6 +5243,7 @@ interface QuestionsViewProps {
   currentMonth: number;
   addToBacklog: (task: Task) => void;
   addToTable: (month: number, task: Task) => void;
+  isDark: boolean;
 }
 
 interface QuestionToTaskDialog {
@@ -5240,6 +5271,7 @@ function QuestionsView({
   currentMonth,
   addToBacklog,
   addToTable,
+  isDark,
 }: QuestionsViewProps) {
   const [answeringId, setAnsweringId] = useState<string | null>(null);
   const [answerDraft, setAnswerDraft] = useState("");
@@ -5351,9 +5383,13 @@ function QuestionsView({
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Статус</label>
                   <Select value={taskDialog.status} onValueChange={v => setTaskDialog(d => ({ ...d, status: v as Status }))}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm" style={{ color: scolText(taskDialog.status, isDark) || undefined }}><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {statusValues.map(s => <SelectItem key={s} value={s} className="text-sm">{s}</SelectItem>)}
+                      {statusValues.map(s => (
+                        <SelectItem key={s} value={s} className="text-sm">
+                          <span style={{ color: scolText(s, isDark) || "#888" }}>{s}</span>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
