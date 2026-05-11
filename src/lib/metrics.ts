@@ -76,13 +76,20 @@ export const fmt2 = (v: number) => {
   return n % 1 === 0 ? String(n) : n.toFixed(2);
 };
 
+/** Статусы считающиеся «закрытыми» — прогресс всегда 100%. */
+export const CLOSED_STATUSES: ReadonlySet<Status> = new Set<Status>([
+  STATUSES.COMPLETED,   // Выполненная
+  STATUSES.PROD_CHECK,  // Контроль на прод
+  STATUSES.DONE,        // Завершенная
+]);
+
 export const getTaskMetrics = (task: Task, totalFactMap?: Record<string, number>): TaskMetrics => {
   const plan = evalExpr(task.planH);
   const fact = evalExpr(task.factH);
   const totalH = task.num && totalFactMap ? (totalFactMap[task.num] || 0) : fact;
-  const isDone = task.status === STATUSES.DONE;
-  const prog = isDone ? 100 : (plan > 0 ? Math.min(100, Math.round(totalH / plan * 100)) : 0);
-  const over = plan > 0 && totalH > plan;
+  const isClosed = CLOSED_STATUSES.has(task.status as Status);
+  const prog = isClosed ? 100 : (plan > 0 ? Math.min(100, Math.round(totalH / plan * 100)) : 0);
+  const over = isClosed ? totalH > plan : plan > 0 && totalH > plan;
   const variance = R2(totalH - plan);
   return { plan, fact, totalH: R2(totalH), prog, over, variance };
 };
@@ -191,7 +198,14 @@ export const sortVal = (row: Task, key: string, qMap: Record<string, number>, to
   return 0;
 };
 
-export const progColor = (p: number): string => p >= 100 ? "#4a9a5a" : p >= 50 ? "#5090b8" : "#b89830";
+/** Цвет прогресс-бара:
+ *  - задача закрыта без перевыполнения → зелёный
+ *  - задача закрыта с перевыполнением  → красный  (через over-флаг в TableCell)
+ *  - в процессе                        → синий / жёлтый по % */
+export const progColor = (p: number, isClosed?: boolean, isOver?: boolean): string => {
+  if (isClosed) return isOver ? "#ef4444" : "#22c55e";
+  return "#f59e0b";
+};
 
 export interface CommentFormulaResult {
   comment: string;

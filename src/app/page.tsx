@@ -55,6 +55,7 @@ import {
   fmt2,
   R2,
   progColor,
+  CLOSED_STATUSES,
   createNewTask,
   sortVal,
 } from "@/lib/metrics";
@@ -4112,14 +4113,14 @@ function TableView({
                           className="h-full rounded-full"
                           style={{
                             width: `${Math.min(metrics.prog, 100)}%`,
-                            backgroundColor: metrics.over ? "#ef4444" : progColor(metrics.prog),
+                            backgroundColor: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over),
                           }}
                         />
                       </div>
                       <span
                         className="w-8 text-right text-xs font-medium tabular-nums"
                         style={{
-                          color: progColor(metrics.prog),
+                          color: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over),
                         }}
                       >
                         {metrics.prog}%
@@ -4613,10 +4614,17 @@ function BacklogView({
                     ) : (
                       <span
                         onClick={() => startEdit(task.id, "name")}
-                        className="cursor-pointer block text-sm rounded px-1 py-0.5 hover:bg-muted/50 overflow-hidden text-ellipsis whitespace-nowrap"
+                        className="cursor-pointer flex items-center gap-1 text-sm rounded px-1 py-0.5 hover:bg-muted/50"
                         title={task.name}
                       >
-                        {task.name || <span className="italic text-muted-foreground opacity-50">введите название...</span>}
+                        {task.num && (
+                          <span className="text-[11px] shrink-0" style={{ color: "var(--tracker-text-muted)" }}>
+                            #{task.num}
+                          </span>
+                        )}
+                        <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                          {task.name || <span className="italic text-muted-foreground opacity-50">введите название...</span>}
+                        </span>
                       </span>
                     )}
                   </TableCell>

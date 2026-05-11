@@ -558,6 +558,22 @@ export const useTaskStore = create<AppState>()(
 
       updateTask: (month, taskId, key, value) => set(state => {
         const rows = state.allData[month] || [];
+        // If setting status to POSTPONED — move to backlog automatically
+        if (key === "status" && value === STATUSES.POSTPONED) {
+          const task = rows.find(r => r.id === taskId);
+          if (!task) return state;
+          const newAllData = {
+            ...state.allData,
+            [month]: rows.filter(r => r.id !== taskId),
+          };
+          const backlogEntry = {
+            ...task,
+            status: STATUSES.POSTPONED,
+            _ts: Date.now(),
+            commentLog: [...(task.commentLog || []), makeSystemLog("📦 Отложена → перемещена в беклог")],
+          };
+          return withDomainSync(state, { allData: newAllData, backlog: [...state.backlog, backlogEntry] });
+        }
         const newAllData = {
           ...state.allData,
           [month]: rows.map(r => r.id === taskId ? { ...r, [key]: value, _ts: Date.now() } : r),
