@@ -1,6 +1,14 @@
 [build]
-  command = "prisma generate && next build"
+  command = "npm ci && prisma generate && next build"
   publish = ".next"
+
+[build.environment]
+  # Фиксируем Node 20 — на нём Prisma 5 стабильно билдится под Lambda.
+  NODE_VERSION = "20"
+  # Не давать npm пропускать postinstall на проде.
+  NPM_CONFIG_PRODUCTION = "false"
+  # Не пропускать @prisma/client при tree-shaking.
+  PRISMA_HIDE_UPDATE_MESSAGE = "true"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

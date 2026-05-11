@@ -1,10 +1,20 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // ВАЖНО: без этого Prisma на Netlify Functions падает с
+  // "Query engine binary for current platform 'rhel-openssl-3.0.x' could not be found".
+  // "native"            — для локальной разработки (Windows/Mac/Linux)
+  // "rhel-openssl-3.0.x"  — для Netlify Functions / AWS Lambda Amazon Linux 2023
+  // "linux-musl-openssl-3.0.x" — на случай если Netlify когда-то переедет на Alpine
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // directUrl нужен только если будешь запускать `prisma migrate deploy` —
+  // миграции должны идти мимо пулера PgBouncer.
+  // Если переменной нет, Prisma просто использует url.
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
