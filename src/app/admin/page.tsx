@@ -104,6 +104,22 @@ const ACTION_LABELS: Record<string, string> = {
   task_delete: "Удаление задачи", export: "Экспорт",
 };
 
+/** Цветовые группы для бейджей действий. Не меняем разметку — только цвета. */
+function actionBadgeClass(action: string): string {
+  if (action.startsWith("task_")) {
+    if (action === "task_create") return "bg-green-100 text-green-700";
+    if (action === "task_delete") return "bg-red-100 text-red-700";
+    return "bg-amber-100 text-amber-700"; // task_update
+  }
+  if (action.startsWith("role_") || action.startsWith("permission_")) {
+    return "bg-purple-100 text-purple-700";
+  }
+  if (action === "login" || action === "register") return "bg-blue-100 text-blue-700";
+  if (action === "logout" || action === "session_end") return "bg-gray-100 text-gray-600";
+  if (action.startsWith("user_")) return "bg-pink-100 text-pink-700";
+  return "bg-blue-100 text-blue-700";
+}
+
 const PERM_LABELS: Record<string, string> = {
   canViewTasks: "Просмотр задач", canEditTasks: "Редактирование задач", canDeleteTasks: "Удаление задач",
   canViewBacklog: "Просмотр бэклога", canEditBacklog: "Редактирование бэклога", canDeleteBacklog: "Удаление бэклога",
@@ -407,8 +423,6 @@ function LogsTab() {
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
-  const uniqueActions = [...new Set(logs.map((l) => l.action))];
-
   const hasDetails = (log: LogEntry) => log.oldValue || log.newValue;
 
   return (
@@ -421,7 +435,28 @@ function LogsTab() {
         </div>
         <select value={filterAction} onChange={(e) => { setFilterAction(e.target.value); setOffset(0); }} className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white">
           <option value="">Все действия</option>
-          {uniqueActions.map((a) => <option key={a} value={a}>{ACTION_LABELS[a] || a}</option>)}
+          <optgroup label="Задачи">
+            <option value="task_create">Создание задачи</option>
+            <option value="task_update">Обновление задачи</option>
+            <option value="task_delete">Удаление задачи</option>
+          </optgroup>
+          <optgroup label="Пользователи">
+            <option value="login">Вход</option>
+            <option value="logout">Выход</option>
+            <option value="register">Регистрация</option>
+            <option value="user_update">Обновление пользователя</option>
+            <option value="user_block">Блокировка</option>
+            <option value="user_unblock">Разблокировка</option>
+            <option value="user_delete">Удаление пользователя</option>
+            <option value="session_end">Завершение сессии</option>
+          </optgroup>
+          <optgroup label="Роли и права">
+            <option value="role_create">Создание роли</option>
+            <option value="role_update">Обновление роли</option>
+            <option value="role_delete">Удаление роли</option>
+            <option value="role_change">Смена роли пользователя</option>
+            <option value="permission_change">Смена прав</option>
+          </optgroup>
         </select>
         <input type="date" value={filterDateFrom} onChange={(e) => { setFilterDateFrom(e.target.value); setOffset(0); }} className="px-3 py-2 rounded-lg border border-gray-200 text-sm" />
         <span className="text-gray-400 text-sm">—</span>
@@ -446,7 +481,7 @@ function LogsTab() {
                 onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
               >
                 <span className="text-xs text-gray-400 whitespace-nowrap w-40">{formatDate(log.createdAt)}</span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${actionBadgeClass(log.action)}`}>
                   {ACTION_LABELS[log.action] || log.action}
                 </span>
                 <span className="text-sm font-medium text-gray-700">{log.username || "Система"}</span>
@@ -725,18 +760,35 @@ function OnlineTab() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [kickTarget, setKickTarget] = useState<Session | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  // Подсветить «только что обновили» — тонкий feedback на авторефрешe.
+  const [refreshedAt, setRefreshedAt] = useState<number>(0);
 
-  const fetchSessions = useCallback(async () => {
-    setLoading(true);
+  /** silent=true → не показывать спиннер (используется в авто-pull). */
+  const fetchSessions = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await fetch(`/api/admin/sessions?token=${getToken()}`);
       const data = await res.json();
-      if (data.success) setSessions(data.sessions);
+      if (data.success) {
+        setSessions(data.sessions);
+        setRefreshedAt(Date.now());
+      }
     } catch { /* ignore */ }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
+
+  // Автообновление каждые 30 секунд, пока вкладка видна.
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      fetchSessions(true);
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, fetchSessions]);
 
   const handleKick = async () => {
     if (!kickTarget) return;
@@ -753,10 +805,16 @@ function OnlineTab() {
   const onlineCount = sessions.filter((s) => s.isOnline).length;
   const inactiveCount = sessions.length - onlineCount;
 
+  // Время последнего обновления для подсказки в шапке
+  const refreshedAgo = refreshedAt
+    ? Math.max(0, Math.floor((Date.now() - refreshedAt) / 1000))
+    : 0;
+  void refreshedAgo; // зарезервировано: пока показываем «Обновлено сейчас» по факту наличия данных
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
             <span className="text-sm font-medium text-gray-700">Онлайн: {onlineCount}</span>
@@ -765,10 +823,22 @@ function OnlineTab() {
             <span className="w-2.5 h-2.5 rounded-full bg-gray-300" />
             <span className="text-sm font-medium text-gray-500">Неактивны: {inactiveCount}</span>
           </div>
+          <span className="text-xs text-gray-400">Считается онлайн ≤ 2 мин с последнего пинга</span>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchSessions} className="gap-2">
-          <RefreshCw className="w-3 h-3" /> Обновить
-        </Button>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+              className="rounded"
+            />
+            Авто-обновление 30 сек
+          </label>
+          <Button variant="outline" size="sm" onClick={() => fetchSessions()} className="gap-2">
+            <RefreshCw className="w-3 h-3" /> Обновить
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -780,6 +850,7 @@ function OnlineTab() {
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Статус</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Пользователь</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Где</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">IP-адрес</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Последняя активность</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Длительность</th>
@@ -788,19 +859,33 @@ function OnlineTab() {
             </thead>
             <tbody>
               {sessions.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-12 text-gray-400">Нет активных сессий</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-gray-400">Нет активных сессий</td></tr>
               )}
               {sessions.map((s) => (
                 <tr key={s.id} className={`border-b border-gray-100 ${s.isOnline ? "bg-green-50/30" : "bg-gray-50/30"}`}>
                   <td className="px-4 py-3">
-                    <span className={`w-2.5 h-2.5 rounded-full inline-block ${s.isOnline ? "bg-green-500" : "bg-gray-300"}`} />
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full inline-block ${s.isOnline ? "bg-green-500" : "bg-gray-300"}`}
+                      title={s.isOnline ? "Онлайн" : "Неактивен"}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900">{s.user.displayName || s.user.username}</div>
                     <div className="text-xs text-gray-400">@{s.user.username} ({s.user.role.name})</div>
                   </td>
+                  <td className="px-4 py-3">
+                    {s.currentPage ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-mono text-xs">
+                        {s.currentPage.length > 36 ? s.currentPage.slice(0, 34) + "…" : s.currentPage}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-500 font-mono text-xs">{s.ipAddress || "—"}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{timeAgo(s.lastActivity)}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500" title={formatDate(s.lastActivity)}>
+                    {timeAgo(s.lastActivity)}
+                  </td>
                   <td className="px-4 py-3 text-xs text-gray-500">
                     {(() => {
                       const ms = Date.now() - new Date(s.createdAt).getTime();

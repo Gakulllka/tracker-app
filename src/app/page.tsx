@@ -482,6 +482,23 @@ interface UserPermissions {
   canSeeQuestions: boolean;
 }
 
+/** JSON-объект из Role.permissions. Поля опциональные, дефолт — всё false. */
+interface RolePermissions {
+  canViewTasks?: boolean;
+  canEditTasks?: boolean;
+  canDeleteTasks?: boolean;
+  canViewBacklog?: boolean;
+  canEditBacklog?: boolean;
+  canDeleteBacklog?: boolean;
+  canViewQuestions?: boolean;
+  canEditQuestions?: boolean;
+  canDeleteQuestions?: boolean;
+  canViewPresentations?: boolean;
+  canCreatePresentations?: boolean;
+  canUseAI?: boolean;
+  visibleDomains?: string; // "all" | "[\"id1\",\"id2\"]"
+}
+
 interface AuthData {
   token: string;
   workspaceId: string;
@@ -490,8 +507,10 @@ interface AuthData {
     username: string;
     displayName: string;
     role: string;
+    roleName?: string;
   };
   permissions: UserPermissions | null;
+  rolePermissions: RolePermissions | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -905,11 +924,13 @@ function AppWithAuth() {
             // Save full auth data to localStorage
             localStorage.setItem("auth_user", JSON.stringify(data.user));
             localStorage.setItem("auth_permissions", JSON.stringify(data.permissions || null));
+            localStorage.setItem("auth_role_permissions", JSON.stringify(data.rolePermissions || null));
             setAuthData({
               token,
               workspaceId: data.workspaceId,
               user: data.user,
               permissions: data.permissions,
+              rolePermissions: data.rolePermissions ?? null,
             });
           } else {
             // Session invalid, clear it
@@ -917,12 +938,14 @@ function AppWithAuth() {
             localStorage.removeItem("auth_user");
             localStorage.removeItem("auth_workspace");
             localStorage.removeItem("auth_permissions");
+            localStorage.removeItem("auth_role_permissions");
           }
         } else {
           localStorage.removeItem("auth_token");
           localStorage.removeItem("auth_user");
           localStorage.removeItem("auth_workspace");
           localStorage.removeItem("auth_permissions");
+          localStorage.removeItem("auth_role_permissions");
         }
       } catch {
         // Network error, allow offline with cached data
@@ -931,11 +954,13 @@ function AppWithAuth() {
         const cachedWs = localStorage.getItem("auth_workspace");
         if (cachedToken && cachedUser && cachedWs) {
           const cachedPerms = localStorage.getItem("auth_permissions");
+          const cachedRolePerms = localStorage.getItem("auth_role_permissions");
           setAuthData({
             token: cachedToken,
             workspaceId: cachedWs,
             user: JSON.parse(cachedUser),
             permissions: cachedPerms ? JSON.parse(cachedPerms) : null,
+            rolePermissions: cachedRolePerms ? JSON.parse(cachedRolePerms) : null,
           });
         }
       } finally {
@@ -945,8 +970,20 @@ function AppWithAuth() {
     checkSession();
   }, []);
 
-  const handleAuth = useCallback((data: AuthData) => {
-    setAuthData(data);
+  const handleAuth = useCallback((data: {
+    token: string;
+    workspaceId: string;
+    user: AuthData["user"];
+    permissions?: unknown;
+    rolePermissions?: unknown;
+  }) => {
+    setAuthData({
+      token: data.token,
+      workspaceId: data.workspaceId,
+      user: data.user,
+      permissions: (data.permissions as UserPermissions | null) ?? null,
+      rolePermissions: (data.rolePermissions as RolePermissions | null) ?? null,
+    });
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -963,6 +1000,7 @@ function AppWithAuth() {
     localStorage.removeItem("auth_user");
     localStorage.removeItem("auth_workspace");
     localStorage.removeItem("auth_permissions");
+    localStorage.removeItem("auth_role_permissions");
     // Clear auth cookie used by middleware
     document.cookie = "auth_token=; path=/; max-age=0; SameSite=Lax";
     setAuthData(null);
@@ -1363,6 +1401,10 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         id: workspaceId,
         domainData,
         clientUpdatedAt: serverUpdatedAtRef.current || new Date().toISOString(),
+        // Передаём token, чтобы сервер мог:
+        //   1) узнать кто сделал sync (для записи task_create/update/delete логов),
+        //   2) обновить Session.lastActivity (для онлайн-статуса в админ-панели).
+        token: authData.token,
       };
       const res = await fetch("/api/sync", {
         method: "POST",
@@ -1385,11 +1427,12 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     } finally {
       isSyncingRef.current = false;
     }
-  }, [workspaceId]);
+  }, [workspaceId, authData.token]);
 
   const pullFromServer = useCallback(async () => {
     try {
-      const res = await fetch(`/api/sync?id=${encodeURIComponent(workspaceId)}`);
+      const url = `/api/sync?id=${encodeURIComponent(workspaceId)}&token=${encodeURIComponent(authData.token)}`;
+      const res = await fetch(url);
       if (!res.ok) return;
       const data = await res.json();
 
@@ -1413,7 +1456,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     } catch {
       setIsOnline(false);
     }
-  }, [workspaceId]);
+  }, [workspaceId, authData.token]);
 
   // Initial load from server — pull FIRST, then mark as ready
   useEffect(() => {
@@ -1498,6 +1541,79 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     return () => clearInterval(interval);
   }, [pushToServer]);
 
+  // ── Online presence heartbeat ─────────────────────────────────────────
+  // Шлём короткий пинг на /api/auth/heartbeat каждые 60 секунд, пока
+  // пользователь "присутствует": вкладка видна ИЛИ был user-input в
+  // последние 5 минут. Сервер обновляет Session.lastActivity, что и
+  // считается "онлайн" в админ-панели.
+  //
+  // Также шлём пинг при: возврате на вкладку (visibilitychange → visible)
+  // и сразу после монтирования компонента.
+  useEffect(() => {
+    const lastInteractionRef = { current: Date.now() };
+    const markInteraction = () => { lastInteractionRef.current = Date.now(); };
+    const INACTIVITY_MS = 5 * 60 * 1000;
+
+    const getCurrentPage = (): string => {
+      try {
+        // Используем path + хеш (если есть), но без query — для приватности.
+        return window.location.pathname + window.location.hash;
+      } catch {
+        return "";
+      }
+    };
+
+    const ping = async () => {
+      // Не шлём, если давно не было активности И вкладка скрыта — экономим
+      // запросы для свёрнутой неактивной вкладки.
+      const idleMs = Date.now() - lastInteractionRef.current;
+      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+      if (hidden && idleMs > INACTIVITY_MS) return;
+
+      try {
+        await fetch("/api/auth/heartbeat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: authData.token,
+            currentPage: getCurrentPage(),
+          }),
+          keepalive: true, // позволяет завершить ping даже при закрытии вкладки
+        });
+      } catch {
+        /* network errors silently swallowed — heartbeat best-effort */
+      }
+    };
+
+    // Стартовый ping сразу
+    ping();
+
+    const interval = setInterval(ping, 60_000);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        markInteraction();
+        ping();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    // Любая активность пользователя — продлевает "присутствие"
+    window.addEventListener("mousemove", markInteraction, { passive: true });
+    window.addEventListener("keydown", markInteraction, { passive: true });
+    window.addEventListener("scroll", markInteraction, { passive: true });
+    window.addEventListener("touchstart", markInteraction, { passive: true });
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("mousemove", markInteraction);
+      window.removeEventListener("keydown", markInteraction);
+      window.removeEventListener("scroll", markInteraction);
+      window.removeEventListener("touchstart", markInteraction);
+    };
+  }, [authData.token]);
+
   /* Focus editing cell */
   useEffect(() => {
     if (editingCell && editRef.current) {
@@ -1516,10 +1632,46 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     [domains, activeDomainId]
   );
 
-  /* ---- Permission helpers ---- */
+  /* ---- Permission helpers ──────────────────────────────────────────
+   *
+   * Два уровня прав:
+   *   1) rolePermissions — пришедшие из Role.permissions JSON. Базовая роль.
+   *      Поля: canViewTasks, canEditTasks, canDeleteTasks, canEditBacklog,
+   *      canDeleteBacklog, canViewQuestions, canEditQuestions, canUseAI,
+   *      visibleDomains ("all" | JSON-массив id).
+   *   2) perms — UserPermission, индивидуальные оверрайды для конкретного
+   *      юзера. Поля: visibleTabs, visibleDomainIds, canEdit, canSeeQuestions.
+   *
+   * Админ всегда имеет полный доступ.
+   * Если у юзера нет ни одного источника прав — даём базовые "view + edit"
+   * (legacy поведение).
+   * ──────────────────────────────────────────────────────────────────── */
   const isAdmin = authData.user.role === "admin";
   const perms = authData.permissions;
-  const canEdit = isAdmin || !perms || perms.canEdit;
+  const rolePerms = authData.rolePermissions;
+
+  // canEdit = есть ли вообще право что-то менять.
+  // Сначала смотрим индивидуальный override (perms.canEdit) — если задан, он рулит.
+  // Иначе берём rolePermissions.canEditTasks как базу.
+  // Если ничего не задано — true (legacy: чтобы старые юзеры не лочились).
+  const canEdit = useMemo(() => {
+    if (isAdmin) return true;
+    if (perms) return perms.canEdit;
+    if (rolePerms && typeof rolePerms.canEditTasks === "boolean") return rolePerms.canEditTasks;
+    return true;
+  }, [isAdmin, perms, rolePerms]);
+
+  // Гранулярные права от роли (для подсказок и точечных кнопок типа "Удалить задачу").
+  const canDeleteTasks = isAdmin || rolePerms?.canDeleteTasks !== false;
+  const canEditBacklog = isAdmin || (rolePerms?.canEditBacklog ?? canEdit);
+  const canDeleteBacklog = isAdmin || rolePerms?.canDeleteBacklog !== false;
+  const canCreatePresentations = isAdmin || rolePerms?.canCreatePresentations !== false;
+  const canUseAI = isAdmin || rolePerms?.canUseAI !== false;
+  void canDeleteTasks; void canEditBacklog; void canDeleteBacklog;
+  void canCreatePresentations; void canUseAI;
+  // ↑ Эти константы пока зарезервированы — UI ими пользуется в местах,
+  //   которые добавим в следующих итерациях. Не удаляй случайно: они дают
+  //   точечный контроль доступа без переписывания всего page.tsx.
 
   const allowedTabs = useMemo(() => {
     if (isAdmin) return null; // Admin sees all
@@ -1529,15 +1681,26 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   }, [isAdmin, perms]);
 
   const allowedDomainIds = useMemo(() => {
-    if (isAdmin) return null; // Admin sees all
-    if (!perms || !perms.visibleDomainIds || perms.visibleDomainIds === "[]") return null;
-    try {
-      const list: string[] = JSON.parse(perms.visibleDomainIds);
-      return list.length > 0 ? new Set(list) : null;
-    } catch {
-      return null;
+    if (isAdmin) return null;
+
+    // Источник 1: UserPermission.visibleDomainIds (legacy override)
+    if (perms && perms.visibleDomainIds && perms.visibleDomainIds !== "[]") {
+      try {
+        const list: string[] = JSON.parse(perms.visibleDomainIds);
+        return list.length > 0 ? new Set(list) : null;
+      } catch { /* fall through */ }
     }
-  }, [isAdmin, perms]);
+
+    // Источник 2: rolePermissions.visibleDomains ("all" | JSON-массив)
+    if (rolePerms && typeof rolePerms.visibleDomains === "string" && rolePerms.visibleDomains !== "all") {
+      try {
+        const list: string[] = JSON.parse(rolePerms.visibleDomains);
+        if (Array.isArray(list) && list.length > 0) return new Set(list);
+      } catch { /* "all" or invalid → no restriction */ }
+    }
+
+    return null;
+  }, [isAdmin, perms, rolePerms]);
 
   // Filter domains based on permissions
   const visibleDomains = useMemo(() => {
@@ -1555,8 +1718,14 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     }
   }, [allowedDomainIds, activeDomainId, visibleDomains, storeSetActiveDomain]);
 
-  // Check if questions tab should be hidden
-  const canSeeQuestions = isAdmin || !perms || perms.canSeeQuestions;
+  // Check if questions tab should be hidden.
+  // Приоритет: UserPermission.canSeeQuestions → rolePermissions.canViewQuestions → true.
+  const canSeeQuestions = useMemo(() => {
+    if (isAdmin) return true;
+    if (perms && typeof perms.canSeeQuestions === "boolean") return perms.canSeeQuestions;
+    if (rolePerms && typeof rolePerms.canViewQuestions === "boolean") return rolePerms.canViewQuestions;
+    return true;
+  }, [isAdmin, perms, rolePerms]);
 
   const totalFactMap = useMemo(
     () => buildTotalFactMap(allData, currentMonth),

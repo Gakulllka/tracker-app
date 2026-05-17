@@ -6,7 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Loader2, User, Eye, EyeOff, ArrowRight, Sparkles } from "lucide-react";
 
 interface AuthScreenProps {
-  onAuth: (data: { token: string; workspaceId: string; user: { id: string; username: string; displayName: string; role: string } }) => void;
+  onAuth: (data: {
+    token: string;
+    workspaceId: string;
+    user: { id: string; username: string; displayName: string; role: string; roleName?: string };
+    permissions?: unknown;
+    rolePermissions?: unknown;
+  }) => void;
 }
 
 export default function AuthScreen({ onAuth }: AuthScreenProps) {
@@ -55,10 +61,31 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
       // Also store in cookie so middleware can protect /admin without localStorage
       document.cookie = `auth_token=${encodeURIComponent(data.token)}; path=/; max-age=2592000; SameSite=Lax`;
 
+      // Подтянем permissions + rolePermissions сразу — иначе UI начнёт работать
+      // в режиме "у юзера нет прав", потом при первом /me они докатятся.
+      // Делаем не блокирующим: если /me провалится — выдадим базовые данные,
+      // /me потом ещё раз дёрнется при mount AppWithAuth.
+      let permissions: unknown = null;
+      let rolePermissions: unknown = null;
+      try {
+        const meRes = await fetch(`/api/auth/me?token=${encodeURIComponent(data.token)}`);
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.success) {
+            permissions = meData.permissions ?? null;
+            rolePermissions = meData.rolePermissions ?? null;
+            localStorage.setItem("auth_permissions", JSON.stringify(permissions));
+            localStorage.setItem("auth_role_permissions", JSON.stringify(rolePermissions));
+          }
+        }
+      } catch { /* ignore — /me будет повторно вызван в AppWithAuth */ }
+
       onAuth({
         token: data.token,
         workspaceId: data.workspaceId,
         user: data.user,
+        permissions,
+        rolePermissions,
       });
     } catch {
       setError("Ошибка подключения к серверу");
