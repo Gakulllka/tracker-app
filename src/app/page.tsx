@@ -1166,26 +1166,70 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     const updatedIds = new Set(updatedTasks.map((t) => t.id));
     const now = Date.now();
 
-    // Apply updates to existing rows; bump _ts so server-sync видит изменение.
-    const mergedRows = (allData[currentMonth] || []).map((row) => {
-      if (!updatedIds.has(row.id)) return row;
-      const updated = updatedTasks.find((t) => t.id === row.id);
-      return updated ? { ...row, ...updated, _ts: now } : row;
-    });
+    // Карта tombstone'ов текущего месяца — задач с _deleted=true.
+    // Если из файла приходит "новая" задача с тем же номером, мы оживляем
+    // tombstone вместо создания дубликата. Иначе в allData[месяц] появятся
+    // две записи с одним и тем же num, что собьёт серверную синхронизацию.
+    const monthRows = allData[currentMonth] || [];
+    const tombstonesByNum = new Map<string, Task>();
+    for (const r of monthRows) {
+      if (r._deleted && r.num) {
+        tombstonesByNum.set(r.num.trim(), r);
+      }
+    }
 
-    // Append new tasks (типизированные, без any и без мёртвого префикса _nonum_).
-    const newTaskObjs: Task[] = newTasks.map((imp) => ({
-      id: crypto.randomUUID(),
-      num: imp.num || "",
-      name: imp.name || "",
-      planH: imp.planH || "",
-      factH: imp.factH || "",
-      priority: imp.priority,
-      status: imp.status,
-      comment: imp.comment || "",
-      commentLog: [],
-      _ts: now,
-    }));
+    const reviveIds = new Set<string>();
+    const newTaskObjs: Task[] = [];
+    for (const imp of newTasks) {
+      const trimmedNum = (imp.num || "").trim();
+      const tomb = trimmedNum ? tombstonesByNum.get(trimmedNum) : undefined;
+      if (tomb) {
+        // Оживляем: id и commentLog сохраняем (история не теряется),
+        // содержимое перезаписываем импортируемым.
+        reviveIds.add(tomb.id);
+      } else {
+        // Действительно новая задача.
+        newTaskObjs.push({
+          id: crypto.randomUUID(),
+          num: imp.num || "",
+          name: imp.name || "",
+          planH: imp.planH || "",
+          factH: imp.factH || "",
+          priority: imp.priority,
+          status: imp.status,
+          comment: imp.comment || "",
+          commentLog: [],
+          _ts: now,
+        });
+      }
+    }
+
+    // Один проход по месяцу: обновления, оживления, остальное — как было.
+    const mergedRows: Task[] = monthRows.map((row) => {
+      if (updatedIds.has(row.id)) {
+        const updated = updatedTasks.find((t) => t.id === row.id);
+        return updated ? { ...row, ...updated, _ts: now } : row;
+      }
+      if (reviveIds.has(row.id)) {
+        const trimmedNum = (row.num || "").trim();
+        const imp = newTasks.find((n) => (n.num || "").trim() === trimmedNum);
+        if (imp) {
+          return {
+            ...row,
+            num: imp.num,
+            name: imp.name,
+            planH: imp.planH,
+            factH: imp.factH,
+            priority: imp.priority,
+            status: imp.status,
+            comment: imp.comment,
+            _deleted: false,
+            _ts: now,
+          };
+        }
+      }
+      return row;
+    });
 
     storeSetAllData({ ...allData, [currentMonth]: [...mergedRows, ...newTaskObjs] });
 
@@ -1193,8 +1237,11 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     setPendingXlsxFile(null);
 
     // Понятное резюме без «синхронизация», ближе к языку трекера.
+    const revivedCount = reviveIds.size;
+    const trulyNewCount = newTaskObjs.length;
     const parts: string[] = [];
-    if (newTasks.length) parts.push(`добавлено ${newTasks.length}`);
+    if (trulyNewCount) parts.push(`добавлено ${trulyNewCount}`);
+    if (revivedCount) parts.push(`восстановлено ${revivedCount}`);
     if (updatedTasks.length) parts.push(`обновлено ${updatedTasks.length}`);
     toast({
       title: "📥 Импорт применён",

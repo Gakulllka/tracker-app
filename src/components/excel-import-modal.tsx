@@ -287,6 +287,11 @@ async function parseFile(file: File): Promise<ParseResult> {
 function buildDiff(currentTasks: Task[], imported: ParsedRow[]): DiffRow[] {
   const byNum = new Map<string, Task>();
   for (const t of currentTasks) {
+    // Пропускаем soft-delete tombstones — это удалённые задачи, которые
+    // остаются в allData для серверной синхронизации, но в UI не видны.
+    // Без этого фильтра импорт ошибочно считал бы их "текущими задачами"
+    // и помечал бы заново загружаемые номера как "БЕЗ ИЗМЕНЕНИЙ".
+    if (t._deleted) continue;
     const n = trimStr(t.num);
     if (n) byNum.set(n, t);
   }
@@ -994,7 +999,7 @@ export function ExcelImportModal({
       rows.map((r) => r.imported.num).filter((n) => n),
     );
     const untouched = currentMonthTasks.filter(
-      (t) => t.num && !importedNums.has(t.num),
+      (t) => !t._deleted && t.num && !importedNums.has(t.num),
     ).length;
     return {
       total: rows.length,
