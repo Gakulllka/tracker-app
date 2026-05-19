@@ -159,13 +159,21 @@
 /*  Loading Screen Animations                                        */
 /* ================================================================ */
 
-/* Floating background circles */
+/* Floating background particles — адаптированы под светлую и тёмную тему */
 .loader-circle {
   position: absolute;
   border-radius: 50%;
-  opacity: 0.06;
-  background: #9B72CF;
   animation: loader-float 8s ease-in-out infinite;
+}
+/* Светлый фон */
+.loader-bg-light .loader-circle {
+  opacity: 0.07;
+  background: #7c3aed;
+}
+/* Тёмный фон */
+.loader-bg-dark .loader-circle {
+  opacity: 0.12;
+  background: #a78bfa;
 }
 .loader-circle-1 {
   width: 500px;
@@ -199,52 +207,62 @@
   75% { transform: translate(15px, 10px) scale(1.03); }
 }
 
-/* Logo ring pulse */
-.loader-logo-ring {
-  position: absolute;
-  inset: -10px;
-  border-radius: 0.5rem;
-  border: 2px solid rgba(155, 114, 207, 0.3);
-  animation: loader-ring-pulse 2.4s ease-in-out infinite;
-}
-
-@keyframes loader-ring-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.08); opacity: 0.3; }
-}
-
-/* ЕМК Logo box — industrial geometric style */
-.loader-logo-box {
+/* ── Delta SVG logo — пульсирующий треугольник ── */
+.loader-delta-wrap {
+  position: relative;
+  width: 88px;
+  height: 88px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 5.5rem;
-  height: 5.5rem;
-  background: #ffffff;
-  border-radius: 0.625rem;
-  box-shadow:
-    0 4px 20px rgba(155, 114, 207, 0.2),
-    0 1px 4px rgba(0, 0, 0, 0.06);
-  position: relative;
-  overflow: hidden;
-  transition: background 0.4s, box-shadow 0.4s;
-}
-.loader-logo-box--dark {
-  background: #1a1a1a;
-  box-shadow:
-    0 4px 20px rgba(155, 114, 207, 0.35),
-    0 1px 4px rgba(0, 0, 0, 0.35);
 }
 
-.loader-logo-text {
-  font-family: "Inter", "Segoe UI", "Arial Black", "Impact", sans-serif;
-  font-size: 2rem;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  color: #9B72CF;
-  text-shadow: 0 1px 2px rgba(155, 114, 207, 0.2);
-  line-height: 1;
-  position: relative;
+/* Внешний орбитальный ринг */
+.loader-delta-ring {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(167, 139, 250, 0.35);
+  animation: loader-ring-spin 6s linear infinite;
+}
+.loader-delta-ring::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #a78bfa;
+  box-shadow: 0 0 8px 2px rgba(167,139,250,0.6);
+}
+
+@keyframes loader-ring-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Второй ринг — обратное вращение */
+.loader-delta-ring2 {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px dashed rgba(167, 139, 250, 0.2);
+  animation: loader-ring-spin 10s linear infinite reverse;
+}
+
+/* SVG-логотип Delta */
+.loader-delta-svg {
+  width: 64px;
+  height: 64px;
+  animation: loader-delta-pulse 2.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 12px rgba(124, 58, 237, 0.45));
+}
+
+@keyframes loader-delta-pulse {
+  0%, 100% { transform: scale(1);    filter: drop-shadow(0 0 10px rgba(124,58,237,0.4)); }
+  50%       { transform: scale(1.06); filter: drop-shadow(0 0 20px rgba(167,139,250,0.7)); }
 }
 
 /* Shimmer progress bar */
@@ -255,7 +273,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    #9B72CF 30%,
+    #a78bfa 30%,
     #c084fc 50%,
     transparent 100%
   );
@@ -263,7 +281,7 @@
 }
 
 @keyframes loader-shimmer {
-  0% { transform: translateX(-100%); }
+  0%   { transform: translateX(-100%); }
   100% { transform: translateX(200%); }
 }
 
@@ -409,11 +427,6 @@ body {
 /* Pastel scrollbar */
 ::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--tracker-border, #ccc) 70%, var(--tracker-accent, #9B72CF) 30%);
-}
-
-/* Loader ring pastel */
-.loader-logo-ring {
-  border-color: color-mix(in srgb, var(--tracker-accent, #9B72CF) 40%, transparent);
 }
 
 /* Card hover glow */

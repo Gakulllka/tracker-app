@@ -42,6 +42,29 @@ export interface Task {
   comment: string;
   commentLog: CommentEntry[];
   _hidden?: boolean;
+
+  // ── Delta fields (Монитор БА + Монитор Руководителя) ──────────────────────
+  /** Общий запрошенный бюджет задачи в часах (может быть > лимита месяца). */
+  totalBudgetRequested?: number;
+  /** Часы, зарезервированные в ТЕКУЩЕМ месяце (считается через ролловер). */
+  budgetAllocated?: number;
+  /** Остаток бюджета для переноса в следующие месяцы. */
+  budgetRollover?: number;
+  /** Задача первая на отсечение при нехватке бюджета. */
+  isFirstToCut?: boolean;
+  /** Флаг от руководителя: "escalate" | "pause" | "cancel" | "request_status". */
+  executiveFlag?: "escalate" | "pause" | "cancel" | "request_status";
+  /**
+   * Статус подтверждения БА:
+   * "approved"  — подтверждено (дефолт для существующих задач)
+   * "pending"   — руководитель хочет взять задачу, БА ещё не подтвердил
+   * "rejected"  — БА отклонил
+   */
+  approvalStatus?: "approved" | "pending" | "rejected";
+  /** Количество дней в текущем статусе (обновляется клиентом). */
+  daysInStatus?: number;
+  /** Дата последней смены статуса (ISO-строка, для расчёта daysInStatus). */
+  statusChangedAt?: string;
 }
 
 export interface CommentEntry {

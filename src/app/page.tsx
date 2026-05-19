@@ -157,6 +157,9 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import AuthScreen from "@/components/auth-screen";
+import { BudgetSignalsSheet } from "@/components/budget-signals-sheet";
+import { DashboardDelta } from "@/components/dashboard-delta";
+import { calcMonthBudgetUsed } from "@/lib/metrics";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -629,8 +632,8 @@ function ThemePreview({ hex, isDark }: { hex: string; isDark: boolean }) {
     >
       {/* Mini header */}
       <div className="flex items-center gap-2 px-3 py-2" style={{ background: "var(--p-card)", borderBottom: "1px solid var(--p-border)" }}>
-        <span style={{ color: "var(--p-accent)", opacity: 0.7, fontWeight: 700 }}>✦</span>
-        <span style={{ color: "var(--p-text)", fontWeight: 600 }}>Трекер задач</span>
+        <span style={{ color: "var(--p-accent)", opacity: 0.7, fontWeight: 700 }}>△</span>
+        <span style={{ color: "var(--p-text)", fontWeight: 600 }}>Delta</span>
         <div className="ml-auto flex items-center gap-1">
           <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
           <span style={{ color: "var(--p-muted)" }}>онлайн</span>
@@ -1151,6 +1154,10 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   const [editingCell, setEditingCell] = useState<EditingCell | null>(
     null
   );
+
+  // ── Delta: Budget & Signals Sheet ────────────────────────────────────────
+  const [budgetSheetTask, setBudgetSheetTask] = useState<{ task: Task; month: number } | null>(null);
+
   const [questions, setQuestions] = useState<Question[]>([]);
   const [newQuestionText, setNewQuestionText] = useState("");
   const [newQuestionAuthor, setNewQuestionAuthor] = useState("");
@@ -1941,6 +1948,10 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       statusCounts, priorityCounts, atRisk,
       monthlyFact, monthlyPlan, monthlyTotal, monthlyCompleted,
       topTasks,
+      // Delta: суммарный budgetAllocated по месяцам
+      monthlyAllocated: Array.from({ length: 12 }, (_, i) =>
+        calcMonthBudgetUsed((allData[i] || []).filter(r => !r._deleted))
+      ),
     };
   }, [allData, currentMonth]);
 
@@ -2504,8 +2515,12 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     <>
     {/* ---- LOADING SCREEN ---- */}
     <div
-      className={`fixed inset-0 z-[100] flex flex-col items-center justify-center transition-all duration-700 ${isInitialLoading ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-      style={{ background: "linear-gradient(135deg, #f3f0ff 0%, #fce4f4 40%, #e8f4fd 100%)" }}
+      className={`fixed inset-0 z-[100] flex flex-col items-center justify-center transition-all duration-700 ${isInitialLoading ? "opacity-100" : "opacity-0 pointer-events-none"} ${customDark ? "loader-bg-dark" : "loader-bg-light"}`}
+      style={
+        customDark
+          ? { background: "linear-gradient(135deg, #0d0d1a 0%, #12091f 50%, #0a0f1e 100%)" }
+          : { background: "linear-gradient(135deg, #f3f0ff 0%, #fce4f4 40%, #e8f4fd 100%)" }
+      }
     >
       {/* Animated background circles */}
       <div className="absolute inset-0 overflow-hidden">
@@ -2516,22 +2531,39 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
       {/* Content */}
       <div className={`relative z-10 flex flex-col items-center gap-6 transition-all duration-500 ${isInitialLoading ? "scale-100 translate-y-0" : "scale-95 -translate-y-4"}`}>
-        {/* Logo */}
-        <div className="relative">
-          <div className="loader-logo-ring" />
-          <div className={`loader-logo-box ${customDark ? "loader-logo-box--dark" : ""}`}>
-            <span className="loader-logo-text">ЕМК</span>
-          </div>
+        {/* Delta Logo */}
+        <div className="loader-delta-wrap">
+          <div className="loader-delta-ring" />
+          <div className="loader-delta-ring2" />
+          {/* Inline SVG для гарантированного рендера */}
+          <svg className="loader-delta-svg" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="ldg" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#c4b5fd"/>
+                <stop offset="100%" stopColor="#7c3aed"/>
+              </linearGradient>
+            </defs>
+            <polygon points="16,3 30.5,29 1.5,29" fill="url(#ldg)"/>
+            <polygon points="16,11.5 25,27.5 7,27.5" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.4"/>
+            <circle cx="16" cy="3" r="2.2" fill="white" opacity="0.3"/>
+          </svg>
         </div>
 
         {/* Title */}
         <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--tracker-text-main, #1a1a1a)" }}>Трекер задач</h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--tracker-text-muted, #888)" }}>Загрузка данных...</p>
+          <h1
+            className="text-2xl font-bold tracking-tight"
+            style={{ color: customDark ? "#ede9fe" : "#3d2264" }}
+          >
+            Delta
+          </h1>
+          <p className="mt-1 text-sm" style={{ color: customDark ? "rgba(196,181,253,0.6)" : "#7c6fa0" }}>
+            Загрузка данных...
+          </p>
         </div>
 
         {/* Shimmer bar */}
-        <div className="h-1 w-48 overflow-hidden rounded-full" style={{ background: "var(--tracker-border, #ddd)" }}>
+        <div className="h-1 w-48 overflow-hidden rounded-full" style={{ background: customDark ? "rgba(167,139,250,0.15)" : "rgba(155,114,207,0.15)" }}>
           <div className="loader-shimmer-bar" />
         </div>
       </div>
@@ -2563,8 +2595,18 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       <header className="sticky top-0 z-30 backdrop-blur-md supports-[backdrop-filter]:bg-[var(--tracker-bg-card)]/90 bg-[var(--tracker-bg-card)]" style={{ borderBottom: "1px solid var(--tracker-border)", boxShadow: "0 1px 0 0 var(--tracker-border)" }}>
         <div className="flex h-12 md:h-14 items-center justify-between px-3 md:px-4 gap-2 md:gap-3">
           <h1 className="text-base md:text-xl font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5 md:gap-2">
-            <span style={{ color: "var(--tracker-accent)", opacity: 0.6 }}>✦</span>
-            <span style={{ color: "var(--tracker-text-main)" }}>Трекер задач</span>
+            {/* Delta triangle logo */}
+            <svg width="20" height="20" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+              <defs>
+                <linearGradient id="hdg" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="var(--tracker-accent, #a78bfa)"/>
+                  <stop offset="100%" stopColor="#7c3aed"/>
+                </linearGradient>
+              </defs>
+              <polygon points="16,3 30.5,29 1.5,29" fill="url(#hdg)"/>
+              <polygon points="16,11.5 25,27.5 7,27.5" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5"/>
+            </svg>
+            <span style={{ color: "var(--tracker-text-main)" }}>Delta</span>
           </h1>
 
           {/* Sync status */}
@@ -2880,6 +2922,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             onExportPDF={handleExportPDF}
             onImportJSON={() => fileInputRef.current?.click()}
             onImportXLSX={() => setIsImportOpen(true)}
+            onOpenBudgetSheet={(task, month) => setBudgetSheetTask({ task, month })}
           />
         )}
 
@@ -2896,14 +2939,20 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         )}
 
         {view === "dashboard" && (
-          <DashboardView
-            data={dashboardData}
-            monthPlan={monthlyPlan}
-            onSetMonthPlan={(h) => setMonthlyPlan(currentMonthKey, h)}
+          <DashboardDelta
+            tasks={(allData[currentMonth] || []).filter(t => !t._deleted)}
+            backlogTasks={backlog}
+            monthCapacity={monthlyPlan > 0 ? monthlyPlan : 240}
+            monthlyFact={dashboardData.monthlyFact}
+            monthlyAllocated={dashboardData.monthlyAllocated}
             currentMonth={currentMonth}
             currentYear={currentYear}
-            backlogCount={(backlog || []).length}
             isDark={customDark}
+            onUpdateTask={(taskId, updates) => {
+              Object.entries(updates).forEach(([k, v]) => {
+                updateTask(currentMonth, taskId, k as keyof Task, v);
+              });
+            }}
           />
         )}
 
@@ -3532,6 +3581,30 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         </DialogContent>
       </Dialog>
     </div>
+
+      {/* ── Delta: BudgetSignalsSheet ── */}
+      {budgetSheetTask && (
+        <BudgetSignalsSheet
+          open={!!budgetSheetTask}
+          onOpenChange={(o) => { if (!o) setBudgetSheetTask(null); }}
+          task={budgetSheetTask.task}
+          usedHoursInMonth={calcMonthBudgetUsed(
+            (allData[budgetSheetTask.month] || []).filter(t => !t._deleted)
+          )}
+          monthCapacity={monthlyPlan > 0 ? monthlyPlan : 240}
+          onSave={(updates) => {
+            Object.entries(updates).forEach(([k, v]) => {
+              updateTask(budgetSheetTask.month, budgetSheetTask.task.id, k as keyof Task, v);
+            });
+            // Обновляем локальную ссылку на задачу, чтобы Sheet отобразил свежие данные
+            const freshTask = (allData[budgetSheetTask.month] || []).find(
+              t => t.id === budgetSheetTask.task.id
+            );
+            if (freshTask) setBudgetSheetTask({ task: freshTask, month: budgetSheetTask.month });
+          }}
+        />
+      )}
+
       <ExcelImportModal
         isOpen={isImportOpen}
         onClose={() => {
@@ -3620,6 +3693,8 @@ interface TableViewProps {
   onExportPDF: () => void;
   onImportJSON: () => void;
   onImportXLSX: () => void;
+  /** Delta: открыть Sheet бюджета и сигналов для задачи */
+  onOpenBudgetSheet?: (task: Task, month: number) => void;
 }
 
 function TableView({
@@ -3670,6 +3745,7 @@ function TableView({
   onExportPDF,
   onImportJSON,
   onImportXLSX,
+  onOpenBudgetSheet,
 }: TableViewProps) {
   /* ---- Drag & Drop state ---- */
   const [dragRowId, setDragRowId] = useState<string | null>(null);
@@ -4501,6 +4577,18 @@ function TableView({
                           ) : (
                             <Eye className="size-3.5" />
                           )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenBudgetSheet?.(task, month);
+                          }}
+                          title="Бюджет и сигналы"
+                        >
+                          <span className="text-sm">💰</span>
                         </Button>
                         <Button
                           variant="ghost"

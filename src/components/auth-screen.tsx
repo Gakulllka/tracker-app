@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, User, Eye, EyeOff, ArrowRight, Sparkles } from "lucide-react";
+import { Loader2, User, Eye, EyeOff, ArrowRight } from "lucide-react";
 
 interface AuthScreenProps {
   onAuth: (data: {
@@ -169,11 +169,15 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
           <div
             className="w-[60px] h-[60px] flex items-center justify-center rounded-2xl mb-4 relative"
             style={{
-              background: "linear-gradient(135deg, #a78bfa 0%, #c084fc 100%)",
-              boxShadow: "0 8px 24px rgba(167,139,250,0.35), 0 2px 6px rgba(167,139,250,0.2)",
+              background: "linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%)",
+              boxShadow: "0 8px 24px rgba(124,58,237,0.35), 0 2px 6px rgba(124,58,237,0.2)",
             }}
           >
-            <Sparkles className="w-7 h-7 text-white" />
+            {/* Delta triangle */}
+            <svg width="30" height="30" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="16,3 30.5,29 1.5,29" fill="white" opacity="0.95"/>
+              <polygon points="16,11.5 25,27.5 7,27.5" fill="none" stroke="rgba(124,58,237,0.6)" strokeWidth="1.8"/>
+            </svg>
           </div>
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#3d2f6e" }}>
             {mode === "login" ? "С возвращением 👋" : "Создание аккаунта"}

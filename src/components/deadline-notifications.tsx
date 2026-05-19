@@ -47,7 +47,7 @@ export function NotificationProvider({ tasks, children }: { tasks: Task[]; child
   const [readIds, setReadIds] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set();
     try {
-      const saved = localStorage.getItem('emk-read-notifications');
+      const saved = localStorage.getItem('delta-read-notifications');
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch { return new Set(); }
   });
@@ -55,7 +55,7 @@ export function NotificationProvider({ tasks, children }: { tasks: Task[]; child
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set();
     try {
-      const saved = localStorage.getItem('emk-dismissed-notifications');
+      const saved = localStorage.getItem('delta-dismissed-notifications');
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch { return new Set(); }
   });
@@ -153,11 +153,11 @@ export function NotificationProvider({ tasks, children }: { tasks: Task[]; child
   }, [tasks, readIds, dismissedIds]);
 
   useEffect(() => {
-    localStorage.setItem('emk-read-notifications', JSON.stringify([...readIds]));
+    localStorage.setItem('delta-read-notifications', JSON.stringify([...readIds]));
   }, [readIds]);
 
   useEffect(() => {
-    localStorage.setItem('emk-dismissed-notifications', JSON.stringify([...dismissedIds]));
+    localStorage.setItem('delta-dismissed-notifications', JSON.stringify([...dismissedIds]));
   }, [dismissedIds]);
 
   const unreadCount = notifications.filter(n => !n.read).length;

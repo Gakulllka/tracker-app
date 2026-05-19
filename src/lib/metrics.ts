@@ -252,3 +252,90 @@ export function processCommentFormulas(
   nc = nc ? nc + "\n" + tag : tag;
   return { comment: nc, planH: np, factH: nf };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Delta: Ролловер бюджета
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Лимит часов в месяце по умолчанию (240ч). */
+export const MONTH_CAPACITY = 240;
+
+/**
+ * Рассчитывает budgetAllocated для текущего месяца с учётом ролловера.
+ *
+ * @param totalBudgetRequested — сколько часов нужно для задачи всего
+ * @param usedHours            — сколько часов УЖЕ зарезервировано другими задачами в этом месяце
+ * @param monthCapacity        — лимит месяца (дефолт 240)
+ * @returns { budgetAllocated, budgetRollover }
+ */
+export function calcRollover(
+  totalBudgetRequested: number,
+  usedHours: number,
+  monthCapacity: number = MONTH_CAPACITY,
+): { budgetAllocated: number; budgetRollover: number } {
+  const freeHours = Math.max(0, monthCapacity - usedHours);
+  const budgetAllocated = Math.min(totalBudgetRequested, freeHours);
+  const budgetRollover = Math.max(0, totalBudgetRequested - budgetAllocated);
+  return { budgetAllocated: R2(budgetAllocated), budgetRollover: R2(budgetRollover) };
+}
+
+/**
+ * Считает суммарные budgetAllocated по всем задачам месяца,
+ * исключая отклонённые (approvalStatus === "rejected") и удалённые.
+ */
+export function calcMonthBudgetUsed(tasks: Task[]): number {
+  return R2(
+    tasks
+      .filter((t) => !t._deleted && t.approvalStatus !== "rejected")
+      .reduce((sum, t) => sum + (t.budgetAllocated ?? 0), 0),
+  );
+}
+
+/**
+ * Индикатор здоровья команды (0–100).
+ * Падает если factH > monthCapacity или есть блокеры.
+ */
+export function calcHealthScore(
+  tasks: Task[],
+  monthCapacity: number = MONTH_CAPACITY,
+): number {
+  const alive = tasks.filter((t) => !t._deleted && t.approvalStatus !== "rejected");
+  if (alive.length === 0) return 100;
+
+  const totalFact = alive.reduce((s, t) => s + evalExpr(t.factH), 0);
+  const totalAllocated = alive.reduce((s, t) => s + (t.budgetAllocated ?? 0), 0);
+  const blockers = alive.filter((t) => (t.status as string) === "Блокер").length;
+
+  let score = 100;
+  // Перегрев факта
+  if (monthCapacity > 0) {
+    const overload = Math.max(0, totalFact - monthCapacity) / monthCapacity;
+    score -= Math.round(overload * 40);
+  }
+  // Перегрев аллокации
+  if (monthCapacity > 0 && totalAllocated > monthCapacity) {
+    score -= Math.round(((totalAllocated - monthCapacity) / monthCapacity) * 20);
+  }
+  // Блокеры
+  score -= blockers * 5;
+
+  return Math.max(0, Math.min(100, score));
+}
+
+/**
+ * Прогноз даты исчерпания бюджета.
+ * @param remainingHours — оставшиеся зарезервированные часы
+ * @param hoursPerDay    — скорость расходования (дефолт 12ч/день)
+ * @returns строка "dd.mm.yyyy" или null
+ */
+export function calcBudgetExhaustDate(
+  remainingHours: number,
+  hoursPerDay: number = 12,
+): string | null {
+  if (remainingHours <= 0 || hoursPerDay <= 0) return null;
+  const days = Math.ceil(remainingHours / hoursPerDay);
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+}

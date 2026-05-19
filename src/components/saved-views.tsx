@@ -63,7 +63,7 @@ export function useSavedViews(currentFilters: FilterState) {
   const [views, setViews] = useState<SavedView[]>(() => {
     if (typeof window === 'undefined') return PRESET_VIEWS;
     try {
-      const saved = localStorage.getItem('emk-saved-views');
+      const saved = localStorage.getItem('delta-saved-views');
       if (saved) {
         const parsed = JSON.parse(saved) as SavedView[];
         return [...PRESET_VIEWS, ...parsed.filter(v => !v.id.startsWith('preset-'))];
@@ -77,7 +77,7 @@ export function useSavedViews(currentFilters: FilterState) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const customViews = views.filter(v => !v.id.startsWith('preset-'));
-    localStorage.setItem('emk-saved-views', JSON.stringify(customViews));
+    localStorage.setItem('delta-saved-views', JSON.stringify(customViews));
   }, [views]);
 
   const saveCurrentView = useCallback((name: string, icon?: string, color?: string) => {
