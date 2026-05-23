@@ -226,40 +226,63 @@ export function PresentationBgLayer({ theme }: { theme: PresentationTheme }) {
   const [r, g, b] = rgb;
   const sz = bg.patternSize;
   const op = (bg.patternOpacity / 100).toFixed(2);
+  const lw = bg.patternLineThickness ?? 1; // толщина линий, px
   const pcol = `rgba(${r},${g},${b},${op})`;
 
   let patternStyle: React.CSSProperties = {};
   switch (bg.pattern) {
     case "grid":
       patternStyle = {
-        backgroundImage: `linear-gradient(${pcol} 1px,transparent 1px),linear-gradient(90deg,${pcol} 1px,transparent 1px)`,
+        backgroundImage: `linear-gradient(${pcol} ${lw}px, transparent ${lw}px), linear-gradient(90deg, ${pcol} ${lw}px, transparent ${lw}px)`,
         backgroundSize: `${sz}px ${sz}px`,
       };
       break;
-    case "diagonal":
+    case "diagonal": {
+      // Правильный бесшовный диагональный паттерн через SVG-тайл
+      const diag = encodeURIComponent(
+        `<svg width="${sz}" height="${sz}" xmlns="http://www.w3.org/2000/svg"><line x1="0" y1="${sz}" x2="${sz}" y2="0" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/><line x1="${-sz}" y1="${sz}" x2="0" y2="0" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/><line x1="${sz}" y1="${sz}" x2="${sz * 2}" y2="0" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/></svg>`
+      );
       patternStyle = {
-        backgroundImage: `repeating-linear-gradient(45deg,transparent,transparent ${sz / 2}px,${pcol} ${sz / 2}px,${pcol} ${sz / 2 + 1}px)`,
+        backgroundImage: `url("data:image/svg+xml,${diag}")`,
         backgroundSize: `${sz}px ${sz}px`,
       };
       break;
-    case "diamond":
+    }
+    case "diamond": {
+      // Бесшовный ромб — 45° + -45° диагонали
+      const half = sz / 2;
+      const dia = encodeURIComponent(
+        `<svg width="${sz}" height="${sz}" xmlns="http://www.w3.org/2000/svg"><line x1="0" y1="0" x2="${sz}" y2="${sz}" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/><line x1="${sz}" y1="0" x2="0" y2="${sz}" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/><line x1="${-half}" y1="0" x2="${half}" y2="${sz}" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/><line x1="${half}" y1="0" x2="${sz + half}" y2="${sz}" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/></svg>`
+      );
       patternStyle = {
-        backgroundImage: `repeating-linear-gradient(45deg,transparent,transparent ${sz / 2 - 1}px,${pcol} ${sz / 2 - 1}px,${pcol} ${sz / 2 + 1}px),repeating-linear-gradient(-45deg,transparent,transparent ${sz / 2 - 1}px,${pcol} ${sz / 2 - 1}px,${pcol} ${sz / 2 + 1}px)`,
+        backgroundImage: `url("data:image/svg+xml,${dia}")`,
         backgroundSize: `${sz}px ${sz}px`,
       };
       break;
-    case "waves":
+    }
+    case "waves": {
+      const wh = Math.round(sz / 2);
+      const mid = Math.round(wh / 2);
+      const waves = encodeURIComponent(
+        `<svg width="${sz}" height="${wh}" xmlns="http://www.w3.org/2000/svg"><path d="M0 ${mid} Q ${sz / 4} 0 ${sz / 2} ${mid} T ${sz} ${mid}" fill="none" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/></svg>`
+      );
       patternStyle = {
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz / 2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz / 4} Q ${sz / 4} 0 ${sz / 2} ${sz / 4} T ${sz} ${sz / 4}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E")`,
-        backgroundSize: `${sz}px ${sz / 2}px`,
+        backgroundImage: `url("data:image/svg+xml,${waves}")`,
+        backgroundSize: `${sz}px ${wh}px`,
       };
       break;
-    case "zigzag":
+    }
+    case "zigzag": {
+      const zh = Math.round(sz / 2);
+      const zz = encodeURIComponent(
+        `<svg width="${sz}" height="${zh}" xmlns="http://www.w3.org/2000/svg"><polyline points="0,${zh} ${sz / 4},0 ${sz / 2},${zh} ${sz * 3 / 4},0 ${sz},${zh}" fill="none" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}" stroke-linejoin="round"/></svg>`
+      );
       patternStyle = {
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz / 2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz / 2} ${sz / 4},0 ${sz / 2},${sz / 2} ${sz * 3 / 4},0 ${sz},${sz / 2}' fill='none' stroke='rgba(${r},${g},${b},${op})' stroke-width='1'/%3E%3C/svg%3E")`,
-        backgroundSize: `${sz}px ${sz / 2}px`,
+        backgroundImage: `url("data:image/svg+xml,${zz}")`,
+        backgroundSize: `${sz}px ${zh}px`,
       };
       break;
+    }
   }
 
   // Phase 5: режим анимации. По умолчанию drift (мягкий дрейф).

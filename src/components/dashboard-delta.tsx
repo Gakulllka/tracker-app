@@ -113,6 +113,194 @@ function BubbleTooltip({ active, payload }: { active?: boolean; payload?: Array<
   );
 }
 
+// ─── RiskMatrix ───────────────────────────────────────────────────────────────
+// Y = приоритет (1-5), X = каждый статус задачи (как во вкладке Задачи)
+
+const RISK_STATUSES: { value: string; label: string }[] = [
+  { value: "Идея",                       label: "Идея" },
+  { value: "Новая",                      label: "Новая" },
+  { value: "Анализ",                     label: "Анализ" },
+  { value: "Согласование",               label: "Согласование" },
+  { value: "В очереди на разработку",    label: "В очереди" },
+  { value: "Разработка",                 label: "Разработка" },
+  { value: "Тестирование",               label: "Тестирование" },
+  { value: "В релиз",                    label: "В релиз" },
+  { value: "Документация",               label: "Документация" },
+  { value: "Контроль на прод",           label: "Контроль" },
+  { value: "Выполненная",                label: "Выполнена" },
+  { value: "Завершенная",                label: "Завершена" },
+  { value: "Отложенная",                 label: "Отложена" },
+  { value: "Отменено",                   label: "Отменено" },
+];
+
+function getTaskRiskColor(task: Task): { color: string; dimmed: boolean } {
+  const { isAhead } = getBubbleColor(task);
+  if (isAhead) return { color: "#a3e635", dimmed: false };
+  const s = task.status as string;
+  const isDone = s === "Выполненная" || s === "Завершенная" || s === "Контроль на прод";
+  if (isDone) {
+    const fact = evalExpr(task.factH);
+    const plan = evalExpr(task.planH);
+    if (fact > plan && plan > 0) return { color: "#ef4444", dimmed: false };
+    return { color: "#15803d", dimmed: false };
+  }
+  const inWork = ["В очереди на разработку", "Разработка", "Тестирование", "В релиз", "Документация"];
+  if (inWork.includes(s)) return { color: "#f59e0b", dimmed: false };
+  return { color: "#94a3b8", dimmed: true };
+}
+
+interface RiskMatrixProps { tasks: Task[]; onTaskClick: (t: Task) => void; }
+
+function RiskMatrix({ tasks, onTaskClick }: RiskMatrixProps) {
+  const [tooltip, setTooltip] = useState<{ tasks: Task[]; x: number; y: number } | null>(null);
+
+  // ключ = `${priority}_${statusValue}`
+  const cells = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const t of tasks.filter(t => !t._deleted && !t._hidden)) {
+      const pNum = PRIORITY_NUM[t.priority] ?? 3;
+      const key = `${pNum}_${t.status as string}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(t);
+    }
+    return map;
+  }, [tasks]);
+
+  // Показываем только статусы, в которых есть хоть одна задача
+  const activeStatuses = useMemo(() =>
+    RISK_STATUSES.filter(s => [1,2,3,4,5].some(p => (cells.get(`${p}_${s.value}`) ?? []).length > 0)),
+  [cells]);
+
+  // Если задач нет вообще — показываем все статусы
+  const columns = activeStatuses.length > 0 ? activeStatuses : RISK_STATUSES;
+
+  return (
+    <div className="delta-risk-map overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+      <div style={{ minWidth: Math.max(480, columns.length * 72 + 36) }}>
+        {/* Заголовки колонок — статусы */}
+        <div style={{ display: "grid", gridTemplateColumns: `36px repeat(${columns.length}, minmax(64px, 1fr))`, gap: 3, marginBottom: 4 }}>
+          <div />
+          {columns.map(s => (
+            <div key={s.value} className="text-center px-0.5" style={{ minWidth: 0 }}>
+              <span className="text-[9px] font-semibold leading-tight block truncate"
+                style={{ color: "var(--tracker-text-muted)" }} title={s.value}>
+                {s.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Строки: приоритеты 1–5 */}
+        {[1, 2, 3, 4, 5].map(pNum => (
+          <div key={pNum} style={{ display: "grid", gridTemplateColumns: `36px repeat(${columns.length}, minmax(64px, 1fr))`, gap: 3, marginBottom: 3 }}>
+            {/* Метка приоритета */}
+            <div className="flex items-center justify-center">
+              <span className="text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>
+                {pNum}
+              </span>
+            </div>
+
+            {/* Ячейки */}
+            {columns.map(s => {
+              const ct = cells.get(`${pNum}_${s.value}`) ?? [];
+              const total = R2(ct.reduce((sum, t) => sum + evalExpr(t.planH), 0));
+              const isEmpty = ct.length === 0;
+              return (
+                <div key={s.value}
+                  className="rounded-lg relative transition-all"
+                  style={{
+                    minHeight: 52,
+                    background: isEmpty ? "transparent" : "var(--tracker-bg, var(--background))",
+                    border: isEmpty
+                      ? "1px dashed var(--tracker-border)"
+                      : "1px solid var(--tracker-border)",
+                    opacity: isEmpty ? 0.25 : 1,
+                    cursor: ct.length === 1 ? "pointer" : "default",
+                  }}
+                  onMouseEnter={e => {
+                    if (!ct.length) return;
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    setTooltip({ tasks: ct, x: rect.right, y: rect.top + rect.height / 2 });
+                  }}
+                  onMouseLeave={() => setTooltip(null)}
+                  onClick={() => ct.length === 1 && onTaskClick(ct[0])}
+                >
+                  {ct.length > 0 && (
+                    <>
+                      <div className="flex flex-wrap gap-0.5 items-center justify-center p-1" style={{ minHeight: 36 }}>
+                        {ct.slice(0, 9).map(t => {
+                          const { color, dimmed } = getTaskRiskColor(t);
+                          const r = Math.min(13, Math.max(5, Math.sqrt(evalExpr(t.planH)) * 1.4));
+                          return (
+                            <div key={t.id}
+                              className="rounded-full transition-transform hover:scale-110 shrink-0"
+                              style={{
+                                width: r * 2, height: r * 2,
+                                background: color,
+                                opacity: dimmed ? 0.4 : t.approvalStatus === "pending" ? 0.5 : 0.88,
+                                border: t.approvalStatus === "pending" ? `1.5px dashed ${color}` : undefined,
+                                boxShadow: color === "#a3e635" ? "0 0 5px rgba(163,230,53,0.7)" : undefined,
+                                cursor: "pointer",
+                              }}
+                              onClick={e => { e.stopPropagation(); onTaskClick(t); }}
+                            />
+                          );
+                        })}
+                        {ct.length > 9 && (
+                          <span className="text-[8px] font-bold" style={{ color: "var(--tracker-text-muted)" }}>+{ct.length - 9}</span>
+                        )}
+                      </div>
+                      {/* Итог в ячейке */}
+                      <div className="absolute bottom-0.5 right-1 text-[8px] tabular-nums font-medium leading-none"
+                        style={{ color: "var(--tracker-text-muted)" }}>
+                        {ct.length > 1 ? `${ct.length}·` : ""}{total}ч
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+
+        {/* Tooltip */}
+        {tooltip && (
+          <div className="fixed z-[200] rounded-xl shadow-xl px-3 py-2.5 text-xs pointer-events-none"
+            style={{
+              left: Math.min(tooltip.x + 8, window.innerWidth - 240),
+              top: tooltip.y,
+              background: "var(--tracker-bg-card, var(--card))",
+              border: "1px solid var(--tracker-border)",
+              maxWidth: 230,
+              transform: "translateY(-50%)",
+            }}>
+            {tooltip.tasks.slice(0, 8).map(t => {
+              const { color } = getTaskRiskColor(t);
+              return (
+                <div key={t.id} className="flex items-center gap-2 py-0.5">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                  <span className="truncate flex-1" style={{ color: "var(--tracker-text-main)" }}>
+                    {t.name || t.num || "—"}
+                  </span>
+                  <span className="tabular-nums shrink-0 font-medium" style={{ color: "var(--tracker-text-muted)" }}>
+                    {evalExpr(t.planH)}ч
+                  </span>
+                </div>
+              );
+            })}
+            {tooltip.tasks.length > 8 && (
+              <div className="text-[10px] pt-0.5" style={{ color: "var(--tracker-text-muted)" }}>
+                + ещё {tooltip.tasks.length - 8}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Основной компонент ───────────────────────────────────────────────────────
 
 export function DashboardDelta({
@@ -142,24 +330,22 @@ export function DashboardDelta({
 
   const budgetUsed = useMemo(() => calcMonthBudgetUsed(alive), [alive]);
   const budgetPct = monthCapacity > 0 ? R2((budgetUsed / monthCapacity) * 100) : 0;
+  // Перерасход = нетто: перерасход минус экономия (не могут быть одновременно)
   const overbooked = R2(Math.max(0, budgetUsed - monthCapacity));
 
   const gaugeColor = budgetPct > 100 ? "#ef4444" : budgetPct >= 80 ? "#f59e0b" : "#22c55e";
-  const gaugeLabel = budgetPct > 100 ? "🔴 Перебуккинг!" : budgetPct >= 80 ? "🟡 Желтая зона" : "🟢 Есть ресурс";
+  const gaugeLabel = budgetPct > 100 ? "🔴 Перерасход" : budgetPct >= 80 ? "🟡 Желтая зона" : "🟢 Есть ресурс";
   const gaugeLabelColor = budgetPct > 100 ? "#ef4444" : budgetPct >= 80 ? "#d97706" : "#16a34a";
 
   const totalFact = useMemo(() => R2(alive.reduce((s, t) => s + evalExpr(t.factH), 0)), [alive]);
-  const healthScore = useMemo(() => calcHealthScore(alive, monthCapacity), [alive, monthCapacity]);
 
   const pendingTasks = useMemo(() => alive.filter(t => t.approvalStatus === "pending"), [alive]);
-  const pendingHours = useMemo(() => R2(pendingTasks.reduce((s, t) => s + (t.budgetAllocated ?? 0), 0)), [pendingTasks]);
+  const pendingHours = useMemo(() => R2(pendingTasks.reduce((s, t) => s + (t.budgetAllocated ?? evalExpr(t.planH)), 0)), [pendingTasks]);
 
   const firstToCutTasks = useMemo(() => alive.filter(t => t.isFirstToCut && t.approvalStatus !== "rejected"), [alive]);
-  const firstToCutHours = useMemo(() => R2(firstToCutTasks.reduce((s, t) => s + (t.budgetAllocated ?? 0), 0)), [firstToCutTasks]);
+  const firstToCutHours = useMemo(() => R2(firstToCutTasks.reduce((s, t) => s + (t.budgetAllocated ?? evalExpr(t.planH)), 0)), [firstToCutTasks]);
 
-  // Ролловер в следующий месяц
-  const rolloverHours = useMemo(() =>
-    R2(alive.reduce((s, t) => s + (t.budgetRollover ?? 0), 0)), [alive]);
+  const rolloverHours = useMemo(() => R2(alive.reduce((s, t) => s + (t.budgetRollover ?? 0), 0)), [alive]);
 
   // Досрочно освобождённые (факт < бюджет у завершённых)
   const freedHours = useMemo(() => R2(
@@ -170,8 +356,22 @@ export function DashboardDelta({
     ).reduce((s, t) => s + R2((t.budgetAllocated ?? evalExpr(t.planH)) - evalExpr(t.factH)), 0)
   ), [alive]);
 
+  // Нетто: перерасход и освобождение взаимно исключаются
+  const netDelta = R2(budgetUsed - monthCapacity);
+  const netOverbooked = R2(Math.max(0, netDelta + freedHours > 0 ? netDelta : netDelta));
+  const netFreed = R2(Math.max(0, freedHours - Math.max(0, netDelta)));
+
+  // Здоровье = 100 когда успеваем. Снижается пропорционально перерасходу часов.
+  const healthScore = useMemo(() => {
+    if (monthCapacity <= 0) return 100;
+    const factOver = Math.max(0, totalFact - monthCapacity);
+    const planOver = Math.max(0, budgetUsed - monthCapacity);
+    const penalty = R2(((factOver + planOver * 0.5) / monthCapacity) * 100);
+    return Math.max(0, Math.min(100, Math.round(100 - penalty)));
+  }, [totalFact, budgetUsed, monthCapacity]);
+
   // Свободные часы
-  const freeHours = R2(Math.max(0, monthCapacity - budgetUsed) + freedHours);
+  const freeHours = R2(Math.max(0, monthCapacity - budgetUsed) + netFreed);
 
   // Скорость отработки (нужно ч/день для выполнения плана)
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -412,11 +612,11 @@ export function DashboardDelta({
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <h3 className="font-bold text-sm" style={TEXT_MAIN}>Движение бюджета ({monthName})</h3>
             <div className="flex gap-4 text-xs flex-wrap">
-              {overbooked > 0 && (
-                <span style={{ color: "#ef4444" }}>🔴 Перерасход: +{overbooked}ч</span>
+              {netOverbooked > 0 && (
+                <span style={{ color: "#ef4444" }}>🔴 Перерасход: +{netOverbooked}ч</span>
               )}
-              {freedHours > 0 && (
-                <span style={{ color: "#22c55e" }}>🟢 Освобождено: -{freedHours}ч</span>
+              {netFreed > 0 && (
+                <span style={{ color: "#22c55e" }}>🟢 Освобождено: -{netFreed}ч</span>
               )}
               {exhaustDate && (
                 <span style={{ color: "#f59e0b" }}>📅 Закроем ~{exhaustDate}</span>
@@ -453,6 +653,19 @@ export function DashboardDelta({
                   label={{ value: `Лимит ${monthCapacity}ч`, position: "right", fontSize: 8, fill: "#ef4444" }} />
                 {/* Заложено */}
                 <ReferenceLine y={budgetUsed} stroke="#3b82f6" strokeDasharray="4 3" strokeOpacity={0.5} />
+                {/* Вертикальная линия прогнозируемого завершения */}
+                {(() => {
+                  const today = new Date();
+                  if (today.getMonth() !== currentMonth || today.getFullYear() !== currentYear) return null;
+                  const todayDay = today.getDate();
+                  const dLeft = Math.max(1, daysInMonth - todayDay + 1);
+                  const daysToClose = remainingToClose > 0 ? Math.ceil(remainingToClose / PLANNED_PER_DAY) : 0;
+                  const closingDay = Math.min(daysInMonth, todayDay + daysToClose);
+                  return (
+                    <ReferenceLine x={closingDay} stroke="#f59e0b" strokeDasharray="4 2" strokeOpacity={0.8}
+                      label={{ value: `~${closingDay} дн.`, position: "top", fontSize: 8, fill: "#d97706" }} />
+                  );
+                })()}
                 {/* Факт */}
                 <Area type="monotone" dataKey="fact" name="fact" stroke="#22c55e" strokeWidth={2}
                   fill="url(#gFact)" dot={false} connectNulls={false} />
@@ -488,16 +701,20 @@ export function DashboardDelta({
           СТРОКА 2: КАРТА РИСКОВ
       ════════════════════════════════════════════════════ */}
       <div className="rounded-2xl p-5" style={CARD}>
-        <div className="flex items-start justify-between mb-1 flex-wrap gap-2">
-          <h3 className="font-bold" style={TEXT_MAIN}>Карта рисков: Инвестиции бюджета</h3>
-          {/* Легенда */}
+        <div className="flex items-start justify-between mb-3 flex-wrap gap-2">
+          <div>
+            <h3 className="font-bold" style={TEXT_MAIN}>Карта рисков</h3>
+            <p className="text-xs mt-0.5" style={TEXT_MUTED}>
+              Y: Приоритет (1–5) · X: Статус задачи · Размер: Оценка часов
+            </p>
+          </div>
           <div className="flex gap-3 flex-wrap text-xs">
             {[
-              { color: "#60a5fa", label: "Новая" },
               { color: "#f59e0b", label: "В работе" },
-              { color: "#ef4444", label: "Блокер" },
-              { color: "#15803d", label: "Завершена" },
+              { color: "#15803d", label: "Завершена в срок" },
+              { color: "#ef4444", label: "Превышение" },
               { color: "#a3e635", glow: true, label: "Опережение" },
+              { color: "#94a3b8", label: "Прочие" },
               { pending: true, label: "Ожидает БА" },
             ].map(item => (
               <div key={item.label} className="flex items-center gap-1">
@@ -505,7 +722,7 @@ export function DashboardDelta({
                   <span className="w-3 h-3 rounded-full border-2 border-dashed inline-block"
                     style={{ borderColor: "#f59e0b", background: "rgba(96,165,250,0.4)" }} />
                 ) : (
-                  <span className={`w-3 h-3 rounded-full inline-block ${item.glow ? "glow-lime" : ""}`}
+                  <span className="w-3 h-3 rounded-full inline-block"
                     style={{ background: item.color,
                       boxShadow: item.glow ? "0 0 8px rgba(163,230,53,0.8)" : undefined }} />
                 )}
@@ -514,64 +731,13 @@ export function DashboardDelta({
             ))}
           </div>
         </div>
-        <p className="text-xs mb-2" style={TEXT_MUTED}>
-          X: Приоритет · Y: Дней в статусе · Размер: Оценка часов
-        </p>
 
         {/* Swipe hint только на мобиле */}
         <div className="delta-risk-scroll-hint">
           <span>👆</span><span>Прокрутите горизонтально</span>
         </div>
 
-        {/* Скроллируемая обёртка на мобиле */}
-        <div className="delta-risk-map">
-          <div className="delta-risk-map-inner" style={{ height: 340 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: 16, right: 24, bottom: 24, left: -8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--tracker-border)" opacity={0.4} />
-              <XAxis type="number" dataKey="x" domain={[0.5, 5.5]} tickCount={5}
-                tick={{ fontSize: 10, fill: "var(--tracker-text-muted)" }}
-                axisLine={false} tickLine={false}
-                label={{ value: "Приоритет (1 → 5)", position: "insideBottom", offset: -12, fontSize: 10, fill: "var(--tracker-text-muted)" }}
-                tickFormatter={v => ["","P1","P2","P3","P4","P5"][Math.round(v)] ?? ""}
-              />
-              <YAxis type="number" dataKey="y" axisLine={false} tickLine={false}
-                tick={{ fontSize: 9, fill: "var(--tracker-text-muted)" }}
-                label={{ value: "Дней в статусе", angle: -90, position: "insideLeft", offset: 16, fontSize: 10, fill: "var(--tracker-text-muted)" }}
-              />
-              <ZAxis type="number" dataKey="z" range={[80, 2400]} />
-              <Tooltip content={<BubbleTooltip />} cursor={{ strokeDasharray: "3 3" }} />
-              <Scatter
-                data={scatterPoints}
-                shape={(props: { cx?: number; cy?: number; payload?: ScatterPoint }) => {
-                  const { cx = 0, cy = 0, payload: p } = props;
-                  if (!p) return <circle cx={cx} cy={cy} r={6} />;
-                  const r = Math.sqrt((p.z ?? 200) / Math.PI);
-                  const isAhead = p.color === "#a3e635";
-                  return (
-                    <g style={{ cursor: "pointer" }} onClick={() => setSelectedTask(p.task)}>
-                      {/* Свечение для "опережение" */}
-                      {isAhead && (
-                        <circle cx={cx} cy={cy} r={r + 6} fill="none"
-                          stroke="#a3e635" strokeWidth={1.5} opacity={0.4} />
-                      )}
-                      {/* Основной круг */}
-                      <circle
-                        cx={cx} cy={cy} r={r}
-                        fill={p.color}
-                        fillOpacity={p.isPending ? 0.4 : 0.75}
-                        stroke={p.isPending ? "#f59e0b" : p.color}
-                        strokeWidth={p.isPending ? 2.5 : 1.5}
-                        strokeDasharray={p.isPending ? "5 4" : undefined}
-                      />
-                    </g>
-                  );
-                }}
-              />
-            </ScatterChart>
-          </ResponsiveContainer>
-        </div>{/* delta-risk-map-inner */}
-        </div>{/* delta-risk-map */}
+        <RiskMatrix tasks={alive} onTaskClick={setSelectedTask} />
       </div>
 
       {/* ── Кнопка калькулятора в шапке ── */}
@@ -699,16 +865,18 @@ export function DashboardDelta({
           style={{ background: "var(--tracker-bg-card, var(--card))", borderLeft: "1px solid var(--tracker-border, var(--border))" }}>
           <SheetHeader className="pb-4">
             <SheetTitle className="text-xl" style={TEXT_ACCENT}>Калькулятор бюджета</SheetTitle>
-            <SheetDescription>
-              <div className="rounded-xl p-4 mt-2 text-center"
-                style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
-                <div className="text-xs font-medium mb-1" style={{ color: "#16a34a" }}>Свободно бюджета</div>
-                <div className="text-4xl font-bold tabular-nums" style={{ color: "#22c55e" }}>+{fmt2(freeHours)} ч</div>
-                {freedHours > 0 && (
-                  <div className="text-xs mt-1" style={{ color: "#16a34a" }}>
-                    в т.ч. {freedHours}ч освобождено досрочно
-                  </div>
-                )}
+            <SheetDescription asChild>
+              <div>
+                <div className="rounded-xl p-4 mt-2 text-center"
+                  style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                  <div className="text-xs font-medium mb-1" style={{ color: "#16a34a" }}>Свободно бюджета</div>
+                  <div className="text-4xl font-bold tabular-nums" style={{ color: "#22c55e" }}>+{fmt2(freeHours)} ч</div>
+                  {freedHours > 0 && (
+                    <div className="text-xs mt-1" style={{ color: "#16a34a" }}>
+                      в т.ч. {freedHours}ч освобождено досрочно
+                    </div>
+                  )}
+                </div>
               </div>
             </SheetDescription>
           </SheetHeader>

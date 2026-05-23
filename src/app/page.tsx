@@ -1158,6 +1158,10 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   // ── Delta: Budget & Signals Sheet ────────────────────────────────────────
   const [budgetSheetTask, setBudgetSheetTask] = useState<{ task: Task; month: number } | null>(null);
 
+  // ── Диалог создания новой задачи ─────────────────────────────────────────
+  const [newTaskDialog, setNewTaskDialog] = useState<{ open: boolean; month: number }>({ open: false, month: 0 });
+  const [newTaskDraft, setNewTaskDraft] = useState({ num: "", name: "", planH: "", priority: PRIORITIES.MEDIUM as Priority, status: STATUSES.NEW as Status });
+
   const [questions, setQuestions] = useState<Question[]>([]);
   const [newQuestionText, setNewQuestionText] = useState("");
   const [newQuestionAuthor, setNewQuestionAuthor] = useState("");
@@ -2931,6 +2935,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             onExportPDF={handleExportPDF}
             onImportJSON={() => fileInputRef.current?.click()}
             onImportXLSX={() => setIsImportOpen(true)}
+            onOpenNewTaskDialog={(month) => setNewTaskDialog({ open: true, month })}
             onOpenBudgetSheet={(task, month) => setBudgetSheetTask({ task, month })}
           />
         )}
@@ -3263,45 +3268,57 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
       {/* ---- TRANSFER DIALOG ---- */}
       <Dialog open={transferDialog} onOpenChange={setTransferDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-sm" style={{ background: "var(--tracker-bg-card, var(--card))", border: "1px solid var(--tracker-border, var(--border))" }}>
           <DialogHeader>
-            <DialogTitle>↗️ Перенос задач</DialogTitle>
-            <DialogDescription>
-              Незавершённые задачи (без статусов «Завершенная», «Выполненная», «Отменено») будут скопированы в выбранный месяц с обнулением фактических часов.
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <span className="w-8 h-8 rounded-xl flex items-center justify-center text-lg" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>↗️</span>
+              Перенос задач
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed">
+              Незавершённые задачи будут скопированы в выбранный месяц с обнулением факта.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Целевой месяц</label>
-              <Select
-                value={transferTarget >= 0 ? String(transferTarget) : undefined}
-                onValueChange={(v) => setTransferTarget(Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Выберите месяц..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map((m, i) =>
-                    i !== currentMonth ? (
-                      <SelectItem key={m} value={String(i)}>
-                        {m}
-                      </SelectItem>
-                    ) : null
-                  )}
-                </SelectContent>
-              </Select>
+          <div className="space-y-3 py-1">
+            {/* Из → В */}
+            <div className="flex items-center gap-2 rounded-xl px-4 py-3" style={{ background: "var(--tracker-accent-bg)", border: "1px solid var(--tracker-border)" }}>
+              <div className="flex-1 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: "var(--tracker-text-muted)" }}>Из</p>
+                <p className="text-sm font-bold" style={{ color: "var(--tracker-accent-fg-dark)" }}>{MONTHS[currentMonth]}</p>
+              </div>
+              <span className="text-lg opacity-50">→</span>
+              <div className="flex-1 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: "var(--tracker-text-muted)" }}>В</p>
+                <p className="text-sm font-bold" style={{ color: transferTarget >= 0 ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)" }}>
+                  {transferTarget >= 0 ? MONTHS[transferTarget] : "не выбран"}
+                </p>
+              </div>
             </div>
+            <Select
+              value={transferTarget >= 0 ? String(transferTarget) : undefined}
+              onValueChange={(v) => setTransferTarget(Number(v))}
+            >
+              <SelectTrigger style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}>
+                <SelectValue placeholder="Выберите целевой месяц…" />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTHS.map((m, i) =>
+                  i !== currentMonth ? (
+                    <SelectItem key={m} value={String(i)}>{m}</SelectItem>
+                  ) : null
+                )}
+              </SelectContent>
+            </Select>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTransferDialog(false)}>
-              Отмена
-            </Button>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setTransferDialog(false)}>Отмена</Button>
             <Button
+              size="sm"
               onClick={handleTransfer}
               disabled={transferTarget < 0}
-              className="bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
+              style={{ background: "var(--tracker-accent)", color: "#fff" }}
+              className="gap-1.5"
             >
-              <ArrowRight className="size-4 mr-1.5" />
+              <ArrowRight className="size-3.5" />
               Перенести
             </Button>
           </DialogFooter>
@@ -3606,7 +3623,6 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             Object.entries(updates).forEach(([k, v]) => {
               updateTask(budgetSheetTask.month, budgetSheetTask.task.id, k as keyof Task, v);
             });
-            // Обновляем локальную ссылку на задачу, чтобы Sheet отобразил свежие данные
             const freshTask = (allData[budgetSheetTask.month] || []).find(
               t => t.id === budgetSheetTask.task.id
             );
@@ -3614,6 +3630,82 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
           }}
         />
       )}
+
+      {/* ── Диалог создания задачи ── */}
+      <Dialog open={newTaskDialog.open} onOpenChange={o => { if (!o) { setNewTaskDialog({ open: false, month: 0 }); setNewTaskDraft({ num: "", name: "", planH: "", priority: PRIORITIES.MEDIUM, status: STATUSES.NEW }); } }}>
+        <DialogContent className="sm:max-w-md" style={{ background: "var(--tracker-bg-card, var(--card))", border: "1px solid var(--tracker-border, var(--border))" }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>＋</span>
+              Новая задача
+            </DialogTitle>
+            <DialogDescription className="text-xs">{MONTHS[newTaskDialog.month]} {currentYear}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 pt-1">
+            <div className="grid grid-cols-[80px_1fr] gap-2">
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>№</label>
+                <Input value={newTaskDraft.num} onChange={e => setNewTaskDraft(d => ({ ...d, num: e.target.value }))} placeholder="—" className="h-9 text-sm" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }} />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>Наименование *</label>
+                <Input value={newTaskDraft.name} onChange={e => setNewTaskDraft(d => ({ ...d, name: e.target.value }))} placeholder="Название задачи" className="h-9 text-sm" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }} autoFocus />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>План, ч</label>
+                <Input value={newTaskDraft.planH} onChange={e => setNewTaskDraft(d => ({ ...d, planH: e.target.value }))} placeholder="0" className="h-9 text-sm" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }} />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>Приоритет</label>
+                <Select value={newTaskDraft.priority} onValueChange={v => setNewTaskDraft(d => ({ ...d, priority: v as Priority }))}>
+                  <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.values(PRIORITIES).map(p => <SelectItem key={p} value={p} className="text-xs"><span style={{ color: PCOL[p] }}>{p}</span></SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>Статус</label>
+                <Select value={newTaskDraft.status} onValueChange={v => setNewTaskDraft(d => ({ ...d, status: v as Status }))}>
+                  <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.values(STATUSES).map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" size="sm" onClick={() => setNewTaskDialog({ open: false, month: 0 })}>Отмена</Button>
+            <Button size="sm"
+              className="gap-1.5"
+              style={{ background: "var(--tracker-accent)", color: "#fff" }}
+              disabled={!newTaskDraft.name.trim()}
+              onClick={() => {
+                const t: Task = {
+                  id: crypto.randomUUID(),
+                  num: newTaskDraft.num,
+                  name: newTaskDraft.name,
+                  planH: newTaskDraft.planH || "0",
+                  factH: "0",
+                  priority: newTaskDraft.priority,
+                  status: newTaskDraft.status,
+                  comment: "",
+                  commentLog: [],
+                  _ts: Date.now(),
+                  statusChangedAt: new Date().toISOString(),
+                  daysInStatus: 0,
+                  approvalStatus: "approved",
+                };
+                useTaskStore.getState().addTasksToMonth(newTaskDialog.month, [t]);
+                setNewTaskDialog({ open: false, month: 0 });
+                setNewTaskDraft({ num: "", name: "", planH: "", priority: PRIORITIES.MEDIUM, status: STATUSES.NEW });
+              }}
+            >
+              <Plus className="size-3.5" />
+              Создать задачу
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ExcelImportModal
         isOpen={isImportOpen}
@@ -3683,6 +3775,7 @@ interface TableViewProps {
   addTask: (month: number) => void;
   onCreatePresentation: () => void;
   onOpenTransfer: () => void;
+  onOpenNewTaskDialog: (month: number) => void;
   setTotalHDialog: (v: {
     taskNum: string;
     open: boolean;
@@ -3755,6 +3848,7 @@ function TableView({
   onExportPDF,
   onImportJSON,
   onImportXLSX,
+  onOpenNewTaskDialog,
   onOpenBudgetSheet,
 }: TableViewProps) {
   /* ---- Drag & Drop state ---- */
@@ -3943,14 +4037,14 @@ function TableView({
 
             <div className="flex-1" />
 
-            {/* ── ДОБАВИТЬ СТРОКУ ───────────────────────────────────── */}
+            {/* ── ДОБАВИТЬ ЗАДАЧУ ───────────────────────────────────── */}
             <Button
               size="sm"
               className="h-8 gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-              onClick={() => addTask(month)}
+              onClick={() => onOpenNewTaskDialog(month)}
             >
               <Plus className="size-3.5" />
-              Добавить строку
+              Добавить задачу
             </Button>
 
             {/* ── ПЕРЕНЕСТИ ────────────────────────────────────────── */}
@@ -3999,12 +4093,6 @@ function TableView({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            {/* ── ПРЕЗЕНТАЦИЯ ──────────────────────────────────────── */}
-            <Button variant="outline" size="sm" className={btnClass} onClick={onCreatePresentation}>
-              <Presentation className="size-3.5" />
-              Презентация
-            </Button>
 
           </div>
         );
@@ -4097,7 +4185,7 @@ function TableView({
         {!clientMode && (
           <button
             className="mobile-fab"
-            onClick={() => addTask(month)}
+            onClick={() => onOpenNewTaskDialog(month)}
             aria-label="Добавить задачу"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
@@ -4597,18 +4685,6 @@ function TableView({
                           ) : (
                             <Eye className="size-3.5" />
                           )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenBudgetSheet?.(task, month);
-                          }}
-                          title="Бюджет и сигналы"
-                        >
-                          <span className="text-sm">💰</span>
                         </Button>
                         <Button
                           variant="ghost"
@@ -6395,7 +6471,7 @@ function SlidesView({
                 })}
               </div>
               {presBg.pattern !== "none" && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
                     Прозрачность <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.patternOpacity}%</span>
                     <input type="range" min={0} max={30} value={presBg.patternOpacity}
@@ -6406,6 +6482,12 @@ function SlidesView({
                     Размер <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.patternSize}px</span>
                     <input type="range" min={10} max={100} step={5} value={presBg.patternSize}
                       onChange={e => onSetPresBg({ patternSize: Number(e.target.value) })}
+                      className="w-full mt-1" />
+                  </label>
+                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+                    Толщина <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.patternLineThickness ?? 1}px</span>
+                    <input type="range" min={1} max={4} step={0.5} value={presBg.patternLineThickness ?? 1}
+                      onChange={e => onSetPresBg({ patternLineThickness: Number(e.target.value) })}
                       className="w-full mt-1" />
                   </label>
                 </div>
@@ -6442,16 +6524,15 @@ function SlidesView({
                   </label>
                 </div>
 
-                {/* Phase 5: animation mode */}
+                {/* Анимация: только выкл и падение */}
                 <div>
-                  <p className="text-xs mb-1.5" style={{ color: "var(--tracker-text-muted)" }}>Анимация</p>
-                  <div className="grid grid-cols-3 gap-2">
+                  <p className="text-xs mb-1.5" style={{ color: "var(--tracker-text-muted)" }}>Анимация эмодзи</p>
+                  <div className="grid grid-cols-2 gap-2">
                     {([
-                      { id: "off",   label: "Без анимации", emoji: "⏸" },
-                      { id: "drift", label: "Дрейф",         emoji: "💫" },
-                      { id: "fall",  label: "Падение",       emoji: "🌧" },
+                      { id: "off",  label: "Выключена", emoji: "⏸" },
+                      { id: "fall", label: "Падение",   emoji: "🌧" },
                     ] as const).map(opt => {
-                      const active = (presBg.emojiAnim || "drift") === opt.id;
+                      const active = (presBg.emojiAnim === "drift" ? "fall" : (presBg.emojiAnim || "fall")) === opt.id;
                       return (
                         <button key={opt.id} onClick={() => onSetPresBg({ emojiAnim: opt.id })}
                           className="rounded-lg p-2 border-2 text-center transition-all flex flex-col items-center gap-0.5"
@@ -6469,25 +6550,13 @@ function SlidesView({
                   </div>
                 </div>
 
-                {/* Phase 5: speed + opacity sliders */}
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)", opacity: (presBg.emojiAnim || "drift") === "off" ? 0.4 : 1 }}>
-                    Скорость <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{(presBg.emojiSpeed ?? 1).toFixed(2)}×</span>
-                    <input type="range" min={0.25} max={2} step={0.05} value={presBg.emojiSpeed ?? 1}
-                      onChange={e => onSetPresBg({ emojiSpeed: Number(e.target.value) })}
-                      className="w-full mt-1"
-                      disabled={(presBg.emojiAnim || "drift") === "off"} />
-                  </label>
-                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-                    Прозрачность <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiOpacity ?? 25}%</span>
-                    <input type="range" min={5} max={50} value={presBg.emojiOpacity ?? 25}
-                      onChange={e => onSetPresBg({ emojiOpacity: Number(e.target.value) })}
-                      className="w-full mt-1" />
-                  </label>
-                </div>
-                <p className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
-                  Анимации автоматически выключаются при системной настройке «уменьшить движение» и при печати.
-                </p>
+                {/* Прозрачность эмодзи */}
+                <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+                  Прозрачность эмодзи <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiOpacity ?? 25}%</span>
+                  <input type="range" min={5} max={50} value={presBg.emojiOpacity ?? 25}
+                    onChange={e => onSetPresBg({ emojiOpacity: Number(e.target.value) })}
+                    className="w-full mt-1" />
+                </label>
               </div>
             </section>
 

@@ -49,6 +49,8 @@ export interface PresBgSettings {
   emojiSpeed?: number;
   /** Phase 5: прозрачность эмодзи, 5..50 (% числом). Если undefined — рандомная как раньше (для совместимости со старым state). */
   emojiOpacity?: number;
+  /** Толщина линий паттерна, px (1..4). */
+  patternLineThickness?: number;
 }
 
 export interface PresStylePreset {

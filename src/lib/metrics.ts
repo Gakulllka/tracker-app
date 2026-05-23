@@ -287,7 +287,7 @@ export function calcRollover(
 export function calcMonthBudgetUsed(tasks: Task[]): number {
   return R2(
     tasks
-      .filter((t) => !t._deleted && t.approvalStatus !== "rejected")
+      .filter((t) => !t._deleted && t.approvalStatus !== "rejected" && (t.status as string) !== "Очередь")
       .reduce((sum, t) => sum + (t.budgetAllocated ?? evalExpr(t.planH)), 0),
   );
 }
