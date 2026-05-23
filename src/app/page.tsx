@@ -2535,17 +2535,32 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         <div className="loader-delta-wrap">
           <div className="loader-delta-ring" />
           <div className="loader-delta-ring2" />
-          {/* Inline SVG для гарантированного рендера */}
-          <svg className="loader-delta-svg" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="ldg" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#c4b5fd"/>
-                <stop offset="100%" stopColor="#7c3aed"/>
-              </linearGradient>
-            </defs>
-            <polygon points="16,3 30.5,29 1.5,29" fill="url(#ldg)"/>
-            <polygon points="16,11.5 25,27.5 7,27.5" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.4"/>
-            <circle cx="16" cy="3" r="2.2" fill="white" opacity="0.3"/>
+          {/* Inline SVG — контур треугольника Delta, цвет наследует акцент темы */}
+          <svg
+            className="loader-delta-svg"
+            viewBox="0 0 40 36"
+            xmlns="http://www.w3.org/2000/svg"
+            style={{ color: "var(--tracker-accent, #9B72CF)" }}
+          >
+            {/* Внешний контур Δ */}
+            <polygon
+              points="20,2 38,34 2,34"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinejoin="round"
+            />
+            {/* Внутренний контур — создаёт "пустую" дельту */}
+            <polygon
+              points="20,11 31.5,32 8.5,32"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinejoin="round"
+              opacity="0.35"
+            />
+            {/* Центральная точка-акцент */}
+            <circle cx="20" cy="2" r="2" fill="currentColor" opacity="0.7" />
           </svg>
         </div>
 
@@ -2593,18 +2608,12 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
       {/* ---- HEADER ---- */}
       <header className="sticky top-0 z-30 backdrop-blur-md supports-[backdrop-filter]:bg-[var(--tracker-bg-card)]/90 bg-[var(--tracker-bg-card)]" style={{ borderBottom: "1px solid var(--tracker-border)", boxShadow: "0 1px 0 0 var(--tracker-border)" }}>
-        <div className="flex h-12 md:h-14 items-center justify-between px-3 md:px-4 gap-2 md:gap-3">
+        <div className="delta-header flex h-12 md:h-14 items-center justify-between px-3 md:px-4 gap-2 md:gap-3">
           <h1 className="text-base md:text-xl font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5 md:gap-2">
-            {/* Delta triangle logo */}
-            <svg width="20" height="20" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-              <defs>
-                <linearGradient id="hdg" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="var(--tracker-accent, #a78bfa)"/>
-                  <stop offset="100%" stopColor="#7c3aed"/>
-                </linearGradient>
-              </defs>
-              <polygon points="16,3 30.5,29 1.5,29" fill="url(#hdg)"/>
-              <polygon points="16,11.5 25,27.5 7,27.5" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5"/>
+            <svg width="18" height="16" viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg"
+              style={{ flexShrink: 0, color: "var(--tracker-accent)" }}>
+              <polygon points="20,2 38,34 2,34" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round"/>
+              <polygon points="20,12 31,32 9,32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" opacity="0.4"/>
             </svg>
             <span style={{ color: "var(--tracker-text-main)" }}>Delta</span>
           </h1>
@@ -2617,7 +2626,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
           {/* Phase 7: Year selector в шапке (рядом с sync status) */}
           {(view === "table" || view === "dashboard" || view === "slides") && (
-            <div className="hidden md:flex items-center gap-1 ml-2" title="Год">
+            <div className="header-year-selector hidden md:flex items-center gap-1 ml-2" title="Год">
               <button
                 onClick={() => setCurrentYearStore(currentYear - 1)}
                 className="size-7 rounded-md text-sm font-medium text-[var(--tracker-text-muted)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-text-main)] transition-colors flex items-center justify-center"
@@ -2943,6 +2952,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             tasks={(allData[currentMonth] || []).filter(t => !t._deleted)}
             backlogTasks={backlog}
             monthCapacity={monthlyPlan > 0 ? monthlyPlan : 240}
+            onSetMonthCapacity={(h) => setMonthlyPlan(currentMonthKey, h)}
             monthlyFact={dashboardData.monthlyFact}
             monthlyAllocated={dashboardData.monthlyAllocated}
             currentMonth={currentMonth}
@@ -4025,7 +4035,12 @@ function TableView({
               >
                 {/* Top row: number + priority */}
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="mobile-task-num">#{task.num || "—"}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="mobile-task-num">#{task.num || "—"}</span>
+                    {task.approvalStatus === "pending" && (
+                      <span className="mobile-task-pending-badge">⏳ Ожидает БА</span>
+                    )}
+                  </div>
                   <span
                     className="mobile-task-priority-pill"
                     style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
@@ -4049,6 +4064,11 @@ function TableView({
                     {task.status}
                   </span>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {(task.budgetAllocated ?? 0) > 0 && (
+                      <span className="mobile-task-budget-badge">
+                        💰 {task.budgetAllocated}ч
+                      </span>
+                    )}
                     <span>📐 {task.planH || "0"}ч</span>
                     <span className={isOver ? "text-red-500 font-semibold" : ""}>
                       ⏱ {task.factH || "0"}ч
@@ -5758,50 +5778,44 @@ function QuestionsView({
         </DialogContent>
       </Dialog>
 
-      {/* ── Add question form ──────────────────────────────────────── */}
-      <Card className="py-4">
-        <CardContent className="px-4 space-y-3">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Новый вопрос</span>
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>
-              {currentUsername}
-            </span>
-          </div>
+      {/* ── Add question form — мобильный sticky внизу ─────────────── */}
+      <div className="questions-input-area">
+        <div className="flex gap-2">
           <Textarea
             placeholder="Введите вопрос для команды..."
             value={newQuestionText}
             onChange={e => setNewQuestionText(e.target.value)}
-            className="min-h-[60px] resize-none text-sm"
+            className="min-h-[44px] max-h-[120px] resize-none text-sm flex-1"
+            style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}
             onKeyDown={e => { if (e.key === "Enter" && e.ctrlKey) addQuestion(); }}
+            rows={1}
           />
-          <div className="flex items-center justify-between">
-            <span className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Ctrl+Enter — отправить</span>
-            <Button
-              size="sm"
-              disabled={!newQuestionText.trim()}
-              className="h-8 gap-1.5 bg-[var(--tracker-accent)] text-white"
-              onClick={addQuestion}
-            >
-              <Plus className="size-3.5" />
-              Задать вопрос
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Stats ─────────────────────────────────────────────────── */}
-      {questions.length > 0 && (
-        <div className="flex items-center gap-3 text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-          <span>Всего: <b style={{ color: "var(--tracker-text-main)" }}>{questions.length}</b></span>
-          <span className="w-px h-3" style={{ background: "var(--tracker-border)" }} />
-          <span>Открытых: <b style={{ color: "#f59e0b" }}>{unanswered.length}</b></span>
-          <span className="w-px h-3" style={{ background: "var(--tracker-border)" }} />
-          <span>Отвеченных: <b style={{ color: "#22c55e" }}>{answered.length}</b></span>
+          <Button
+            size="icon"
+            disabled={!newQuestionText.trim()}
+            className="h-11 w-11 shrink-0 rounded-xl"
+            style={{ background: "var(--tracker-accent)", color: "#fff" }}
+            onClick={addQuestion}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </Button>
         </div>
-      )}
+        <div className="flex items-center justify-between mt-1.5 px-0.5">
+          <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+            {currentUsername} · Ctrl+Enter отправить
+          </span>
+          {questions.length > 0 && (
+            <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+              {unanswered.length} открытых · {answered.length} отвечено
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* ── Questions list ─────────────────────────────────────────── */}
-      <div className="space-y-3">
+      <div className="questions-list-wrap space-y-3">
         {questions.length === 0 && <EmptyState type="questions" />}
 
         {questions.map(q => {
@@ -6289,19 +6303,91 @@ function SlidesView({
 
             {/* Pattern */}
             <section>
-              <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--tracker-text-main)" }}>Паттерн</h3>
+              <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--tracker-text-main)" }}>Паттерн фона</h3>
+
+              {/* Мини-предпросмотр текущего фона */}
+              <div
+                className="w-full h-20 rounded-xl mb-3 overflow-hidden relative border"
+                style={{ borderColor: "var(--tracker-border)" }}
+              >
+                {/* Фон слайда */}
+                <div className="absolute inset-0" style={{ background: "var(--tracker-bg-card)" }} />
+                {/* Паттерн поверх */}
+                {presBg.pattern !== "none" && (() => {
+                  const sz = presBg.patternSize;
+                  const op = ((presBg.patternOpacity ?? 5) / 100).toFixed(2);
+                  const pcol = `rgba(var(--tracker-accent-rgb, 155,114,207),${op})`;
+                  const accentRaw = accentHex || "#9B72CF";
+                  const pr = parseInt(accentRaw.slice(1,3),16);
+                  const pg = parseInt(accentRaw.slice(3,5),16);
+                  const pb = parseInt(accentRaw.slice(5,7),16);
+                  const pcolRaw = `rgba(${pr},${pg},${pb},${op})`;
+                  let bg = "";
+                  switch (presBg.pattern) {
+                    case "grid":     bg = `linear-gradient(${pcolRaw} 1px,transparent 1px),linear-gradient(90deg,${pcolRaw} 1px,transparent 1px)`; break;
+                    case "diagonal": bg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2}px,${pcolRaw} ${sz/2}px,${pcolRaw} ${sz/2+1}px)`; break;
+                    case "diamond":  bg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2-1}px,${pcolRaw} ${sz/2-1}px,${pcolRaw} ${sz/2+1}px),repeating-linear-gradient(-45deg,transparent,transparent ${sz/2-1}px,${pcolRaw} ${sz/2-1}px,${pcolRaw} ${sz/2+1}px)`; break;
+                    case "waves":    bg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz/4} Q ${sz/4} 0 ${sz/2} ${sz/4} T ${sz} ${sz/4}' fill='none' stroke='rgba(${pr},${pg},${pb},${op})' stroke-width='1.5'/%3E%3C/svg%3E")`; break;
+                    case "zigzag":   bg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz/2} ${sz/4},0 ${sz/2},${sz/2} ${sz*3/4},0 ${sz},${sz/2}' fill='none' stroke='rgba(${pr},${pg},${pb},${op})' stroke-width='1.5'/%3E%3C/svg%3E")`; break;
+                  }
+                  return (
+                    <div className="absolute inset-0" style={{
+                      backgroundImage: bg,
+                      backgroundSize: `${sz}px ${sz}px`,
+                    }} />
+                  );
+                })()}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xs font-medium px-2 py-1 rounded-lg"
+                    style={{ background: "var(--tracker-bg-card)", color: "var(--tracker-text-muted)", opacity: 0.9 }}>
+                    Предпросмотр фона
+                  </span>
+                </div>
+              </div>
+
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
                 {(["none", "grid", "diagonal", "diamond", "waves", "zigzag"] as const).map(p => {
                   const active = (presBg.pattern || "none") === p;
                   const labels: Record<string, string> = { none: "Нет", grid: "Сетка", diagonal: "Линии", diamond: "Ромбы", waves: "Волны", zigzag: "Зигзаг" };
+                  // Строим мини-паттерн для предпросмотра в кнопке
+                  const sz = 20;
+                  const accentRaw = accentHex || "#9B72CF";
+                  const pr = parseInt(accentRaw.slice(1,3),16);
+                  const pg = parseInt(accentRaw.slice(3,5),16);
+                  const pb = parseInt(accentRaw.slice(5,7),16);
+                  const pcol = `rgba(${pr},${pg},${pb},0.55)`;
+                  let thumbBg = "";
+                  switch (p) {
+                    case "grid":     thumbBg = `linear-gradient(${pcol} 1px,transparent 1px),linear-gradient(90deg,${pcol} 1px,transparent 1px)`; break;
+                    case "diagonal": thumbBg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2}px,${pcol} ${sz/2}px,${pcol} ${sz/2+1}px)`; break;
+                    case "diamond":  thumbBg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2-1}px,${pcol} ${sz/2-1}px,${pcol} ${sz/2+1}px),repeating-linear-gradient(-45deg,transparent,transparent ${sz/2-1}px,${pcol} ${sz/2-1}px,${pcol} ${sz/2+1}px)`; break;
+                    case "waves":    thumbBg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz/4} Q ${sz/4} 0 ${sz/2} ${sz/4} T ${sz} ${sz/4}' fill='none' stroke='rgba(${pr},${pg},${pb},0.55)' stroke-width='1.5'/%3E%3C/svg%3E")`; break;
+                    case "zigzag":   thumbBg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz/2} ${sz/4},0 ${sz/2},${sz/2} ${sz*3/4},0 ${sz},${sz/2}' fill='none' stroke='rgba(${pr},${pg},${pb},0.55)' stroke-width='1.5'/%3E%3C/svg%3E")`; break;
+                  }
                   return (
                     <button key={p} onClick={() => onSetPresBg({ pattern: p })}
-                      className="rounded-lg p-2 border-2 text-center transition-all"
+                      className="rounded-lg border-2 text-center transition-all overflow-hidden"
                       style={{
                         borderColor: active ? "var(--tracker-accent)" : "var(--tracker-border)",
-                        background: active ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)",
+                        boxShadow: active ? `0 0 0 3px var(--tracker-accent)22` : undefined,
                       }}>
-                      <div className="text-xs font-medium" style={{ color: active ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-main)" }}>
+                      {/* Паттерн-миниатюра */}
+                      <div className="h-9 w-full relative"
+                        style={{ background: active ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)" }}>
+                        {p !== "none" && (
+                          <div className="absolute inset-0" style={{
+                            backgroundImage: thumbBg,
+                            backgroundSize: `${sz}px ${sz}px`,
+                          }} />
+                        )}
+                        {p === "none" && (
+                          <div className="absolute inset-0 flex items-center justify-center text-base" style={{ opacity: 0.4 }}>
+                            ✕
+                          </div>
+                        )}
+                      </div>
+                      <div className="px-1 py-1 text-[10px] font-medium"
+                        style={{ color: active ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-main)" }}>
                         {labels[p]}
                       </div>
                     </button>

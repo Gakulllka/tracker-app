@@ -2,866 +2,836 @@
 
 /**
  * DashboardDelta — Монитор Руководителя.
- * Полный редизайн вкладки «Дашборд» согласно ТЗ «Экосистема Delta».
+ * Визуал по макету primer.html, логика по ТЗ «Экосистема Delta».
  *
- * Блок 1: Capacity Gauge (индикатор загрузки)
- * Блок 2: Area Chart (движение бюджета) + здоровье
- * Блок 3: Карта рисков (ScatterChart)
- * Блок 4: Калькулятор бюджета (Sheet)
+ * Строка 1: Здоровье | Capacity Gauge | График движения бюджета
+ * Строка 2: Карта рисков (пузырьки)
+ * Строка 3: Поп-ап задачи + Калькулятор (Sheet)
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ReferenceLine,
-  ScatterChart,
-  Scatter,
-  ZAxis,
-  ResponsiveContainer,
-  Legend,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ReferenceLine, ScatterChart, Scatter, ZAxis, ResponsiveContainer,
 } from "recharts";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Task, STATUSES, MONTHS, SCOL } from "@/lib/types";
+import { Task, STATUSES, MONTHS } from "@/lib/types";
 import {
-  R2,
-  evalExpr,
-  calcMonthBudgetUsed,
-  calcHealthScore,
-  calcBudgetExhaustDate,
-  MONTH_CAPACITY,
-  fmt2,
+  R2, evalExpr, calcMonthBudgetUsed, calcHealthScore, MONTH_CAPACITY, fmt2, calcDaysInStatus,
 } from "@/lib/metrics";
 
-// ─── Константы ───────────────────────────────────────────────────────────────
-
-const STATUS_SCATTER_COLORS: Record<string, string> = {
-  [STATUSES.NEW]: "#4fc3f7",
-  [STATUSES.IDEA]: "#4fc3f7",
-  [STATUSES.ANALYSIS]: "#7c9fff",
-  [STATUSES.APPROVAL]: "#7c9fff",
-  [STATUSES.QUEUE_DEV]: "#7c9fff",
-  [STATUSES.DEV]: "#fbbb2d",
-  [STATUSES.TEST]: "#fbbb2d",
-  [STATUSES.RELEASE]: "#fbbb2d",
-  [STATUSES.DOCS]: "#fbbb2d",
-  "Блокер": "#E24B4A",
-  [STATUSES.COMPLETED]: "#1D9E75",
-  [STATUSES.PROD_CHECK]: "#1D9E75",
-  [STATUSES.DONE]: "#0d6e4a",
-  [STATUSES.POSTPONED]: "#9ca3af",
-  [STATUSES.CANCEL]: "#9ca3af",
-};
-
-const PRIORITY_NUM: Record<string, number> = {
-  "Наивысший": 1,
-  "Высокий": 2,
-  "Средний": 3,
-  "Низкий": 4,
-  "Очередь": 5,
-};
-
-const FLAG_LABELS: Record<string, string> = {
-  escalate: "⚡ Эскалировать",
-  pause: "⏸ Пауза",
-  cancel: "✖ Отменить",
-  request_status: "❓ Запросить статус",
-};
-
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
-function HealthBar({ score }: { score: number }) {
-  const color =
-    score >= 75 ? "#1D9E75" : score >= 50 ? "#BA7517" : "#E24B4A";
-  const label =
-    score >= 75 ? "Хорошее" : score >= 50 ? "Под риском" : "Критично";
-  return (
-    <div className="flex items-center gap-3">
-      <div
-        className="flex-1 h-2 rounded-full overflow-hidden"
-        style={{ background: "var(--tracker-border, var(--border))" }}
-      >
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${score}%`, background: color }}
-        />
-      </div>
-      <span
-        className="text-xs font-semibold tabular-nums w-20 text-right shrink-0"
-        style={{ color }}
-      >
-        {score}/100 · {label}
-      </span>
-    </div>
-  );
-}
-
-// Custom tooltip для scatter chart
-function ScatterTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ScatterPoint }> }) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  return (
-    <div
-      className="rounded-xl px-3 py-2.5 shadow-lg text-xs"
-      style={{
-        background: "var(--tracker-bg, var(--background))",
-        border: "1px solid var(--tracker-border, var(--border))",
-        maxWidth: 220,
-      }}
-    >
-      <p className="font-semibold mb-1 truncate" style={{ color: "var(--tracker-text-main)" }}>
-        {d.name || d.num || "—"}
-      </p>
-      <div className="space-y-0.5" style={{ color: "var(--tracker-text-muted)" }}>
-        <p>Приоритет: <span className="font-medium">{d.priorityLabel}</span></p>
-        <p>Статус: <span className="font-medium">{d.status}</span></p>
-        <p>Дней в статусе: <span className="font-medium">{d.daysInStatus ?? 0}</span></p>
-        <p>Оценка: <span className="font-medium">{d.planH}ч</span></p>
-        {d.isPending && (
-          <p className="mt-1 font-semibold" style={{ color: "#BA7517" }}>
-            ⏳ Ожидает подтверждения БА
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
+// ─── Типы ─────────────────────────────────────────────────────────────────────
 
 interface ScatterPoint {
-  x: number;       // priority 1–5
-  y: number;       // days in status
-  z: number;       // plan hours (size)
-  name: string;
-  num: string;
-  status: string;
-  priorityLabel: string;
-  planH: number;
-  daysInStatus: number;
-  isPending: boolean;
-  color: string;
-  task: Task;
+  x: number; y: number; z: number;
+  name: string; num: string; status: string;
+  priorityLabel: string; planH: number; budgetH: number; factH: number;
+  daysInStatus: number; isPending: boolean; isFirstToCut: boolean;
+  color: string; task: Task;
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 interface DashboardDeltaProps {
-  /** Задачи текущего месяца */
   tasks: Task[];
-  /** Все задачи из беклога */
   backlogTasks: Task[];
-  /** Лимит месяца (дефолт 240) */
   monthCapacity?: number;
-  /** Данные годовой динамики (0-11 месяцев, факт) */
+  onSetMonthCapacity?: (hours: number) => void;
   monthlyFact: number[];
-  /** Данные годовой динамики (0-11 месяцев, план budgetAllocated) */
   monthlyAllocated: number[];
   currentMonth: number;
   currentYear: number;
-  /** Колбэк обновления задачи (executiveFlag, approvalStatus) */
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
   isDark?: boolean;
 }
 
+// ─── Константы ────────────────────────────────────────────────────────────────
+
+const PRIORITY_NUM: Record<string, number> = {
+  "Наивысший": 1, "Высокий": 2, "Средний": 3, "Низкий": 4, "Очередь": 5,
+};
+
+const PRIORITY_LABEL: Record<string, string> = {
+  "Наивысший": "P1", "Высокий": "P2", "Средний": "P3", "Низкий": "P4", "Очередь": "P5",
+};
+
+// Группы статусов для цвета пузыря
+function getBubbleColor(task: Task): { color: string; isAhead: boolean } {
+  const fact = evalExpr(task.factH);
+  const plan = evalExpr(task.planH);
+  const s = task.status as string;
+
+  const isDone = s === STATUSES.DONE || s === STATUSES.COMPLETED || s === STATUSES.PROD_CHECK;
+  if (isDone && fact > 0 && fact < plan) return { color: "#a3e635", isAhead: true };
+  if (isDone) return { color: "#15803d", isAhead: false };
+
+  if (s === STATUSES.POSTPONED || s === STATUSES.CANCEL || s === "Блокер") return { color: "#ef4444", isAhead: false };
+
+  const inWork = [STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS,
+    STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.PROD_CHECK, STATUSES.ANALYSIS];
+  if (inWork.includes(s as never)) return { color: "#f59e0b", isAhead: false };
+
+  return { color: "#60a5fa", isAhead: false }; // Новая / Идея
+}
+
+// ─── CSS ──────────────────────────────────────────────────────────────────────
+
+const CARD = {
+  background: "var(--tracker-bg-card, var(--card))",
+  border: "1px solid var(--tracker-border, var(--border))",
+  borderRadius: "1rem",
+  padding: "1.25rem",
+} as const;
+
+const TEXT_MAIN = { color: "var(--tracker-text-main, var(--foreground))" } as const;
+const TEXT_MUTED = { color: "var(--tracker-text-muted, var(--muted-foreground))" } as const;
+const TEXT_ACCENT = { color: "var(--tracker-accent-fg-dark, var(--foreground))" } as const;
+
+// ─── ScatterTooltip ───────────────────────────────────────────────────────────
+
+function BubbleTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ScatterPoint }> }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="rounded-xl px-3 py-2.5 shadow-lg text-xs z-50"
+      style={{ background: "var(--tracker-bg-card, var(--card))", border: "1px solid var(--tracker-border, var(--border))", maxWidth: 240 }}>
+      <p className="font-semibold mb-1.5 truncate" style={TEXT_ACCENT}>{d.name || d.num || "—"}</p>
+      <div className="space-y-0.5" style={TEXT_MUTED}>
+        <p>Приоритет: <b style={TEXT_MAIN}>{d.priorityLabel}</b></p>
+        <p>Дней в статусе: <b style={TEXT_MAIN}>{d.daysInStatus}</b></p>
+        <p>Оценка: <b style={TEXT_MAIN}>{d.planH}ч</b></p>
+        <p>Бюджет в месяце: <b style={{ color: "#60a5fa" }}>{d.budgetH}ч</b>{d.planH > 100 ? " (Ролловер)" : ""}</p>
+        <p>Факт: <b style={{ color: "#22c55e" }}>{d.factH}ч</b></p>
+        {d.isPending && <p className="font-semibold mt-1" style={{ color: "#f59e0b" }}>⏳ Ожидает подтверждения БА</p>}
+        {d.isFirstToCut && <p className="font-semibold mt-1" style={{ color: "#ef4444" }}>⚡ Первая на отсечение</p>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Основной компонент ───────────────────────────────────────────────────────
+
 export function DashboardDelta({
-  tasks,
-  backlogTasks,
-  monthCapacity = MONTH_CAPACITY,
-  monthlyFact,
-  monthlyAllocated,
-  currentMonth,
-  currentYear,
-  onUpdateTask,
-  isDark = false,
+  tasks, backlogTasks, monthCapacity = MONTH_CAPACITY, onSetMonthCapacity,
+  monthlyFact, monthlyAllocated, currentMonth, currentYear,
+  onUpdateTask, isDark = false,
 }: DashboardDeltaProps) {
+
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [calcOpen, setCalcOpen] = useState(false);
+  const [capacityInput, setCapacityInput] = useState(String(monthCapacity));
+  const [capacityPopup, setCapacityPopup] = useState(false);
+  const [calcChecked, setCalcChecked] = useState<Set<string>>(new Set());
+
+  React.useEffect(() => { setCapacityInput(String(monthCapacity)); }, [monthCapacity]);
+
+  const commitCapacity = useCallback(() => {
+    const n = parseInt(capacityInput, 10);
+    if (!isNaN(n) && n > 0 && n !== monthCapacity) onSetMonthCapacity?.(n);
+    else setCapacityInput(String(monthCapacity));
+    setCapacityPopup(false);
+  }, [capacityInput, monthCapacity, onSetMonthCapacity]);
 
   // ── Вычисления ────────────────────────────────────────────────────────────
 
-  const aliveTasks = useMemo(
-    () => tasks.filter((t) => !t._deleted && !t._hidden),
-    [tasks],
-  );
+  const alive = useMemo(() => tasks.filter(t => !t._deleted && !t._hidden), [tasks]);
 
-  const budgetUsed = useMemo(() => calcMonthBudgetUsed(aliveTasks), [aliveTasks]);
+  const budgetUsed = useMemo(() => calcMonthBudgetUsed(alive), [alive]);
   const budgetPct = monthCapacity > 0 ? R2((budgetUsed / monthCapacity) * 100) : 0;
-  const gaugeColor =
-    budgetPct > 100 ? "#E24B4A" : budgetPct > 80 ? "#BA7517" : "#1D9E75";
+  const overbooked = R2(Math.max(0, budgetUsed - monthCapacity));
 
-  const healthScore = useMemo(() => calcHealthScore(aliveTasks, monthCapacity), [aliveTasks, monthCapacity]);
+  const gaugeColor = budgetPct > 100 ? "#ef4444" : budgetPct >= 80 ? "#f59e0b" : "#22c55e";
+  const gaugeLabel = budgetPct > 100 ? "🔴 Перебуккинг!" : budgetPct >= 80 ? "🟡 Желтая зона" : "🟢 Есть ресурс";
+  const gaugeLabelColor = budgetPct > 100 ? "#ef4444" : budgetPct >= 80 ? "#d97706" : "#16a34a";
 
-  const totalFact = useMemo(
-    () => R2(aliveTasks.reduce((s, t) => s + evalExpr(t.factH), 0)),
-    [aliveTasks],
-  );
+  const totalFact = useMemo(() => R2(alive.reduce((s, t) => s + evalExpr(t.factH), 0)), [alive]);
+  const healthScore = useMemo(() => calcHealthScore(alive, monthCapacity), [alive, monthCapacity]);
 
-  const remainingBudget = R2(budgetUsed - totalFact);
-  const exhaustDate = calcBudgetExhaustDate(remainingBudget);
+  const pendingTasks = useMemo(() => alive.filter(t => t.approvalStatus === "pending"), [alive]);
+  const pendingHours = useMemo(() => R2(pendingTasks.reduce((s, t) => s + (t.budgetAllocated ?? 0), 0)), [pendingTasks]);
 
-  const firstToCut = useMemo(
-    () => aliveTasks.filter((t) => t.isFirstToCut && t.approvalStatus !== "rejected"),
-    [aliveTasks],
-  );
+  const firstToCutTasks = useMemo(() => alive.filter(t => t.isFirstToCut && t.approvalStatus !== "rejected"), [alive]);
+  const firstToCutHours = useMemo(() => R2(firstToCutTasks.reduce((s, t) => s + (t.budgetAllocated ?? 0), 0)), [firstToCutTasks]);
 
-  const pendingTasks = useMemo(
-    () => aliveTasks.filter((t) => t.approvalStatus === "pending"),
-    [aliveTasks],
-  );
+  // Ролловер в следующий месяц
+  const rolloverHours = useMemo(() =>
+    R2(alive.reduce((s, t) => s + (t.budgetRollover ?? 0), 0)), [alive]);
 
-  // Освобождённые часы (задачи раньше завершились: factH < budgetAllocated)
-  const freedHours = useMemo(() => {
-    return R2(
-      aliveTasks
-        .filter(
-          (t) =>
-            (t.status === STATUSES.DONE || t.status === STATUSES.COMPLETED) &&
-            evalExpr(t.factH) < (t.budgetAllocated ?? 0),
-        )
-        .reduce(
-          (sum, t) =>
-            sum + R2((t.budgetAllocated ?? 0) - evalExpr(t.factH)),
-          0,
-        ),
-    );
-  }, [aliveTasks]);
+  // Досрочно освобождённые (факт < бюджет у завершённых)
+  const freedHours = useMemo(() => R2(
+    alive.filter(t =>
+      (t.status === STATUSES.DONE || t.status === STATUSES.COMPLETED) &&
+      evalExpr(t.factH) < (t.budgetAllocated ?? evalExpr(t.planH)) &&
+      evalExpr(t.factH) > 0
+    ).reduce((s, t) => s + R2((t.budgetAllocated ?? evalExpr(t.planH)) - evalExpr(t.factH)), 0)
+  ), [alive]);
 
-  // Беклог задачи, которые влезают в свободные часы
-  const freeHoursNow = Math.max(0, monthCapacity - budgetUsed) + freedHours;
-  const backlogCandidates = useMemo(
-    () =>
-      (backlogTasks || []).filter(
-        (t) => !t._deleted && evalExpr(t.planH) <= freeHoursNow,
-      ),
-    [backlogTasks, freeHoursNow],
-  );
+  // Свободные часы
+  const freeHours = R2(Math.max(0, monthCapacity - budgetUsed) + freedHours);
 
-  // Дополнительная дозаливка (есть задачи, где budgetAllocated < totalBudgetRequested)
-  const topupCandidates = useMemo(
-    () =>
-      aliveTasks.filter(
-        (t) =>
-          (t.totalBudgetRequested ?? 0) > 0 &&
-          (t.budgetAllocated ?? 0) < (t.totalBudgetRequested ?? 0) &&
-          t.approvalStatus !== "rejected",
-      ),
-    [aliveTasks],
-  );
+  // Скорость отработки (нужно ч/день для выполнения плана)
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const today = new Date();
+  const daysLeft = today.getMonth() === currentMonth && today.getFullYear() === currentYear
+    ? Math.max(1, daysInMonth - today.getDate() + 1) : 1;
+  const remainingToClose = R2(Math.max(0, budgetUsed - totalFact));
+  const neededPerDay = R2(remainingToClose / daysLeft);
+  const PLANNED_PER_DAY = 12;
 
-  // Данные для Area Chart
-  const MONTHS_SHORT = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"];
-  const areaData = MONTHS_SHORT.map((m, i) => ({
-    month: m,
-    allocated: monthlyAllocated[i] ?? 0,
-    fact: monthlyFact[i] ?? 0,
-    limit: monthCapacity,
-    active: i === currentMonth,
-  }));
+  // Данные дневного графика
+  const dailyData = useMemo(() => {
+    const todayDay = today.getMonth() === currentMonth && today.getFullYear() === currentYear
+      ? today.getDate() : daysInMonth;
+    const factPerDay = todayDay > 0 ? R2(totalFact / todayDay) : 0;
 
-  // Данные для ScatterChart
-  const scatterData: ScatterPoint[] = useMemo(() => {
-    return aliveTasks
-      .filter((t) => t.name || t.num)
-      .map((t) => {
-        const pNum = PRIORITY_NUM[t.priority] ?? 3;
-        const isPending = t.approvalStatus === "pending";
-        const isAhead =
-          (t.status === STATUSES.DONE || t.status === STATUSES.COMPLETED) &&
-          evalExpr(t.factH) < evalExpr(t.planH);
-        const color = isAhead
-          ? "#a3e635" // лаймовый для "завершена с опережением"
-          : STATUS_SCATTER_COLORS[t.status] ?? "#9ca3af";
-        return {
-          x: pNum,
-          y: t.daysInStatus ?? 0,
-          z: Math.max(10, Math.min(evalExpr(t.planH) * 3, 800)),
-          name: t.name,
-          num: t.num,
-          status: t.status,
-          priorityLabel: t.priority,
-          planH: evalExpr(t.planH),
-          daysInStatus: t.daysInStatus ?? 0,
-          isPending,
-          color,
-          task: t,
-        };
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1;
+      return {
+        day,
+        allocated: budgetUsed, // горизонтальная линия — сколько заложено
+        fact: day <= todayDay ? R2(factPerDay * day) : undefined,
+        forecast: day >= todayDay
+          ? R2(totalFact + (day - todayDay) * PLANNED_PER_DAY)
+          : undefined,
+        limit: monthCapacity,
+      };
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alive, currentMonth, currentYear, monthCapacity, budgetUsed, totalFact, daysInMonth]);
+
+  // Дата отработки бюджета по прогнозу
+  const exhaustDate = useMemo(() => {
+    if (remainingToClose <= 0) return null;
+    const days = Math.ceil(remainingToClose / PLANNED_PER_DAY);
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    const MONTHS_SHORT = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
+    return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+  }, [remainingToClose]);
+
+  // Scatter data
+  const scatterPoints = useMemo<ScatterPoint[]>(() =>
+    alive.filter(t => t.name || t.num).map(t => {
+      const { color, isAhead } = getBubbleColor(t);
+      const planH = evalExpr(t.planH);
+      const budgetH = t.budgetAllocated ?? planH; // реальное значение или план
+      const daysInStatus = t.daysInStatus ?? calcDaysInStatus(t); // из store или вычисленное
+      return {
+        x: PRIORITY_NUM[t.priority] ?? 3,
+        y: daysInStatus,
+        z: Math.max(200, Math.min(planH * planH * 0.08, 2500)),
+        name: t.name, num: t.num, status: t.status,
+        priorityLabel: PRIORITY_LABEL[t.priority] ?? t.priority,
+        planH, budgetH, factH: evalExpr(t.factH),
+        daysInStatus,
+        isPending: t.approvalStatus === "pending",
+        isFirstToCut: !!t.isFirstToCut,
+        color: isAhead ? "#a3e635" : color,
+        task: t,
+      };
+    }), [alive]);
+
+  // Калькулятор: кандидаты на дозаливку (budgetAllocated < totalBudgetRequested или < planH)
+  const topupCandidates = useMemo(() =>
+    alive.filter(t => {
+      const total = t.totalBudgetRequested ?? evalExpr(t.planH);
+      const allocated = t.budgetAllocated ?? evalExpr(t.planH);
+      return total > 0 && allocated < total && t.approvalStatus !== "rejected";
+    }), [alive]);
+
+  // Калькулятор: беклог
+  const allBacklog = useMemo(() => (backlogTasks || []).filter(t => !t._deleted), [backlogTasks]);
+  const backlogFits = useMemo(() => allBacklog.filter(t => evalExpr(t.planH) <= freeHours), [allBacklog, freeHours]);
+  const backlogNoFit = useMemo(() => allBacklog.filter(t => evalExpr(t.planH) > freeHours), [allBacklog, freeHours]);
+
+  const handleCalcApply = useCallback(() => {
+    calcChecked.forEach(id => {
+      const t = [...topupCandidates, ...backlogFits].find(x => x.id === id);
+      if (!t) return;
+      const planH = evalExpr(t.planH);
+      const gap = R2((t.totalBudgetRequested ?? 0) - (t.budgetAllocated ?? 0));
+      const canAdd = topupCandidates.find(x => x.id === id) ? Math.min(gap, freeHours) : planH;
+      onUpdateTask(id, {
+        approvalStatus: "pending",
+        budgetAllocated: R2((t.budgetAllocated ?? 0) + canAdd),
+        budgetRollover: R2(Math.max(0, gap - canAdd)),
+        ...(backlogFits.find(x => x.id === id) ? { totalBudgetRequested: planH } : {}),
       });
-  }, [aliveTasks]);
+    });
+    setCalcChecked(new Set());
+    setCalcOpen(false);
+  }, [calcChecked, topupCandidates, backlogFits, freeHours, onUpdateTask]);
+
+  // ── Вспомогательные ───────────────────────────────────────────────────────
+
+  const healthBg = healthScore >= 70 ? "var(--tracker-bg-card)" :
+    healthScore >= 45 ? "rgba(245,158,11,0.06)" : "rgba(239,68,68,0.06)";
+  const healthBorder = healthScore >= 70 ? "var(--tracker-border)" :
+    healthScore >= 45 ? "rgba(245,158,11,0.3)" : "rgba(239,68,68,0.3)";
+  const healthColor = healthScore >= 70 ? "#22c55e" : healthScore >= 45 ? "#f59e0b" : "#ef4444";
+  const healthLabel = healthScore >= 70 ? "Норма" : healthScore >= 45 ? "Риск срыва" : "Критично";
+
+  const monthName = `${MONTHS[currentMonth]} ${currentYear}`;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
 
-      {/* Pending notice */}
-      {pendingTasks.length > 0 && (
-        <div
-          className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm"
-          style={{
-            background: "rgba(251,191,36,0.07)",
-            border: "1px solid rgba(251,191,36,0.3)",
-            color: "#854F0B",
-          }}
-        >
-          <span className="text-base shrink-0">⏳</span>
-          <span className="flex-1 text-xs">
-            {pendingTasks.length}{" "}
-            {pendingTasks.length === 1 ? "задача ожидает" : "задач ожидают"}{" "}
-            подтверждения БА — показаны полупрозрачно
-          </span>
-        </div>
-      )}
-
-      {/* Freed hours toast-like */}
+      {/* Toast: досрочно освобождённые часы */}
       {freedHours > 0 && (
         <div
-          className="flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-opacity hover:opacity-80"
-          style={{
-            background: "rgba(29,158,117,0.08)",
-            border: "1px solid rgba(29,158,117,0.3)",
-            color: "#1D9E75",
-          }}
+          className="flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
+          style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.3)", color: "#16a34a" }}
           onClick={() => setCalcOpen(true)}
         >
-          <span className="text-base shrink-0">🎉</span>
-          <span className="flex-1 text-xs font-medium">
-            Освободилось {freedHours}ч досрочно — открыть калькулятор бюджета
+          <span className="text-base">🟢</span>
+          <span className="flex-1 text-sm font-medium">
+            Освобождено досрочно: <b>{freedHours}ч</b>
           </span>
-          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-            style={{ background: "#1D9E75", color: "#fff" }}>
-            Открыть →
+          <span className="text-xs font-semibold px-3 py-1 rounded-full"
+            style={{ background: "#22c55e", color: "#fff" }}>
+            🧮 Открыть калькулятор
           </span>
         </div>
       )}
 
-      {/* ─── БЛОК 1: Capacity Gauge ─── */}
-      <div className="dash-section">
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <p className="dash-section-title">⚡ Загрузка месяца</p>
-            <p className="text-[11px] mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>
-              {MONTHS[currentMonth]} {currentYear} · лимит {monthCapacity}ч
-            </p>
+      {/* ════════════════════════════════════════════════════
+          СТРОКА 1: ЗДОРОВЬЕ + GAUGE + ГРАФИК
+      ════════════════════════════════════════════════════ */}
+      <div className="delta-row1 grid grid-cols-12 gap-4">
+
+        {/* — Здоровье домена — */}
+        <div className="delta-health-card col-span-12 md:col-span-2 rounded-2xl p-5 flex flex-col justify-center"
+          style={{ background: healthBg, border: `1px solid ${healthBorder}` }}>
+          <div className="delta-health-score text-5xl font-bold tabular-nums mb-1" style={{ color: healthColor }}>
+            {healthScore}
           </div>
-          <div className="text-right">
-            <p
-              className="text-2xl font-bold tabular-nums"
-              style={{ color: gaugeColor }}
-            >
-              {budgetUsed}ч
-            </p>
-            <p className="text-[11px]" style={{ color: "var(--tracker-text-muted)" }}>
-              {budgetPct}% использовано
-            </p>
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div
-          className="h-3 rounded-full overflow-hidden mb-3 relative"
-          style={{ background: "var(--tracker-border, var(--border))" }}
-        >
-          <div
-            className="h-full rounded-full transition-all duration-700 relative"
-            style={{
-              width: `${Math.min(budgetPct, 100)}%`,
-              background: gaugeColor,
-            }}
-          />
-          {/* 80% mark */}
-          <div
-            className="absolute top-0 bottom-0 w-px opacity-50"
-            style={{ left: "80%", background: "#BA7517" }}
-          />
-        </div>
-
-        <div className="flex items-center justify-between text-[11px] mb-4"
-          style={{ color: "var(--tracker-text-muted)" }}>
-          <span>0ч</span>
-          <span style={{ color: "#BA7517" }}>
-            80% = {R2(monthCapacity * 0.8)}ч
-          </span>
-          <span>{monthCapacity}ч</span>
-        </div>
-
-        {/* На отсечение */}
-        {firstToCut.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold mb-2" style={{ color: "#E24B4A" }}>
-              ⚡ На отсечение ({firstToCut.length})
-            </p>
-            <div className="space-y-1">
-              {firstToCut.map((t) => (
-                <div key={t.id} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg"
-                  style={{ background: "rgba(226,75,74,0.06)" }}>
-                  <span style={{ color: "var(--tracker-text-muted)" }}>{t.num}</span>
-                  <span className="flex-1 truncate" style={{ color: "var(--tracker-text-main)" }}>
-                    {t.name || "—"}
-                  </span>
-                  <span className="tabular-nums" style={{ color: "#E24B4A" }}>
-                    {t.budgetAllocated ?? 0}ч
-                  </span>
-                </div>
-              ))}
+          <div className="text-sm font-semibold mb-3" style={{ color: healthColor }}>{healthLabel}</div>
+          {neededPerDay > PLANNED_PER_DAY && (
+            <div className="text-xs font-semibold px-2 py-1 rounded"
+              style={{ background: healthScore < 45 ? "rgba(239,68,68,0.12)" : "rgba(245,158,11,0.12)",
+                color: healthColor }}>
+              Нужно {neededPerDay}ч/день вместо {PLANNED_PER_DAY}ч
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* ─── БЛОК 2: Area Chart + Здоровье ─── */}
-      <div className="dash-section">
-        <div className="flex items-center justify-between mb-1">
-          <p className="dash-section-title">📈 Движение бюджета</p>
-          {exhaustDate && (
-            <span className="text-[11px] px-2 py-0.5 rounded-full"
-              style={{ background: "rgba(186,117,23,0.12)", color: "#854F0B" }}>
-              ~исчерпан {exhaustDate}
-            </span>
+          )}
+          {neededPerDay <= PLANNED_PER_DAY && (
+            <div className="text-xs px-2 py-1 rounded" style={{ background: "rgba(34,197,94,0.1)", color: "#16a34a" }}>
+              ✓ Успеваем в срок
+            </div>
           )}
         </div>
 
-        <div className="mb-3">
-          <p className="text-[11px] mb-1" style={{ color: "var(--tracker-text-muted)" }}>
-            Здоровье команды
-          </p>
-          <HealthBar score={healthScore} />
+        {/* — Capacity Gauge — */}
+        <div className="delta-gauge-card col-span-12 md:col-span-3 rounded-2xl p-5" style={CARD}>
+          {/* Заголовок + шестерёнка */}
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-bold text-sm" style={TEXT_MAIN}>Бюджет {monthName}</h3>
+            <div className="relative">
+              <button
+                className="text-sm hover:opacity-70 transition-opacity"
+                onClick={() => setCapacityPopup(v => !v)}
+                title="Настроить лимит месяца"
+              >
+                ⚙️ <span className="text-xs" style={TEXT_MUTED}>{monthCapacity}ч</span>
+              </button>
+              {capacityPopup && (
+                <div className="absolute right-0 top-7 z-50 rounded-xl shadow-xl p-3 w-48"
+                  style={{ background: "var(--tracker-bg-card, var(--card))", border: "1px solid var(--tracker-border, var(--border))" }}>
+                  <p className="text-xs font-semibold mb-2" style={TEXT_MUTED}>Лимит часов в месяце</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="number" min={1}
+                      className="flex-1 h-8 rounded-lg border px-2 text-sm tabular-nums outline-none"
+                      style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))", color: "var(--tracker-text-main)" }}
+                      value={capacityInput}
+                      onChange={e => setCapacityInput(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && commitCapacity()}
+                      autoFocus
+                    />
+                    <button
+                      className="px-2 rounded-lg text-xs font-bold text-white"
+                      style={{ background: "var(--tracker-accent)" }}
+                      onClick={commitCapacity}
+                    >Ок</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Крупная цифра */}
+          <div className="text-4xl font-bold tabular-nums mb-1" style={{ color: gaugeColor }}>
+            {fmt2(budgetUsed)}
+            <span className="text-lg font-normal ml-1" style={TEXT_MUTED}>/ {monthCapacity}ч</span>
+          </div>
+
+          {/* Прогресс-бар */}
+          <div className="w-full rounded-full h-3 mb-1.5 overflow-hidden relative"
+            style={{ background: "var(--tracker-border, var(--border))" }}>
+            <div className="h-3 rounded-full transition-all duration-700"
+              style={{ width: `${Math.min(budgetPct, 100)}%`, background: gaugeColor }} />
+            {/* 80% метка */}
+            <div className="absolute top-0 bottom-0 w-px"
+              style={{ left: "80%", background: "#f59e0b", opacity: 0.6 }} />
+          </div>
+          <div className="text-xs font-semibold mb-3" style={{ color: gaugeLabelColor }}>
+            {gaugeLabel} ({budgetPct}%)
+          </div>
+
+          {/* Мета-статистики */}
+          <div className="pt-2 border-t space-y-1.5"
+            style={{ borderColor: "var(--tracker-border, var(--border))" }}>
+            <div className="flex justify-between text-xs" style={TEXT_MUTED}>
+              <span>⚡ На отсечение:</span>
+              <span className="font-bold" style={{ color: firstToCutTasks.length > 0 ? "#f97316" : "var(--tracker-text-muted)" }}>
+                {firstToCutTasks.length} зад. ({firstToCutHours}ч)
+              </span>
+            </div>
+            <div className="flex justify-between text-xs" style={TEXT_MUTED}>
+              <span>⏳ Ожидает БА:</span>
+              <span className="font-bold" style={{ color: pendingTasks.length > 0 ? "#f59e0b" : "var(--tracker-text-muted)" }}>
+                {pendingTasks.length} зад. ({pendingHours}ч)
+              </span>
+            </div>
+            <div className="flex justify-between text-xs" style={TEXT_MUTED}>
+              <span>📅 В след. месяце:</span>
+              <span className="font-bold" style={{ color: rolloverHours > 0 ? "#60a5fa" : "var(--tracker-text-muted)" }}>
+                {rolloverHours}ч
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div style={{ height: 160 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={areaData} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-              <defs>
-                <linearGradient id="gradAllocated" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#4fc3f7" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#4fc3f7" stopOpacity={0.02} />
-                </linearGradient>
-                <linearGradient id="gradFact" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#1D9E75" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#1D9E75" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--tracker-border)" opacity={0.4} />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 10, fill: "var(--tracker-text-muted)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 9, fill: "var(--tracker-text-muted)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "var(--tracker-bg, var(--background))",
-                  border: "1px solid var(--tracker-border, var(--border))",
-                  borderRadius: 10,
-                  fontSize: 11,
-                }}
-              />
-              {/* Пунктирная линия лимита */}
-              <ReferenceLine
-                y={monthCapacity}
-                stroke="#E24B4A"
-                strokeDasharray="5 3"
-                strokeOpacity={0.6}
-                label={{ value: `${monthCapacity}ч`, position: "right", fontSize: 9, fill: "#E24B4A" }}
-              />
-              <Area
-                type="monotone"
-                dataKey="allocated"
-                name="Заложено"
-                stroke="#4fc3f7"
-                strokeWidth={2}
-                fill="url(#gradAllocated)"
-                dot={false}
-              />
-              <Area
-                type="monotone"
-                dataKey="fact"
-                name="Выполнено"
-                stroke="#1D9E75"
-                strokeWidth={2}
-                fill="url(#gradFact)"
-                dot={false}
-              />
-              <Legend
-                wrapperStyle={{ fontSize: 10, paddingTop: 4 }}
-                iconType="circle"
-                iconSize={7}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+        {/* — График движения бюджета — */}
+        <div className="delta-chart-card col-span-12 md:col-span-7 rounded-2xl p-5" style={CARD}>
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <h3 className="font-bold text-sm" style={TEXT_MAIN}>Движение бюджета ({monthName})</h3>
+            <div className="flex gap-4 text-xs flex-wrap">
+              {overbooked > 0 && (
+                <span style={{ color: "#ef4444" }}>🔴 Перерасход: +{overbooked}ч</span>
+              )}
+              {freedHours > 0 && (
+                <span style={{ color: "#22c55e" }}>🟢 Освобождено: -{freedHours}ч</span>
+              )}
+              {exhaustDate && (
+                <span style={{ color: "#f59e0b" }}>📅 Закроем ~{exhaustDate}</span>
+              )}
+            </div>
+          </div>
+
+          <div className="delta-chart-height" style={{ height: 180 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dailyData} margin={{ top: 4, right: 4, bottom: 0, left: -24 }}>
+                <defs>
+                  <linearGradient id="gFact" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="gForecast" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--tracker-border)" opacity={0.35} />
+                <XAxis dataKey="day" tick={{ fontSize: 9, fill: "var(--tracker-text-muted)" }}
+                  axisLine={false} tickLine={false}
+                  tickFormatter={v => (v % 5 === 0 || v === 1) ? String(v) : ""} />
+                <YAxis tick={{ fontSize: 9, fill: "var(--tracker-text-muted)" }}
+                  axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: "var(--tracker-bg-card)", border: "1px solid var(--tracker-border)", borderRadius: 10, fontSize: 11 }}
+                  formatter={(v: number, name: string) => [`${v}ч`, name === "fact" ? "Выполнено" : name === "forecast" ? "Прогноз" : name === "allocated" ? "Заложено" : "Лимит"]}
+                  labelFormatter={v => `День ${v}`}
+                />
+                {/* Лимит */}
+                <ReferenceLine y={monthCapacity} stroke="#ef4444" strokeDasharray="5 3" strokeOpacity={0.7}
+                  label={{ value: `Лимит ${monthCapacity}ч`, position: "right", fontSize: 8, fill: "#ef4444" }} />
+                {/* Заложено */}
+                <ReferenceLine y={budgetUsed} stroke="#3b82f6" strokeDasharray="4 3" strokeOpacity={0.5} />
+                {/* Факт */}
+                <Area type="monotone" dataKey="fact" name="fact" stroke="#22c55e" strokeWidth={2}
+                  fill="url(#gFact)" dot={false} connectNulls={false} />
+                {/* Прогноз */}
+                <Area type="monotone" dataKey="forecast" name="forecast" stroke="#3b82f6"
+                  strokeWidth={1.5} strokeDasharray="5 3" fill="url(#gForecast)"
+                  dot={false} connectNulls={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Легенда */}
+          <div className="flex gap-4 mt-1 text-[10px] flex-wrap" style={TEXT_MUTED}>
+            {[
+              { color: "#ef4444", dash: true, label: `Лимит ${monthCapacity}ч` },
+              { color: "#3b82f6", dash: false, label: `Заложено ${budgetUsed}ч` },
+              { color: "#22c55e", dash: false, label: `Выполнено ${totalFact}ч` },
+              { color: "#3b82f6", dash: true, label: "Прогноз" },
+            ].map(l => (
+              <span key={l.label} className="flex items-center gap-1">
+                <span className="inline-block w-5 h-0" style={{
+                  borderTop: `2px ${l.dash ? "dashed" : "solid"} ${l.color}`,
+                  display: "inline-block", width: 16, verticalAlign: "middle",
+                }} />
+                {l.label}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* ─── БЛОК 3: Карта рисков ─── */}
-      <div className="dash-section">
-        <p className="dash-section-title mb-1">🫧 Карта рисков</p>
-        <p className="text-[11px] mb-3" style={{ color: "var(--tracker-text-muted)" }}>
-          X — приоритет · Y — дней в статусе · Размер — оценка часов · Кликни на задачу
+      {/* ════════════════════════════════════════════════════
+          СТРОКА 2: КАРТА РИСКОВ
+      ════════════════════════════════════════════════════ */}
+      <div className="rounded-2xl p-5" style={CARD}>
+        <div className="flex items-start justify-between mb-1 flex-wrap gap-2">
+          <h3 className="font-bold" style={TEXT_MAIN}>Карта рисков: Инвестиции бюджета</h3>
+          {/* Легенда */}
+          <div className="flex gap-3 flex-wrap text-xs">
+            {[
+              { color: "#60a5fa", label: "Новая" },
+              { color: "#f59e0b", label: "В работе" },
+              { color: "#ef4444", label: "Блокер" },
+              { color: "#15803d", label: "Завершена" },
+              { color: "#a3e635", glow: true, label: "Опережение" },
+              { pending: true, label: "Ожидает БА" },
+            ].map(item => (
+              <div key={item.label} className="flex items-center gap-1">
+                {item.pending ? (
+                  <span className="w-3 h-3 rounded-full border-2 border-dashed inline-block"
+                    style={{ borderColor: "#f59e0b", background: "rgba(96,165,250,0.4)" }} />
+                ) : (
+                  <span className={`w-3 h-3 rounded-full inline-block ${item.glow ? "glow-lime" : ""}`}
+                    style={{ background: item.color,
+                      boxShadow: item.glow ? "0 0 8px rgba(163,230,53,0.8)" : undefined }} />
+                )}
+                <span style={TEXT_MUTED}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="text-xs mb-2" style={TEXT_MUTED}>
+          X: Приоритет · Y: Дней в статусе · Размер: Оценка часов
         </p>
 
-        <div style={{ height: 220 }}>
+        {/* Swipe hint только на мобиле */}
+        <div className="delta-risk-scroll-hint">
+          <span>👆</span><span>Прокрутите горизонтально</span>
+        </div>
+
+        {/* Скроллируемая обёртка на мобиле */}
+        <div className="delta-risk-map">
+          <div className="delta-risk-map-inner" style={{ height: 340 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: 8, right: 16, bottom: 16, left: -20 }}>
+            <ScatterChart margin={{ top: 16, right: 24, bottom: 24, left: -8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--tracker-border)" opacity={0.4} />
-              <XAxis
-                type="number"
-                dataKey="x"
-                domain={[0.5, 5.5]}
-                tickCount={5}
-                tickFormatter={(v) => ["","Н-ший","Высок","Средн","Низк","Очер"][Math.round(v)] ?? ""}
-                tick={{ fontSize: 9, fill: "var(--tracker-text-muted)" }}
-                axisLine={false}
-                tickLine={false}
+              <XAxis type="number" dataKey="x" domain={[0.5, 5.5]} tickCount={5}
+                tick={{ fontSize: 10, fill: "var(--tracker-text-muted)" }}
+                axisLine={false} tickLine={false}
+                label={{ value: "Приоритет (1 → 5)", position: "insideBottom", offset: -12, fontSize: 10, fill: "var(--tracker-text-muted)" }}
+                tickFormatter={v => ["","P1","P2","P3","P4","P5"][Math.round(v)] ?? ""}
               />
-              <YAxis
-                type="number"
-                dataKey="y"
+              <YAxis type="number" dataKey="y" axisLine={false} tickLine={false}
                 tick={{ fontSize: 9, fill: "var(--tracker-text-muted)" }}
-                axisLine={false}
-                tickLine={false}
-                label={{ value: "дней", angle: -90, position: "insideLeft", fontSize: 9, fill: "var(--tracker-text-muted)" }}
+                label={{ value: "Дней в статусе", angle: -90, position: "insideLeft", offset: 16, fontSize: 10, fill: "var(--tracker-text-muted)" }}
               />
-              <ZAxis type="number" dataKey="z" range={[30, 600]} />
-              <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: "3 3" }} />
+              <ZAxis type="number" dataKey="z" range={[80, 2400]} />
+              <Tooltip content={<BubbleTooltip />} cursor={{ strokeDasharray: "3 3" }} />
               <Scatter
-                data={scatterData}
+                data={scatterPoints}
                 shape={(props: { cx?: number; cy?: number; payload?: ScatterPoint }) => {
-                  const { cx = 0, cy = 0, payload } = props;
-                  if (!payload) return <circle cx={cx} cy={cy} r={6} />;
-                  const r = Math.sqrt((payload.z ?? 100) / Math.PI);
-                  const isPending = payload.isPending;
-                  const isAhead = payload.color === "#a3e635";
+                  const { cx = 0, cy = 0, payload: p } = props;
+                  if (!p) return <circle cx={cx} cy={cy} r={6} />;
+                  const r = Math.sqrt((p.z ?? 200) / Math.PI);
+                  const isAhead = p.color === "#a3e635";
                   return (
-                    <g
-                      style={{ cursor: "pointer" }}
-                      onClick={() => setSelectedTask(payload.task)}
-                    >
+                    <g style={{ cursor: "pointer" }} onClick={() => setSelectedTask(p.task)}>
+                      {/* Свечение для "опережение" */}
                       {isAhead && (
-                        <circle
-                          cx={cx}
-                          cy={cy}
-                          r={r + 4}
-                          fill="none"
-                          stroke="#a3e635"
-                          strokeWidth={1.5}
-                          opacity={0.5}
-                        />
+                        <circle cx={cx} cy={cy} r={r + 6} fill="none"
+                          stroke="#a3e635" strokeWidth={1.5} opacity={0.4} />
                       )}
+                      {/* Основной круг */}
                       <circle
-                        cx={cx}
-                        cy={cy}
-                        r={r}
-                        fill={payload.color}
-                        fillOpacity={isPending ? 0.35 : 0.75}
-                        stroke={payload.color}
-                        strokeWidth={isPending ? 0 : 1}
-                        strokeDasharray={isPending ? "4 2" : undefined}
+                        cx={cx} cy={cy} r={r}
+                        fill={p.color}
+                        fillOpacity={p.isPending ? 0.4 : 0.75}
+                        stroke={p.isPending ? "#f59e0b" : p.color}
+                        strokeWidth={p.isPending ? 2.5 : 1.5}
+                        strokeDasharray={p.isPending ? "5 4" : undefined}
                       />
-                      {isPending && (
-                        <circle
-                          cx={cx}
-                          cy={cy}
-                          r={r + 1}
-                          fill="none"
-                          stroke={payload.color}
-                          strokeWidth={1.5}
-                          strokeDasharray="3 2"
-                          opacity={0.8}
-                        />
-                      )}
                     </g>
                   );
                 }}
               />
             </ScatterChart>
           </ResponsiveContainer>
-        </div>
-
-        {/* Легенда */}
-        <div className="flex flex-wrap gap-3 mt-2">
-          {[
-            { color: "#4fc3f7", label: "Новая / Анализ" },
-            { color: "#fbbb2d", label: "В работе" },
-            { color: "#E24B4A", label: "Блокер" },
-            { color: "#1D9E75", label: "Завершена" },
-            { color: "#a3e635", label: "С опережением ✨" },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-1.5">
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ background: item.color }}
-              />
-              <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
-                {item.label}
-              </span>
-            </div>
-          ))}
-          <div className="flex items-center gap-1.5">
-            <span
-              className="w-2.5 h-2.5 rounded-full shrink-0 border border-dashed"
-              style={{
-                background: "transparent",
-                borderColor: "#BA7517",
-              }}
-            />
-            <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
-              ⏳ Pending
-            </span>
-          </div>
-        </div>
+        </div>{/* delta-risk-map-inner */}
+        </div>{/* delta-risk-map */}
       </div>
 
-      {/* ─── БЛОК 4: Калькулятор (кнопка) ─── */}
+      {/* ── Кнопка калькулятора в шапке ── */}
       <div className="flex justify-end">
         <Button
-          variant="outline"
-          size="sm"
-          className="text-xs h-8"
           onClick={() => setCalcOpen(true)}
+          className="gap-2 text-sm"
+          style={{ background: "var(--tracker-accent)", color: "#fff" }}
         >
-          🧮 Калькулятор бюджета · свободно {fmt2(freeHoursNow)}ч
+          🧮 Калькулятор бюджета
+          {freeHours > 0 && (
+            <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-bold"
+              style={{ background: "rgba(255,255,255,0.25)" }}>
+              +{fmt2(freeHours)}ч свободно
+            </span>
+          )}
         </Button>
       </div>
 
-      {/* ─── Поп-ап задачи (Рычаги руководителя) ─── */}
+      {/* ════════════════════════════════════════════════════
+          ПОП-АП ЗАДАЧИ (Рычаги)
+      ════════════════════════════════════════════════════ */}
       {selectedTask && (
-        <Dialog open={!!selectedTask} onOpenChange={(o) => !o && setSelectedTask(null)}>
-          <DialogContent
-            style={{
-              background: "var(--tracker-bg, var(--background))",
-              border: "1px solid var(--tracker-border, var(--border))",
-            }}
-          >
+        <Dialog open={!!selectedTask} onOpenChange={o => !o && setSelectedTask(null)}>
+          <DialogContent style={{ background: "var(--tracker-bg-card, var(--card))", border: "1px solid var(--tracker-border, var(--border))", maxWidth: 480 }}>
             <DialogHeader>
-              <DialogTitle
-                className="text-base truncate"
-                style={{ color: "var(--tracker-accent-fg-dark)" }}
-              >
-                {selectedTask.num ? `#${selectedTask.num} · ` : ""}{selectedTask.name || "Без названия"}
+              {/* Статус-бейдж */}
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                {(() => {
+                  const { color, isAhead } = getBubbleColor(selectedTask);
+                  const label = isAhead ? "🌟 Опережение"
+                    : (selectedTask.status as string) === "Блокер" ? "🔴 Блокер"
+                    : selectedTask.status as string;
+                  return (
+                    <span className="text-xs font-semibold px-2 py-1 rounded-full"
+                      style={{ background: color + "22", color }}>
+                      {label}
+                    </span>
+                  );
+                })()}
+                {selectedTask.approvalStatus === "pending" && (
+                  <span className="text-xs font-semibold px-2 py-1 rounded-full border border-dashed"
+                    style={{ borderColor: "#f59e0b", background: "rgba(245,158,11,0.08)", color: "#d97706" }}>
+                    ⏳ Ожидает подтверждения БА
+                  </span>
+                )}
+              </div>
+              <DialogTitle className="text-xl" style={TEXT_MAIN}>
+                {selectedTask.name || selectedTask.num || "Без названия"}
               </DialogTitle>
             </DialogHeader>
 
-            {/* Данные задачи */}
-            <div className="space-y-2 text-xs mb-4">
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  ["Статус", selectedTask.status],
-                  ["Приоритет", selectedTask.priority],
-                  ["План", `${evalExpr(selectedTask.planH)}ч`],
-                  ["Факт", `${evalExpr(selectedTask.factH)}ч`],
-                  ["Бюджет выделен", `${selectedTask.budgetAllocated ?? 0}ч`],
-                  ["Дней в статусе", String(selectedTask.daysInStatus ?? 0)],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-lg px-3 py-2"
-                    style={{ background: "var(--tracker-accent-bg, rgba(29,158,117,0.06))" }}>
-                    <p style={{ color: "var(--tracker-text-muted)" }}>{label}</p>
-                    <p className="font-semibold mt-0.5" style={{ color: "var(--tracker-text-main)" }}>{value}</p>
-                  </div>
-                ))}
-              </div>
-
-              {selectedTask.approvalStatus === "pending" && (
-                <div className="rounded-lg px-3 py-2 text-center"
-                  style={{ background: "rgba(251,191,36,0.08)", color: "#854F0B" }}>
-                  ⏳ Ожидает подтверждения БА
+            {/* Метрики задачи */}
+            <div className="grid grid-cols-2 gap-3 my-4 text-sm">
+              {[
+                { label: "Общая оценка", value: `${evalExpr(selectedTask.planH)}ч`, bg: "var(--tracker-accent-bg)", highlight: false },
+                { label: `Бюджет в мес.${evalExpr(selectedTask.planH) > 100 ? " (Ролловер)" : ""}`, value: `${selectedTask.budgetAllocated ?? evalExpr(selectedTask.planH)}ч`, bg: "rgba(96,165,250,0.1)", highlight: true },
+                { label: "Факт потрачено", value: `${evalExpr(selectedTask.factH)}ч`, bg: "var(--tracker-accent-bg)", highlight: false },
+                { label: "Приоритет", value: PRIORITY_LABEL[selectedTask.priority] ?? selectedTask.priority, bg: "var(--tracker-accent-bg)", highlight: false },
+                { label: "Дней в статусе", value: String(selectedTask.daysInStatus ?? 0), bg: "var(--tracker-accent-bg)", highlight: false },
+                { label: "Ролловер", value: `${selectedTask.budgetRollover ?? 0}ч`, bg: "var(--tracker-accent-bg)", highlight: false },
+              ].map(({ label, value, bg, highlight }) => (
+                <div key={label} className="rounded-xl p-3" style={{ background: bg, border: highlight ? "1px solid rgba(96,165,250,0.25)" : undefined }}>
+                  <p className="text-xs mb-0.5" style={{ color: highlight ? "#60a5fa" : "var(--tracker-text-muted)" }}>{label}</p>
+                  <p className="font-bold" style={{ color: highlight ? "#3b82f6" : "var(--tracker-text-main)" }}>{value}</p>
                 </div>
-              )}
+              ))}
             </div>
 
             {/* Рычаги */}
-            <div>
-              <p className="text-xs font-semibold mb-2"
-                style={{ color: "var(--tracker-text-muted)" }}>
-                Рычаги руководителя
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(FLAG_LABELS).map(([flag, label]) => {
-                  const isActive = selectedTask.executiveFlag === flag;
-                  return (
-                    <Button
-                      key={flag}
-                      variant={isActive ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 text-xs"
-                      style={
-                        isActive
-                          ? { background: "var(--tracker-accent)", color: "#fff" }
-                          : {}
-                      }
-                      onClick={() => {
-                        const newFlag = isActive ? undefined : (flag as Task["executiveFlag"]);
-                        onUpdateTask(selectedTask.id, { executiveFlag: newFlag });
-                        setSelectedTask({ ...selectedTask, executiveFlag: newFlag });
-                      }}
-                    >
-                      {label}
-                    </Button>
-                  );
-                })}
-              </div>
+            <div className="border-t pt-4 space-y-2"
+              style={{ borderColor: "var(--tracker-border, var(--border))" }}>
+              <h3 className="font-bold text-sm mb-2" style={TEXT_MUTED}>Рычаги влияния:</h3>
+              {[
+                { flag: "escalate" as const, label: "🔥 Ускорить / Эскалировать", bg: "rgba(239,68,68,0.06)", border: "rgba(239,68,68,0.25)", color: "#dc2626" },
+                { flag: "pause" as const, label: "⏸ Поставить на паузу", bg: "rgba(107,114,128,0.06)", border: "rgba(107,114,128,0.2)", color: "var(--tracker-text-muted)" },
+                { flag: "request_status" as const, label: "❓ Запросить статус", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.2)", color: "#6366f1" },
+                { flag: "cancel" as const, label: "❌ Отменить задачу", bg: "rgba(239,68,68,0.04)", border: "rgba(239,68,68,0.15)", color: "#dc2626" },
+              ].map(({ flag, label, bg, border, color }) => {
+                const isActive = selectedTask.executiveFlag === flag;
+                return (
+                  <button key={flag}
+                    className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all"
+                    style={{
+                      background: isActive ? bg.replace("0.06", "0.15").replace("0.04", "0.12") : bg,
+                      border: `1px solid ${border}`,
+                      color,
+                      boxShadow: isActive ? `0 0 0 2px ${border}` : undefined,
+                    }}
+                    onClick={() => {
+                      const newFlag = isActive ? undefined : flag;
+                      onUpdateTask(selectedTask.id, { executiveFlag: newFlag });
+                      setSelectedTask({ ...selectedTask, executiveFlag: newFlag });
+                    }}
+                  >
+                    {isActive ? "✓ " : ""}{label}
+                  </button>
+                );
+              })}
+
+              {/* Чекбокс "На отсечение" */}
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer"
+                style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.25)" }}>
+                <input type="checkbox"
+                  className="w-4 h-4 rounded accent-orange-500"
+                  checked={!!selectedTask.isFirstToCut}
+                  onChange={() => {
+                    const v = !selectedTask.isFirstToCut;
+                    onUpdateTask(selectedTask.id, { isFirstToCut: v });
+                    setSelectedTask({ ...selectedTask, isFirstToCut: v });
+                  }}
+                />
+                <span className="text-sm font-medium" style={{ color: "#f97316" }}>⚡ Первая на отсечение</span>
+              </label>
             </div>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* ─── Калькулятор бюджета (Sheet) ─── */}
+      {/* ════════════════════════════════════════════════════
+          КАЛЬКУЛЯТОР БЮДЖЕТА (Sheet)
+      ════════════════════════════════════════════════════ */}
       <Sheet open={calcOpen} onOpenChange={setCalcOpen}>
-        <SheetContent
-          side="right"
-          className="w-[460px] sm:w-[520px] overflow-y-auto"
-          style={{
-            background: "var(--tracker-bg, var(--background))",
-            borderLeft: "1px solid var(--tracker-border, var(--border))",
-          }}
-        >
+        <SheetContent side="right" className="w-[400px] sm:w-[440px] overflow-y-auto"
+          style={{ background: "var(--tracker-bg-card, var(--card))", borderLeft: "1px solid var(--tracker-border, var(--border))" }}>
           <SheetHeader className="pb-4">
-            <SheetTitle style={{ color: "var(--tracker-accent-fg-dark)" }}>
-              🧮 Калькулятор бюджета
-            </SheetTitle>
-            <SheetDescription style={{ color: "var(--tracker-text-muted)" }}>
-              Свободно: <strong>{fmt2(freeHoursNow)}ч</strong>
-              {freedHours > 0 && ` (включая ${freedHours}ч досрочно освобождённых)`}
+            <SheetTitle className="text-xl" style={TEXT_ACCENT}>Калькулятор бюджета</SheetTitle>
+            <SheetDescription>
+              <div className="rounded-xl p-4 mt-2 text-center"
+                style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                <div className="text-xs font-medium mb-1" style={{ color: "#16a34a" }}>Свободно бюджета</div>
+                <div className="text-4xl font-bold tabular-nums" style={{ color: "#22c55e" }}>+{fmt2(freeHours)} ч</div>
+                {freedHours > 0 && (
+                  <div className="text-xs mt-1" style={{ color: "#16a34a" }}>
+                    в т.ч. {freedHours}ч освобождено досрочно
+                  </div>
+                )}
+              </div>
             </SheetDescription>
           </SheetHeader>
 
           {/* Секция 1: Дозалить в текущие */}
           {topupCandidates.length > 0 && (
-            <section className="mb-6">
-              <h3
-                className="text-xs font-semibold uppercase tracking-wider mb-3"
-                style={{ color: "var(--tracker-text-muted)" }}
-              >
-                1 / Дозалить в текущие задачи
+            <div className="mb-6">
+              <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={TEXT_MAIN}>
+                <span className="px-2 py-0.5 rounded text-xs font-bold"
+                  style={{ background: "rgba(245,158,11,0.15)", color: "#d97706" }}>1</span>
+                Дозалить в текущие задачи
               </h3>
               <div className="space-y-2">
-                {topupCandidates.map((t) => {
+                {topupCandidates.map(t => {
                   const gap = R2((t.totalBudgetRequested ?? 0) - (t.budgetAllocated ?? 0));
-                  const canAdd = Math.min(gap, freeHoursNow);
+                  const canAdd = Math.min(gap, freeHours);
+                  const checked = calcChecked.has(t.id);
                   return (
-                    <div
-                      key={t.id}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                    <label key={t.id}
+                      className="flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors"
                       style={{
-                        background: "var(--tracker-accent-bg, rgba(29,158,117,0.06))",
-                        border: "1px solid var(--tracker-border, var(--border))",
-                      }}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate"
-                          style={{ color: "var(--tracker-text-main)" }}>
+                        background: checked ? "rgba(245,158,11,0.08)" : "var(--tracker-bg, var(--background))",
+                        borderColor: checked ? "rgba(245,158,11,0.4)" : "var(--tracker-border, var(--border))",
+                      }}>
+                      <div>
+                        <div className="text-sm font-medium truncate max-w-[220px]" style={TEXT_MAIN}>
                           {t.name || t.num || "—"}
-                        </p>
-                        <p className="text-[11px] mt-0.5"
-                          style={{ color: "var(--tracker-text-muted)" }}>
-                          выделено {t.budgetAllocated ?? 0}ч / нужно {t.totalBudgetRequested ?? 0}ч
-                          · перенос {gap}ч
-                        </p>
+                        </div>
+                        <div className="text-xs mt-0.5" style={TEXT_MUTED}>
+                          Бюджет: {t.budgetAllocated ?? 0}ч из {t.totalBudgetRequested ?? 0}ч (Ролловер)
+                        </div>
                       </div>
-                      <Button
-                        size="sm"
-                        className="h-7 text-xs shrink-0"
-                        disabled={canAdd <= 0}
-                        style={{ background: "var(--tracker-accent)", color: "#fff" }}
-                        onClick={() => {
-                          onUpdateTask(t.id, {
-                            approvalStatus: "pending",
-                            budgetAllocated: R2((t.budgetAllocated ?? 0) + canAdd),
-                            budgetRollover: R2(gap - canAdd),
-                          });
-                        }}
-                      >
-                        +{canAdd}ч
-                      </Button>
-                    </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs font-bold" style={{ color: "#d97706" }}>+{canAdd}ч</span>
+                        <input type="checkbox" className="w-4 h-4 accent-amber-500 rounded"
+                          checked={checked}
+                          onChange={() => {
+                            const s = new Set(calcChecked);
+                            checked ? s.delete(t.id) : s.add(t.id);
+                            setCalcChecked(s);
+                          }} />
+                      </div>
+                    </label>
                   );
                 })}
               </div>
-            </section>
+            </div>
           )}
 
-          {/* Секция 2: Взять из беклога */}
-          <section>
-            <h3
-              className="text-xs font-semibold uppercase tracking-wider mb-3"
-              style={{ color: "var(--tracker-text-muted)" }}
-            >
-              2 / Взять из беклога
+          {/* Секция 2: Из беклога */}
+          <div className="mb-6">
+            <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={TEXT_MAIN}>
+              <span className="px-2 py-0.5 rounded text-xs font-bold"
+                style={{ background: "rgba(99,102,241,0.15)", color: "#6366f1" }}>2</span>
+              Взять из беклога (до {fmt2(freeHours)}ч)
             </h3>
-
-            {backlogCandidates.length === 0 && (
-              <p className="text-xs py-4 text-center"
-                style={{ color: "var(--tracker-text-muted)" }}>
-                {freeHoursNow > 0
-                  ? "Нет задач в беклоге, умещающихся в свободные часы"
-                  : "Нет свободных часов для новых задач"}
-              </p>
-            )}
-
             <div className="space-y-2">
-              {backlogCandidates.map((t) => {
+              {backlogFits.map(t => {
                 const planH = evalExpr(t.planH);
+                const checked = calcChecked.has(t.id);
                 return (
-                  <div
-                    key={t.id}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                  <label key={t.id}
+                    className="flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors"
                     style={{
-                      background: "var(--tracker-bg, var(--background))",
-                      border: "1px solid var(--tracker-border, var(--border))",
-                    }}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className="text-xs font-medium truncate"
-                        style={{ color: "var(--tracker-text-main)" }}
-                      >
+                      background: checked ? "rgba(99,102,241,0.06)" : "var(--tracker-bg, var(--background))",
+                      borderColor: checked ? "rgba(99,102,241,0.35)" : "var(--tracker-border, var(--border))",
+                    }}>
+                    <div>
+                      <div className="text-sm font-medium truncate max-w-[220px]" style={TEXT_MAIN}>
                         {t.name || t.num || "—"}
-                      </p>
-                      <p className="text-[11px] mt-0.5"
-                        style={{ color: "var(--tracker-text-muted)" }}>
-                        оценка {planH}ч · {t.priority}
-                      </p>
+                      </div>
+                      <div className="text-xs mt-0.5" style={TEXT_MUTED}>
+                        Оценка: {planH}ч · {PRIORITY_LABEL[t.priority] ?? t.priority}
+                      </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs shrink-0"
-                      onClick={() => {
-                        // Двухфазный коммит: pending, ждёт подтверждения БА
-                        onUpdateTask(t.id, {
-                          approvalStatus: "pending",
-                          budgetAllocated: planH,
-                          totalBudgetRequested: planH,
-                        });
-                      }}
-                    >
-                      ⏳ В план
-                    </Button>
-                  </div>
+                    <input type="checkbox" className="w-4 h-4 accent-indigo-500 rounded"
+                      checked={checked}
+                      onChange={() => {
+                        const s = new Set(calcChecked);
+                        checked ? s.delete(t.id) : s.add(t.id);
+                        setCalcChecked(s);
+                      }} />
+                  </label>
                 );
               })}
+
+              {/* Не влезающие — серые */}
+              {backlogNoFit.map(t => (
+                <label key={t.id}
+                  className="flex items-center justify-between p-3 rounded-xl border cursor-not-allowed opacity-50"
+                  style={{ background: "var(--tracker-bg, var(--background))", borderColor: "var(--tracker-border, var(--border))" }}>
+                  <div>
+                    <div className="text-sm font-medium truncate max-w-[220px]" style={TEXT_MAIN}>
+                      {t.name || t.num || "—"}
+                    </div>
+                    <div className="text-xs mt-0.5 font-semibold" style={{ color: "#ef4444" }}>
+                      Оценка: {evalExpr(t.planH)}ч · Не влезет в бюджет!
+                    </div>
+                  </div>
+                  <input type="checkbox" disabled className="w-4 h-4 rounded" />
+                </label>
+              ))}
+
+              {backlogFits.length === 0 && backlogNoFit.length === 0 && (
+                <p className="text-xs py-6 text-center" style={TEXT_MUTED}>
+                  Беклог пуст
+                </p>
+              )}
             </div>
-          </section>
+          </div>
+
+          {/* Кнопка */}
+          <button
+            className="w-full font-bold py-3 rounded-xl text-white text-sm transition-opacity hover:opacity-90 disabled:opacity-40"
+            style={{ background: calcChecked.size > 0 ? "var(--tracker-accent)" : "#6b7280" }}
+            disabled={calcChecked.size === 0}
+            onClick={handleCalcApply}
+          >
+            Принять в план ({calcChecked.size} зад.) — Ожидает БА ⏳
+          </button>
+          <p className="text-xs text-center mt-2" style={TEXT_MUTED}>
+            Задачи появятся на дашборде с пунктирным контуром — до подтверждения БА
+          </p>
         </SheetContent>
       </Sheet>
     </div>

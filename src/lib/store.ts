@@ -577,7 +577,16 @@ export const useTaskStore = create<AppState>()(
         }
         const newAllData = {
           ...state.allData,
-          [month]: rows.map(r => r.id === taskId ? { ...r, [key]: value, _ts: Date.now() } : r),
+          [month]: rows.map(r => {
+            if (r.id !== taskId) return r;
+            const patch: Partial<Task> = { [key]: value, _ts: Date.now() };
+            // При смене статуса сбрасываем таймер daysInStatus
+            if (key === "status" && value !== r.status) {
+              patch.statusChangedAt = new Date().toISOString();
+              patch.daysInStatus = 0;
+            }
+            return { ...r, ...patch };
+          }),
         };
         return withDomainSync(state, { allData: newAllData });
       }),

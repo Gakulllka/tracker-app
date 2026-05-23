@@ -282,12 +282,13 @@ export function calcRollover(
 /**
  * Считает суммарные budgetAllocated по всем задачам месяца,
  * исключая отклонённые (approvalStatus === "rejected") и удалённые.
+ * Если budgetAllocated не выставлен — фолбэк на planH задачи.
  */
 export function calcMonthBudgetUsed(tasks: Task[]): number {
   return R2(
     tasks
       .filter((t) => !t._deleted && t.approvalStatus !== "rejected")
-      .reduce((sum, t) => sum + (t.budgetAllocated ?? 0), 0),
+      .reduce((sum, t) => sum + (t.budgetAllocated ?? evalExpr(t.planH)), 0),
   );
 }
 
@@ -303,7 +304,7 @@ export function calcHealthScore(
   if (alive.length === 0) return 100;
 
   const totalFact = alive.reduce((s, t) => s + evalExpr(t.factH), 0);
-  const totalAllocated = alive.reduce((s, t) => s + (t.budgetAllocated ?? 0), 0);
+  const totalAllocated = alive.reduce((s, t) => s + (t.budgetAllocated ?? evalExpr(t.planH)), 0);
   const blockers = alive.filter((t) => (t.status as string) === "Блокер").length;
 
   let score = 100;
@@ -338,4 +339,15 @@ export function calcBudgetExhaustDate(
   d.setDate(d.getDate() + days);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
+/**
+ * Вычисляет daysInStatus из statusChangedAt (ISO-строки).
+ * Если statusChangedAt отсутствует — фолбэк на _ts задачи.
+ */
+export function calcDaysInStatus(task: Task): number {
+  const ref = task.statusChangedAt || (task._ts ? new Date(task._ts).toISOString() : null);
+  if (!ref) return 0;
+  const ms = Date.now() - new Date(ref).getTime();
+  return Math.max(0, Math.floor(ms / 86_400_000));
 }
