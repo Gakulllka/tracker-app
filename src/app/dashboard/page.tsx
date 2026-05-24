@@ -1,11 +1,11 @@
-import { getTasks } from "@/app/actions/planfact";
-import { DashboardClient } from "./dashboard-client";
+// Эта страница использует Prisma — отключаем статическую генерацию.
+// Без этой строки Next.js пытается пре-рендерить её при билде,
+// когда DATABASE_URL ещё недоступен.
+export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Delta — Управленческий дашборд план-факта",
-};
+// Перенаправляем на главную страницу приложения.
+import { redirect } from "next/navigation";
 
-export default async function DashboardPage() {
-  const tasks = await getTasks();
-  return <DashboardClient initialTasks={tasks} />;
+export default function DashboardPage() {
+  redirect("/");
 }
