@@ -8,7 +8,7 @@
  * Управляет: push/pull данных, опросом вопросов, heartbeat присутствия.
  */
 
-import { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { useTaskStore } from "@/lib/store";
 import { mapQuestionFromAPI, Question } from "@/lib/questions";
 
@@ -22,7 +22,7 @@ interface UseServerSyncParams {
   setIsOnline: (v: boolean) => void;
   setLastSync: (d: Date) => void;
   setIsInitialLoading: (v: boolean) => void;
-  setQuestions: (qs: Question[]) => void;
+  setQuestions: React.Dispatch<React.SetStateAction<Question[]>>;
 }
 
 export function useServerSync({

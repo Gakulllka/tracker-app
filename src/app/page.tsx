@@ -561,7 +561,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     setIsOnline,
     setLastSync,
     setIsInitialLoading,
-    setQuestions: (qs: Question[]) => setQuestions(qs),
+    setQuestions,
   });
 
   /* Focus editing cell */
