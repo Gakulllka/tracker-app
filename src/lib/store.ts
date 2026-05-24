@@ -303,7 +303,6 @@ interface AppState {
   // Task CRUD
   updateTask: (month: number, taskId: string, key: keyof Task, value: unknown) => void;
   archiveComment: (month: number, taskId: string) => void;
-  addTask: (month: number) => void;
   deleteTask: (month: number, taskId: string) => void;
   moveTasks: (taskId: string, fromMonth: number, toMonth: number) => void;
   reorderTask: (month: number, fromId: string, toId: string) => void;
@@ -621,16 +620,6 @@ export const useTaskStore = create<AppState>()(
         return withDomainSync(state, { allData: newAllData });
       }),
 
-      addTask: (month) => {
-        undoHelpers.snapshot(getStateSnapshot);
-        set(state => {
-          const newAllData = {
-            ...state.allData,
-            [month]: [...(state.allData[month] || []), { ...createNewTask(), _ts: Date.now() }],
-          };
-          return withDomainSync(state, { allData: newAllData });
-        });
-      },
 
       deleteTask: (month, taskId) => {
         undoHelpers.snapshot(getStateSnapshot);
