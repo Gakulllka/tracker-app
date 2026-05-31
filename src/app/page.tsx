@@ -26,6 +26,8 @@ import { useAuth } from "@/hooks/useAuth";
 import type { AuthData, UserPermissions, RolePermissions } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuestions } from "@/hooks/useQuestions";
+import { useExport } from "@/hooks/useExport";
+import { usePresentation } from "@/hooks/usePresentation";
 import {
   fetchInsight,
   saveInsight,
@@ -175,6 +177,12 @@ import { DesignView } from "@/components/views/design-view";
 import { TableView } from "@/components/views/table-view";
 import { BacklogView } from "@/components/views/backlog-view";
 import { SlidesView } from "@/components/views/slides-view";
+import { TotalHDialog } from "@/components/dialogs/total-h-dialog";
+import { CommentArchiveDialog } from "@/components/dialogs/comment-archive-dialog";
+import { TransferDialog } from "@/components/dialogs/transfer-dialog";
+import { ImportConfirmDialog } from "@/components/dialogs/import-confirm-dialog";
+import { NewTaskDialog } from "@/components/dialogs/new-task-dialog";
+import { SettingsDialog } from "@/components/dialogs/settings-dialog";
 import { TaskLink } from "@/lib/planfix";
 import { calcMonthBudgetUsed } from "@/lib/metrics";
 
@@ -335,7 +343,6 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
   // ── Диалог создания новой задачи ─────────────────────────────────────────
   const [newTaskDialog, setNewTaskDialog] = useState<{ open: boolean; month: number }>({ open: false, month: 0 });
-  const [newTaskDraft, setNewTaskDraft] = useState({ num: "", name: "", planH: "", priority: PRIORITIES.MEDIUM as Priority, status: STATUSES.NEW as Status });
 
   /* ---- Questions (вынесено в хук) ---- */
   const currentUsername = authData.user.displayName || authData.user.username;
@@ -364,28 +371,11 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   const [transferTarget, setTransferTarget] = useState<number>(-1);
 
   // Import confirmation dialog (только для JSON; для XLSX используется ExcelImportModal со сверкой).
-  const [importConfirm, setImportConfirm] = useState<{
-    open: boolean;
-    type: "json";
-    file: File | null;
-  }>({ open: false, type: "json", file: null });
-
-  // Excel import modal
-  const [isImportOpen, setIsImportOpen] = useState(false);
-  // Файл, переданный в модалку из drag&drop, чтобы она открылась
-  // уже с подгруженным содержимым и сразу показала diff.
-  const [pendingXlsxFile, setPendingXlsxFile] = useState<File | null>(null);
-
   const handleSyncApply = useCallback((payload: {
     updatedTasks: Task[];
     newTasks: Array<{
-      num: string;
-      name: string;
-      planH: string;
-      factH: string;
-      priority: Priority;
-      status: Status;
-      comment: string;
+      num: string; name: string; planH: string; factH: string;
+      priority: Priority; status: Status; comment: string;
     }>;
   }) => {
     const { updatedTasks, newTasks } = payload;
@@ -479,35 +469,16 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
   // Slide data — Phase 3: больше не state, а useMemo от данных.
   // Кнопка «Создать презентацию» убрана. Слайды всегда есть, если есть задачи.
-  const [currentSlide, setCurrentSlide] = useState(0);
   /* Phase 4: aiConclusion теперь — серверный объект (с dataHash, source,
    * updatedAt). Загружается при смене (workspaceId, activeDomainId,
-   * currentMonth, currentYear). aiDraft остаётся локальным. */
-  const [aiConclusion, setAiConclusion] = useState<AiInsightShape | null>(null);
-  const [aiDraft, setAiDraft] = useState<{
-    achievements: string[];
-    risks: string[];
-    inProgress: string[];
-    nextSteps: string[];
-  } | null>(null);
-  const [aiConclusionBusy, setAiConclusionBusy] = useState(false);
   /** Phase 7.3: ошибка последней AI-генерации (для красного баннера в Презентации). */
-  const [aiAnalysisError, setAiAnalysisError] = useState<string | null>(null);
   /* Phase 4: текущий хеш задач месяца — для детекции stale-инсайтов. */
-  const [currentDataHash, setCurrentDataHash] = useState<string>("");
 
   // Drag overlay
-  const [dragOverlay, setDragOverlay] = useState(false);
 
   // Settings dialog
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState("theme");
-  const [customColorInput, setCustomColorInput] = useState(customColor || themeId || "#9B72CF");
-  const [newDomainName, setNewDomainName] = useState("");
 
-  useEffect(() => {
-    setCustomColorInput(customColor || themeId || "#9B72CF");
-  }, [customColor, themeId]);
 
   // Sync tracker color theme → presentation preset (emojis, pattern, animation)
   useEffect(() => {
@@ -517,9 +488,6 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     if (!preset) return;
     storeSetPresBg({ emojis: preset.emojis, pattern: preset.pattern, emojiAnim: preset.emojiAnim, emojiCount: 20, emojiSpeed: 1, emojiOpacity: 25 });
   }, [themeId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [editingDomainId, setEditingDomainId] = useState<string | null>(null);
-  const [editingDomainName, setEditingDomainName] = useState("");
-  const [deleteDomainConfirm, setDeleteDomainConfirm] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
   // Chat state
@@ -682,22 +650,6 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     [allData]
   );
 
-  /* Phase 3: slides — производное от данных. Никаких setSlides, никакой
-   * кнопки «Создать». Если данных нет — массив пустой, UI показывает
-   * заглушку. Если есть — слайды всегда актуальны. */
-  const slides = useMemo(() => {
-    const monthRows = (allData[currentMonth] || []).filter((r) => r.name || r.num);
-    if (monthRows.length === 0) return [];
-    return generateSlides(currentMonth, currentYear, allData, accentHex, totalFactMap);
-  }, [allData, currentMonth, currentYear, accentHex, totalFactMap]);
-
-  /* Когда меняется набор слайдов (например, переключился месяц/год),
-   * сбрасываем currentSlide на первый, чтобы не было «пустых» состояний. */
-  useEffect(() => {
-    if (currentSlide >= slides.length && slides.length > 0) {
-      setCurrentSlide(0);
-    }
-  }, [slides.length, currentSlide]);
 
   /* Phase 4: monthKey для запросов в /api/insights */
   const insightMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
@@ -737,12 +689,6 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     return () => { cancelled = true; };
   }, [allData, currentMonth]);
 
-  /* Phase 4: stale-флаг — данные изменились с момента генерации инсайта */
-  const aiInsightStale = useMemo(() => {
-    if (!aiConclusion) return false;
-    if (!aiConclusion.dataHash || !currentDataHash) return false;
-    return aiConclusion.dataHash !== currentDataHash;
-  }, [aiConclusion, currentDataHash]);
 
   /* TotalH dialog breakdown */
   const monthBreakdown = useMemo(() => {
@@ -902,346 +848,50 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   );
 
 
-  /* ---- Export/Import Handlers ---- */
-  const handleExportJSON = useCallback(() => {
-    exportJSON(
-      allData,
-      backlog,
-      themeId,
-      customColor,
-      domains,
-      activeDomainId,
-      activeDomain?.name
-    );
-    toast({ title: "💾 Экспорт", description: "JSON файл сохранён" });
-  }, [allData, backlog, themeId, customColor, domains, activeDomainId, activeDomain, toast]);
+  /* ---- Export / Import (вынесено в хук) ---- */
+  const {
+    importConfirm, setImportConfirm,
+    isImportOpen, setIsImportOpen,
+    pendingXlsxFile, setPendingXlsxFile,
+    dragOverlay,
+    handleExportJSON, handleExportMonthXLSX, handleExportAllXLSX,
+    handleJSONFileSelect, handleXLSXFileSelect,
+    handleConfirmImport,
+    handleDragOver, handleDragLeave, handleDrop,
+  } = useExport({
+    allData, backlog, currentMonth, totalFactMap, accentHex,
+    themeId, customColor, domains, activeDomainId,
+    activeDomainName: activeDomain?.name,
+    storeSetAllData, storeSetBacklog, storeSetDomains,
+    storeSetActiveDomainId, storeSetThemeId,
+    storeSetCustomColor: (c, d) => storeSetCustomColor(c, d),
+    toast,
+  });
 
-  const handleExportMonthXLSX = useCallback(async () => {
-    const monthRows = (allData[currentMonth] || []).filter((r) => r.name || r.num);
-    if (monthRows.length === 0) {
-      toast({ title: "Нет данных", description: "Текущий месяц не содержит задач", variant: "destructive" });
-      return;
-    }
-    try {
-      await exportMonthXLSX(monthRows, currentMonth, totalFactMap, accentHex);
-      toast({ title: "💾 Сохранить", description: "Excel файл сохранён" });
-    } catch (err) {
-      console.error("Excel export error:", err);
-      toast({ title: "Ошибка", description: String(err), variant: "destructive" });
-    }
-  }, [allData, currentMonth, totalFactMap, accentHex, toast]);
+  /* ---- Presentation (вынесено в хук) ---- */
+  const {
+    slides, currentSlide, setCurrentSlide,
+    aiConclusion, setAiConclusion,
+    aiDraft, setAiDraft,
+    aiConclusionBusy, aiAnalysisError,
+    currentDataHash, setCurrentDataHash,
+    fullscreenContainerRef,
+    openPresentation,
+    readTrackerTokens,
+    handleExportSlidesHTML, handleExportPDF, handleEnterFullscreen,
+    handleAiAnalysis, handleApproveDraft, handleDiscardDraft, handleRemoveConclusion,
+  } = usePresentation({
+    allData, currentMonth, currentYear, accentHex, customDark,
+    totalFactMap, presBg, workspaceId, activeDomainId, insightMonthKey,
+    chatModel, apiKeyRef, setView: setView as (v: string) => void, setApiKeyDialogOpen, toast,
+  });
 
-  const handleExportAllXLSX = useCallback(async () => {
-    try {
-      await exportAllXLSX(allData, totalFactMap, accentHex);
-      toast({ title: "💾 Сохранить", description: "Excel файл (все месяцы) сохранён" });
-    } catch (err) {
-      console.error("Excel export error:", err);
-      toast({ title: "Ошибка", description: String(err), variant: "destructive" });
-    }
-  }, [allData, totalFactMap, accentHex, toast]);
-
-  const handleJSONFileSelect = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      setImportConfirm({ open: true, type: "json", file });
-      e.target.value = "";
-    },
-    []
-  );
-
-  const handleXLSXFileSelect = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      // Открываем ту же модалку сверки, что и drag&drop / кнопка меню —
-      // унифицированный путь для XLSX, никаких слепых импортов.
-      setPendingXlsxFile(file);
-      setIsImportOpen(true);
-      e.target.value = "";
-    },
-    []
-  );
-
-  const handleConfirmImport = useCallback(async () => {
-    const { file } = importConfirm;
-    if (!file) return;
-
-    try {
-      const result = await importJSON(file);
-      storeSetAllData(result.allData);
-      storeSetBacklog(result.backlog);
-      storeSetDomains(result.domains);
-      storeSetActiveDomainId(result.activeDomainId);
-      storeSetThemeId(result.themeId);
-      storeSetCustomColor(result.customColor || "", false);
-      toast({ title: "📂 Импорт", description: "Данные успешно загружены из JSON" });
-    } catch (err) {
-      toast({
-        title: "Ошибка импорта",
-        description: err instanceof Error ? err.message : "Неизвестная ошибка",
-        variant: "destructive",
-      });
-    }
-    setImportConfirm({ open: false, type: "json", file: null });
-  }, [importConfirm, storeSetAllData, storeSetBacklog, storeSetDomains, storeSetActiveDomainId, storeSetThemeId, storeSetCustomColor, toast]);
-
-  /* ---- Drag & Drop (file import) ---- */
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    // Only show overlay for external file drops, not internal row drags
-    if (e.dataTransfer.types.includes("Files")) {
-      e.preventDefault();
-      e.stopPropagation();
-      setDragOverlay(true);
-    }
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverlay(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setDragOverlay(false);
-
-      const file = e.dataTransfer.files?.[0];
-      if (!file) return;
-
-      const ext = file.name.split(".").pop()?.toLowerCase();
-      if (ext === "json") {
-        setImportConfirm({ open: true, type: "json", file });
-      } else if (ext === "xlsx" || ext === "xls") {
-        // XLSX больше не идёт через быстрый импорт — открываем модалку сверки
-        // с уже подгруженным файлом, чтобы юзер увидел отличия и подтвердил.
-        setPendingXlsxFile(file);
-        setIsImportOpen(true);
-      } else {
-        toast({ title: "Неподдерживаемый формат", description: "Поддерживаются только .json и .xlsx файлы", variant: "destructive" });
-      }
-    },
-    [toast]
-  );
-
-  /* ---- Presentation ---- */
-  /* Phase 3: handleCreatePresentation удалён — слайды теперь производное
-   * от данных через useMemo. Кнопка «Создать» больше не нужна.
-   * Открытие таба «Презентация»: setView("slides"). */
-  const openPresentation = useCallback(() => {
-    setView("slides");
-  }, [setView]);
-
-  /* Phase 6: снапшот текущих CSS-переменных темы трекера для прокидывания
-   * в SSR-рендер (renderPresentationHtml) и в локальное превью.
-   * Возвращает объект, совместимый с TrackerThemeTokens. */
-  const readTrackerTokens = useCallback(() => {
-    if (typeof window === "undefined") {
-      return {
-        bgMain: "#0d1117",
-        bgCard: "#1a1f2a",
-        textMain: "#e2e8f0",
-        textMuted: "rgba(148,163,184,.7)",
-        border: "rgba(255,255,255,.1)",
-        isDark: true,
-      };
-    }
-    const cs = getComputedStyle(document.documentElement);
-    const v = (n: string, f: string) => (cs.getPropertyValue(n).trim() || f);
-    const bgMain = v("--tracker-bg-main", "#0d1117");
-    return {
-      bgMain,
-      bgCard: v("--tracker-bg-card", customDark ? "#1a1f2a" : "#ffffff"),
-      textMain: v("--tracker-text-main", customDark ? "#e2e8f0" : "#1e293b"),
-      textMuted: v("--tracker-text-muted", customDark ? "rgba(148,163,184,.7)" : "rgba(100,116,139,.75)"),
-      border: v("--tracker-border", customDark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)"),
-      isDark: customDark,
-    };
-  }, [customDark]);
-
-  const handleExportSlidesHTML = useCallback(() => {
-    if (slides.length === 0) return;
-    const html = renderPresentationHtml(slides, presBg, aiConclusion, readTrackerTokens());
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `presentation_${currentYear}-${String(currentMonth + 1).padStart(2, "0")}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast({ title: "📥 Скачать HTML", description: "Презентация сохранена как HTML" });
-  }, [slides, currentMonth, currentYear, toast, presBg, aiConclusion, readTrackerTokens]);
-
-  /* Phase 6: PDF-экспорт через нативный print диалог.
-   * Открываем сгенерированный HTML в скрытом iframe → ждём загрузку →
-   * вызываем print(). Юзер выбирает "Сохранить как PDF" в диалоге. */
-  const handleExportPDF = useCallback(() => {
-    if (slides.length === 0) return;
-    const html = renderPresentationHtml(slides, presBg, aiConclusion, readTrackerTokens());
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.left = "-10000px";
-    iframe.style.top = "0";
-    iframe.style.width = "1280px";
-    iframe.style.height = "720px";
-    iframe.style.opacity = "0";
-    iframe.style.pointerEvents = "none";
-    iframe.setAttribute("aria-hidden", "true");
-    document.body.appendChild(iframe);
-
-    const cleanup = () => {
-      // Откладываем, иначе Chrome ругается «Document not ready»
-      setTimeout(() => { try { document.body.removeChild(iframe); } catch { /* */ } }, 1000);
-    };
-
-    iframe.onload = () => {
-      try {
-        const win = iframe.contentWindow;
-        if (!win) { cleanup(); return; }
-        // Небольшая пауза чтобы все @font-face / images / SVG отрендерились
-        setTimeout(() => {
-          try {
-            win.focus();
-            win.print();
-          } catch (e) {
-            console.error("Print failed", e);
-          }
-          cleanup();
-        }, 250);
-      } catch (e) {
-        console.error("Print iframe error", e);
-        cleanup();
-      }
-    };
-
-    iframe.srcdoc = html;
-    toast({ title: "📄 PDF", description: "Откроется диалог печати — выберите «Сохранить как PDF»" });
-  }, [slides, presBg, aiConclusion, readTrackerTokens, toast]);
-
-  /* Phase 6: Fullscreen режим. Использует Fullscreen API на DOM-узле,
-   * куда вставлено превью презентации. Узел получает ref через callback. */
-  const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
-  const handleEnterFullscreen = useCallback(() => {
-    const el = fullscreenContainerRef.current;
-    if (!el) return;
-    const req = (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).requestFullscreen
-      || (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen;
-    if (req) {
-      try {
-        req.call(el);
-      } catch (e) {
-        console.error("Fullscreen request failed", e);
-      }
-    }
-  }, []);
-
-  const handleAiAnalysis = useCallback(async () => {
-    const apiKey = apiKeyRef.current;
-    if (!apiKey) {
-      setApiKeyDialogOpen(true);
-      setAiAnalysisError("Сначала введите API ключ Gemini");
-      return;
-    }
-    const rows = (allData[currentMonth] || []).filter(r => r.name || r.num);
-    if (rows.length === 0) {
-      setAiAnalysisError("В этом месяце нет задач для анализа");
-      return;
-    }
-    setAiAnalysisError(null);
-    setAiConclusionBusy(true);
-    try {
-      const summary = rows.map(r =>
-        `#${r.num} "${r.name}" — статус: ${r.status}, план: ${r.planH||"—"}ч, факт: ${r.factH||"—"}ч`
-      ).join("\n");
-      const prompt = `Ты аналитик проекта. На основе списка задач за ${MONTHS[currentMonth]} ${currentYear} напиши краткие выводы на русском языке. Ответь строго в формате JSON без пояснений:
-{"achievements":["...","..."],"risks":["...","..."],"inProgress":["...","..."],"nextSteps":["...","..."]}
-Каждый массив — 2-3 пункта, лаконично, до 10 слов каждый.
-Задачи:\n${summary}`;
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", parts: [{ text: prompt }] }],
-          apiKey,
-          model: chatModel,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      const text = (data.text || "").replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(text);
-      // Route to draft buffer — user must approve before injecting into slides
-      setAiDraft(parsed);
-      toast({ title: "✨ AI черновик готов", description: "Проверьте тезисы и нажмите «Применить в презентацию»" });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
-      setAiAnalysisError(msg);
-      toast({ title: "Ошибка AI анализа", description: msg, variant: "destructive" });
-    } finally {
-      setAiConclusionBusy(false);
-    }
-  }, [allData, currentMonth, currentYear, apiKeyRef, chatModel, setApiKeyDialogOpen, toast]);
-
-  /* ---- Transfer ---- */
-  /* Phase 4: при approval-е сохраняем на сервер (с dataHash и source).
-   * source = "ai" если черновик от AI, "manual" если юзер заполнял руками,
-   * "edited" если редактировал существующий aiConclusion. Точно отличить
-   * сложно (черновик может быть результатом редактирования или генерации),
-   * поэтому ставим "edited" если уже есть aiConclusion, иначе пусть будет
-   * "ai" по умолчанию — в любом случае это just metadata. */
-  const handleApproveDraft = useCallback(async () => {
-    if (!aiDraft) return;
-    const source: "ai" | "manual" | "edited" = aiConclusion ? "edited" : "ai";
-    const newConclusion: AiInsightShape = {
-      ...aiDraft,
-      dataHash: currentDataHash,
-      source,
-      updatedAt: new Date().toISOString(),
-    };
-    setAiConclusion(newConclusion);
-    setAiDraft(null);
-    toast({ title: "✅ AI анализ применён", description: "Тезисы добавлены в слайд «Итоги»" });
-
-    // Сохраняем на сервер (не блокируем UI — fire-and-forget с логированием).
-    if (workspaceId) {
-      saveInsight(workspaceId, activeDomainId, insightMonthKey, {
-        achievements: aiDraft.achievements,
-        risks: aiDraft.risks,
-        inProgress: aiDraft.inProgress,
-        nextSteps: aiDraft.nextSteps,
-        dataHash: currentDataHash,
-        source,
-      }).catch((err) => {
-        toast({
-          title: "Не удалось сохранить инсайт",
-          description: err instanceof Error ? err.message : "Сетевая ошибка",
-          variant: "destructive",
-        });
-      });
-    }
-  }, [aiDraft, aiConclusion, currentDataHash, workspaceId, activeDomainId, insightMonthKey, toast]);
-
-  const handleDiscardDraft = useCallback(() => {
-    setAiDraft(null);
-  }, []);
-
-  const handleRemoveConclusion = useCallback(() => {
-    setAiConclusion(null);
-    if (workspaceId) {
-      deleteInsight(workspaceId, activeDomainId, insightMonthKey).catch((err) => {
-        toast({
-          title: "Не удалось удалить инсайт",
-          description: err instanceof Error ? err.message : "Сетевая ошибка",
-          variant: "destructive",
-        });
-      });
-    }
-  }, [workspaceId, activeDomainId, insightMonthKey, toast]);
+  /* Phase 4: stale-флаг — данные изменились с момента генерации инсайта */
+  const aiInsightStale = useMemo(() => {
+    if (!aiConclusion) return false;
+    if (!aiConclusion.dataHash || !currentDataHash) return false;
+    return aiConclusion.dataHash !== currentDataHash;
+  }, [aiConclusion, currentDataHash]);
 
   const handleTransfer = useCallback(() => {
     if (transferTarget < 0 || transferTarget === currentMonth) return;
@@ -1579,7 +1229,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
               size="icon"
               className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
               title="Настройки"
-              onClick={() => { setSettingsOpen(true); setSettingsTab("theme"); setCustomColorInput(customColor || themeId || "#9B72CF"); }}
+              onClick={() => setSettingsOpen(true)}
             >
               <Settings className="size-4" />
             </Button>
@@ -1884,521 +1534,49 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       </nav>
 
       {/* ---- TOTALH DIALOG ---- */}
-      <Dialog
+      <TotalHDialog
         open={totalHDialog.open}
-        onOpenChange={(open) =>
-          setTotalHDialog({ taskNum: "", open })
-        }
-      >
-        <DialogContent
-          className="sm:max-w-lg"
-          style={{
-            background: "#ffffff",
-            color: "#1a1a2e",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          {/* Header */}
-          <DialogHeader className="gap-0.5">
-            <span style={{ fontSize: "12px", color: "#94a3b8" }}>Задача #{totalHDialog.taskNum}</span>
-            <DialogTitle className="text-base leading-tight" style={{ color: "#1a1a2e" }}>
-              {monthBreakdown.taskName || "Задача"}
-            </DialogTitle>
-            <DialogDescription>Разбивка часов по месяцам для задачи</DialogDescription>
-          </DialogHeader>
+        taskNum={totalHDialog.taskNum}
+        taskName={monthBreakdown.taskName}
+        rows={monthBreakdown.rows}
+        isDark={customDark}
+        onClose={() => setTotalHDialog({ taskNum: "", open: false })}
+      />
 
-          {monthBreakdown.rows.length === 0 ? (
-            <p style={{ fontSize: "14px", color: "#94a3b8", padding: "16px 0", textAlign: "center" }}>
-              Нет данных по часам для этой задачи.
-            </p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {/* Compact bar chart */}
-              <div>
-                <div style={{ display: "flex", alignItems: "flex-end", height: "100px", gap: "6px" }}>
-                  {monthBreakdown.rows.map((r) => {
-                    const maxVal = Math.max(...monthBreakdown.rows.map(x => Math.max(x.planH, x.cumulative)), 1);
-                    const planPx = Math.max((r.planH / maxVal) * 100, 2);
-                    const cumPx = Math.max((r.cumulative / maxVal) * 100, 2);
-                    const exceeded = r.cumulative > r.planH && r.planH > 0;
-                    return (
-                      <div key={r.month} style={{ flex: "1", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0, background: "#f1f5f9", borderRadius: "4px 4px 0 0", padding: "0 2px 4px 2px" }}>
-                        <span style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px", lineHeight: "1", fontWeight: 600 }}>{MONTHS[r.month].substring(0, 3).toLowerCase()}</span>
-                        <div style={{ width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: "1px", height: "72px" }}>
-                          <div
-                            style={{ flex: "1", maxWidth: "none", borderRadius: "2px 2px 0 0", height: `${planPx}%`, background: "#94a3b8", minHeight: "2px" }}
-                            title={`План: ${fmt2(r.planH)} ч`}
-                          />
-                          <div
-                            style={{ flex: "1", maxWidth: "none", borderRadius: "2px 2px 0 0", height: `${cumPx}%`, background: exceeded ? "#ef4444" : "#22c55e", minHeight: "2px" }}
-                            title={`Итого: ${fmt2(r.cumulative)} ч`}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", fontSize: "10px", color: "#94a3b8", marginTop: "6px" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "2px", background: "#94a3b8" }} />План</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "2px", background: "#22c55e" }} />Итого</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "2px", background: "#ef4444" }} />Превышение</span>
-                </div>
-              </div>
-
-              {/* Data table */}
-              <div style={{ borderRadius: "8px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
-                <table style={{ width: "100%", fontSize: "14px", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ background: "#f1f5f9", fontSize: "10px", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                      <th style={{ textAlign: "left", padding: "6px 10px", fontWeight: 500 }}>Месяц</th>
-                      <th style={{ textAlign: "right", padding: "6px 10px", fontWeight: 500 }}>План</th>
-                      <th style={{ textAlign: "right", padding: "6px 10px", fontWeight: 500 }}>Факт</th>
-                      <th style={{ textAlign: "right", padding: "6px 10px", fontWeight: 500 }}>Итого</th>
-                      <th style={{ textAlign: "center", padding: "6px 10px", fontWeight: 500 }}>Статус</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthBreakdown.rows.map((r) => {
-                      const exceeded = r.cumulative > r.planH && r.planH > 0;
-                      return (
-                        <tr key={r.month} style={{ borderTop: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: "6px 10px", fontWeight: 500, fontSize: "12px" }}>{MONTHS[r.month]}</td>
-                          <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px", color: "#94a3b8" }}>{fmt2(r.planH)} ч</td>
-                          <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px" }}>{fmt2(r.factH)} ч</td>
-                          <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px", fontWeight: 600, color: exceeded ? "#ef4444" : "#22c55e" }}>
-                            {fmt2(r.cumulative)} ч
-                          </td>
-                          <td style={{ textAlign: "center", padding: "6px 10px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: 500, color: scolText(r.status as Status, customDark) }}>
-                              {r.status}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {/* Summary row */}
-                    {monthBreakdown.rows.length > 0 && (() => {
-                      const maxPlan = Math.max(...monthBreakdown.rows.map(r => r.planH));
-                      const sumFact = monthBreakdown.rows.reduce((s, r) => s + r.factH, 0);
-                      const maxCum = Math.max(...monthBreakdown.rows.map(r => r.cumulative));
-                      const months = monthBreakdown.rows.length;
-                      const inPlan = maxCum <= maxPlan;
-                      return (
-                        <tr style={{ borderTop: "2px solid #e2e8f0", background: "#f8fafc", fontWeight: 700 }}>
-                          <td style={{ padding: "6px 10px", fontSize: "12px" }}>Итого</td>
-                          <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px", color: "#94a3b8" }}>{fmt2(maxPlan)} ч</td>
-                          <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px" }}>{fmt2(sumFact)} ч</td>
-                          <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px", fontWeight: 700, color: inPlan ? "#22c55e" : "#ef4444" }}>{fmt2(maxCum)} ч</td>
-                          <td style={{ textAlign: "center", padding: "6px 10px", fontSize: "10px", color: "#94a3b8" }}>{months} мес.</td>
-                        </tr>
-                      );
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* ---- COMMENT ARCHIVE DIALOG ---- */}
-      <Dialog
+      {/* ---- COMMENT ARCHIVE ---- */}
+      <CommentArchiveDialog
         open={commentArchiveDialog.open}
-        onOpenChange={(open) => setCommentArchiveDialog(prev => ({ ...prev, open }))}
-      >
-        <DialogContent
-          className="sm:max-w-lg"
-        >
-          <DialogHeader className="gap-0.5">
-            <DialogTitle className="text-base leading-tight">
-              📜 Архив комментариев
-            </DialogTitle>
-            <span className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-              {commentArchiveDialog.taskName}
-            </span>
-            <DialogDescription>История комментариев и статусов задачи по неделям</DialogDescription>
-          </DialogHeader>
+        taskName={commentArchiveDialog.taskName}
+        logs={commentArchiveDialog.logs}
+        isDark={customDark}
+        onClose={() => setCommentArchiveDialog(prev => ({ ...prev, open: false }))}
+      />
 
-          {commentArchiveDialog.logs.length === 0 ? (
-            <p className="text-sm text-center py-4" style={{ color: "var(--tracker-text-muted)" }}>
-              Архив комментариев пуст.
-            </p>
-          ) : (
-            <div style={{ maxHeight: "400px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
-              {commentArchiveDialog.logs.map((log, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: "var(--tracker-accent-bg)",
-                    border: "1px solid var(--tracker-border)",
-                    borderRadius: "8px",
-                    padding: "10px 12px",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-                    <span style={{ fontSize: "11px", color: "var(--tracker-text-muted)", fontWeight: 600 }}>
-                      {log.date} · Неделя {log.week}
-                    </span>
-                    <span style={{ fontSize: "10px", fontWeight: 500, color: scolText(log.status as Status, customDark) }}>
-                      {log.status}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: "13px", color: "var(--tracker-text-main)", lineHeight: "1.5", margin: "0 0 6px 0", whiteSpace: "pre-wrap" }}>
-                    {log.text}
-                  </p>
-                  <div style={{ display: "flex", gap: "12px", fontSize: "11px", color: "var(--tracker-text-muted)" }}>
-                    <span>План: {log.planH} ч</span>
-                    <span>Факт: {log.factH} ч</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* ---- TRANSFER ---- */}
+      <TransferDialog
+        open={transferDialog}
+        currentMonth={currentMonth}
+        transferTarget={transferTarget}
+        onTargetChange={setTransferTarget}
+        onTransfer={handleTransfer}
+        onClose={() => { setTransferDialog(false); setTransferTarget(-1); }}
+      />
 
-      {/* ---- TRANSFER DIALOG ---- */}
-      <Dialog open={transferDialog} onOpenChange={setTransferDialog}>
-        <DialogContent className="sm:max-w-sm" style={{ background: "var(--tracker-bg-card, var(--card))", border: "1px solid var(--tracker-border, var(--border))" }}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <span className="w-8 h-8 rounded-xl flex items-center justify-center text-lg" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>↗️</span>
-              Перенос задач
-            </DialogTitle>
-            <DialogDescription className="text-xs leading-relaxed">
-              Незавершённые задачи будут скопированы в выбранный месяц с обнулением факта.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-1">
-            {/* Из → В */}
-            <div className="flex items-center gap-2 rounded-xl px-4 py-3" style={{ background: "var(--tracker-accent-bg)", border: "1px solid var(--tracker-border)" }}>
-              <div className="flex-1 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: "var(--tracker-text-muted)" }}>Из</p>
-                <p className="text-sm font-bold" style={{ color: "var(--tracker-accent-fg-dark)" }}>{MONTHS[currentMonth]}</p>
-              </div>
-              <span className="text-lg opacity-50">→</span>
-              <div className="flex-1 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: "var(--tracker-text-muted)" }}>В</p>
-                <p className="text-sm font-bold" style={{ color: transferTarget >= 0 ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)" }}>
-                  {transferTarget >= 0 ? MONTHS[transferTarget] : "не выбран"}
-                </p>
-              </div>
-            </div>
-            <Select
-              value={transferTarget >= 0 ? String(transferTarget) : undefined}
-              onValueChange={(v) => setTransferTarget(Number(v))}
-            >
-              <SelectTrigger style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}>
-                <SelectValue placeholder="Выберите целевой месяц…" />
-              </SelectTrigger>
-              <SelectContent>
-                {MONTHS.map((m, i) =>
-                  i !== currentMonth ? (
-                    <SelectItem key={m} value={String(i)}>{m}</SelectItem>
-                  ) : null
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => setTransferDialog(false)}>Отмена</Button>
-            <Button
-              size="sm"
-              onClick={handleTransfer}
-              disabled={transferTarget < 0}
-              style={{ background: "var(--tracker-accent)", color: "#fff" }}
-              className="gap-1.5"
-            >
-              <ArrowRight className="size-3.5" />
-              Перенести
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-
-
-      {/* ---- IMPORT CONFIRM DIALOG (только JSON; XLSX идёт через ExcelImportModal) ---- */}
-      <Dialog
+      {/* ---- IMPORT CONFIRM ---- */}
+      <ImportConfirmDialog
         open={importConfirm.open}
-        onOpenChange={(open) => {
-          if (!open) setImportConfirm({ open: false, type: "json", file: null });
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>📂 Загрузить JSON?</DialogTitle>
-            <DialogDescription>
-              Текущие данные будут заменены данными из файла. Продолжить?
-            </DialogDescription>
-          </DialogHeader>
-          {importConfirm.file && (
-            <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
-              <span className="font-medium">Файл:</span>{" "}
-              {importConfirm.file.name}
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setImportConfirm({ open: false, type: "json", file: null })}
-            >
-              Отмена
-            </Button>
-            <Button onClick={handleConfirmImport}>
-              <Upload className="size-4 mr-1.5" />
-              Загрузить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        file={importConfirm.file}
+        onConfirm={handleConfirmImport}
+        onClose={() => setImportConfirm({ open: false, type: "json", file: null })}
+      />
 
-      {/* ---- SETTINGS DIALOG ---- */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>⚙️ Настройки</DialogTitle>
-            <DialogDescription>Настройка темы и доменов</DialogDescription>
-          </DialogHeader>
-          <Tabs value={settingsTab} onValueChange={setSettingsTab}>
-            <TabsList className="w-full">
-              <TabsTrigger value="theme" className="flex-1">🎨 Тема</TabsTrigger>
-              <TabsTrigger value="domains" className="flex-1">📁 Домены</TabsTrigger>
-            </TabsList>
-
-            {/* Theme tab */}
-            <TabsContent value="theme" className="space-y-4 pt-2">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Цвет акцента</label>
-                <div className="grid grid-cols-6 gap-2">
-                  {[
-                    { hex: "#5B9BD5", label: "Небо" },
-                    { hex: "#4DB6AC", label: "Бирюза" },
-                    { hex: "#4FC3F7", label: "Океан" },
-                    { hex: "#66BB6A", label: "Трава" },
-                    { hex: "#9CCC65", label: "Мята" },
-                    { hex: "#D4A017", label: "Мёд" },
-                    { hex: "#E8813A", label: "Закат" },
-                    { hex: "#E86B6B", label: "Коралл" },
-                    { hex: "#E07BAD", label: "Фуксия" },
-                    { hex: "#9B72CF", label: "Сирень" },
-                    { hex: "#7986CB", label: "Лаванда" },
-                    { hex: "#C49A6C", label: "Песок" },
-                  ].map((c) => (
-                    <button
-                      key={c.hex}
-                      title={c.label}
-                      onClick={() => storeTheme(c.hex)}
-                      className={`relative h-9 w-9 rounded-lg border-2 transition-all hover:scale-110 ${
-                        themeId === c.hex && !customColor
-                          ? "border-foreground ring-2 ring-foreground/20"
-                          : "border-transparent"
-                      }`}
-                      style={{ backgroundColor: c.hex }}
-                    >
-                      {themeId === c.hex && !customColor && (
-                        <Check className="size-3.5 text-white absolute inset-0 m-auto drop-shadow-sm" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Свой цвет</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={customColorInput}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCustomColorInput(val);
-                      storeSetCustomColor(val, false);
-                    }}
-                    className="h-9 w-12 rounded-lg border cursor-pointer bg-transparent"
-                  />
-                  <Input
-                    value={customColorInput}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCustomColorInput(val);
-                      if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
-                        storeSetCustomColor(val, false);
-                      }
-                    }}
-                    className="h-9 w-28 font-mono text-sm"
-                    placeholder="#RRGGBB"
-                    maxLength={7}
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="text-sm font-medium">Тёмный режим</label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Переключить тему оформления</p>
-                </div>
-                <Switch
-                  checked={customDark}
-                  onCheckedChange={(checked) => {
-                    storeSetCustomColor(customColor || themeId || "#5B9BD5", checked);
-                  }}
-                />
-              </div>
-            </TabsContent>
-
-            {/* Domains tab */}
-            <TabsContent value="domains" className="space-y-4 pt-2">
-              {/* Add domain */}
-              <div className="flex items-center gap-2">
-                <Input
-                  value={newDomainName}
-                  onChange={(e) => setNewDomainName(e.target.value)}
-                  placeholder="Название нового домена..."
-                  className="h-9 text-sm"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && newDomainName.trim()) {
-                      storeAddDomain(newDomainName.trim());
-                      setNewDomainName("");
-                      toast({ title: "📁 Домен", description: `Домен «${newDomainName.trim()}» создан` });
-                    }
-                  }}
-                />
-                <Button
-                  size="sm"
-                  className="h-9 shrink-0 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-                  disabled={!newDomainName.trim()}
-                  onClick={() => {
-                    storeAddDomain(newDomainName.trim());
-                    setNewDomainName("");
-                    toast({ title: "📁 Домен", description: `Домен «${newDomainName.trim()}» создан` });
-                  }}
-                >
-                  <Plus className="size-3.5 mr-1" />
-                  Добавить
-                </Button>
-              </div>
-
-              <Separator />
-
-              {/* Domain list */}
-              <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                {domains.map((d) => (
-                  <div
-                    key={d.id}
-                    className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-colors ${
-                      d.id === activeDomainId
-                        ? "bg-[var(--tracker-accent-soft)] border border-[var(--tracker-accent)]"
-                        : "bg-muted/40 border border-transparent hover:bg-muted/60"
-                    }`}
-                  >
-                    {editingDomainId === d.id ? (
-                      <Input
-                        value={editingDomainName}
-                        onChange={(e) => setEditingDomainName(e.target.value)}
-                        className="h-7 text-sm flex-1"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && editingDomainName.trim()) {
-                            storeRenameDomain(d.id, editingDomainName.trim());
-                            setEditingDomainId(null);
-                            toast({ title: "📁 Домен", description: "Домен переименован" });
-                          }
-                          if (e.key === "Escape") setEditingDomainId(null);
-                        }}
-                        onBlur={() => {
-                          if (editingDomainName.trim()) {
-                            storeRenameDomain(d.id, editingDomainName.trim());
-                            toast({ title: "📁 Домен", description: "Домен переименован" });
-                          }
-                          setEditingDomainId(null);
-                        }}
-                      />
-                    ) : (
-                      <button
-                        className="flex-1 text-left text-sm font-medium truncate"
-                        onClick={() => {
-                          if (d.id !== activeDomainId) {
-                            storeSetActiveDomain(d.id);
-                            toast({ title: "📁 Домен", description: `Переключено на «${d.name}»` });
-                          }
-                        }}
-                        title={d.id === activeDomainId ? "Текущий домен" : `Переключиться на «${d.name}»`}
-                      >
-                        {d.name}
-                        {d.id === activeDomainId && (
-                          <Check className="size-3 inline ml-1.5 text-[var(--tracker-accent-fg)]" />
-                        )}
-                      </button>
-                    )}
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      {editingDomainId !== d.id && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            title="Переименовать"
-                            onClick={() => { setEditingDomainId(d.id); setEditingDomainName(d.name); }}
-                          >
-                            <span className="text-xs">✏️</span>
-                          </Button>
-                          {deleteDomainConfirm === d.id ? (
-                            <>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                className="h-7 text-xs"
-                                onClick={() => {
-                                  storeDeleteDomain(d.id);
-                                  setDeleteDomainConfirm(null);
-                                  toast({ title: "📁 Домен", description: "Домен удалён" });
-                                }}
-                              >
-                                Удалить
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs"
-                                onClick={() => setDeleteDomainConfirm(null)}
-                              >
-                                Отмена
-                              </Button>
-                            </>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              title="Удалить"
-                              disabled={domains.length <= 1}
-                              onClick={() => setDeleteDomainConfirm(d.id)}
-                            >
-                              <Trash2 className="size-3 text-muted-foreground" />
-                            </Button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {domains.length <= 1 && (
-                <p className="text-xs text-muted-foreground">
-                  Минимум один домен обязателен. Создайте новый, чтобы управлять несколькими.
-                </p>
-              )}
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
-    </div>
+      {/* ---- NEW TASK ---- */}
+      <NewTaskDialog
+        open={newTaskDialog.open}
+        month={newTaskDialog.month}
+        year={currentYear}
+        onClose={() => setNewTaskDialog({ open: false, month: 0 })}
+      />
 
       {/* ── Delta: BudgetSignalsSheet ── */}
       {budgetSheetTask && (
@@ -2422,81 +1600,24 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         />
       )}
 
-      {/* ── Диалог создания задачи ── */}
-      <Dialog open={newTaskDialog.open} onOpenChange={o => { if (!o) { setNewTaskDialog({ open: false, month: 0 }); setNewTaskDraft({ num: "", name: "", planH: "", priority: PRIORITIES.MEDIUM, status: STATUSES.NEW }); } }}>
-        <DialogContent className="sm:max-w-md" style={{ background: "var(--tracker-bg-card, var(--card))", border: "1px solid var(--tracker-border, var(--border))" }}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>＋</span>
-              Новая задача
-            </DialogTitle>
-            <DialogDescription className="text-xs">{MONTHS[newTaskDialog.month]} {currentYear}</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3 pt-1">
-            <div className="grid grid-cols-[80px_1fr] gap-2">
-              <div>
-                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>№</label>
-                <Input value={newTaskDraft.num} onChange={e => setNewTaskDraft(d => ({ ...d, num: e.target.value }))} placeholder="—" className="h-9 text-sm" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }} />
-              </div>
-              <div>
-                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>Наименование *</label>
-                <Input value={newTaskDraft.name} onChange={e => setNewTaskDraft(d => ({ ...d, name: e.target.value }))} placeholder="Название задачи" className="h-9 text-sm" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }} autoFocus />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>План, ч</label>
-                <Input value={newTaskDraft.planH} onChange={e => setNewTaskDraft(d => ({ ...d, planH: e.target.value }))} placeholder="0" className="h-9 text-sm" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }} />
-              </div>
-              <div>
-                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>Приоритет</label>
-                <Select value={newTaskDraft.priority} onValueChange={v => setNewTaskDraft(d => ({ ...d, priority: v as Priority }))}>
-                  <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}><SelectValue /></SelectTrigger>
-                  <SelectContent>{Object.values(PRIORITIES).map(p => <SelectItem key={p} value={p} className="text-xs"><span style={{ color: PCOL[p] }}>{p}</span></SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>Статус</label>
-                <Select value={newTaskDraft.status} onValueChange={v => setNewTaskDraft(d => ({ ...d, status: v as Status }))}>
-                  <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}><SelectValue /></SelectTrigger>
-                  <SelectContent>{Object.values(STATUSES).map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="gap-2 mt-2">
-            <Button variant="outline" size="sm" onClick={() => setNewTaskDialog({ open: false, month: 0 })}>Отмена</Button>
-            <Button size="sm"
-              className="gap-1.5"
-              style={{ background: "var(--tracker-accent)", color: "#fff" }}
-              disabled={!newTaskDraft.name.trim()}
-              onClick={() => {
-                const t: Task = {
-                  id: crypto.randomUUID(),
-                  num: newTaskDraft.num,
-                  name: newTaskDraft.name,
-                  planH: newTaskDraft.planH || "0",
-                  factH: "0",
-                  priority: newTaskDraft.priority,
-                  status: newTaskDraft.status,
-                  comment: "",
-                  commentLog: [],
-                  _ts: Date.now(),
-                  statusChangedAt: new Date().toISOString(),
-                  daysInStatus: 0,
-                  approvalStatus: "approved",
-                };
-                useTaskStore.getState().addTasksToMonth(newTaskDialog.month, [t]);
-                setNewTaskDialog({ open: false, month: 0 });
-                setNewTaskDraft({ num: "", name: "", planH: "", priority: PRIORITIES.MEDIUM, status: STATUSES.NEW });
-              }}
-            >
-              <Plus className="size-3.5" />
-              Создать задачу
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+      {/* ---- SETTINGS ---- */}
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        themeId={themeId}
+        customColor={customColor}
+        customDark={customDark}
+        onSetTheme={storeTheme}
+        onSetCustomColor={storeSetCustomColor}
+        domains={domains}
+        activeDomainId={activeDomainId}
+        onAddDomain={storeAddDomain}
+        onRenameDomain={storeRenameDomain}
+        onDeleteDomain={storeDeleteDomain}
+        onSetActiveDomain={storeSetActiveDomain}
+        toast={toast}
+      />
 
       <ExcelImportModal
         isOpen={isImportOpen}
@@ -2509,6 +1630,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         onApplyChanges={handleSyncApply}
         initialFile={pendingXlsxFile}
       />
+    </div>{/* /MAIN APP */}
     </>
   );
 }

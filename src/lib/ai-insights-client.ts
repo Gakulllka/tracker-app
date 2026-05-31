@@ -18,9 +18,9 @@ export interface AiInsightShape {
   risks: string[];
   inProgress: string[];
   nextSteps: string[];
-  dataHash: string;
-  source: "ai" | "manual" | "edited";
-  updatedAt: string;
+  dataHash?: string;
+  source?: "ai" | "manual" | "edited";
+  updatedAt?: string;
 }
 
 /** Поля задачи, попадающие в хеш. Если какое-то из этих полей изменилось,

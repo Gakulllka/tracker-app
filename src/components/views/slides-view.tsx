@@ -19,12 +19,7 @@ import type { PresBgSettings } from "@/lib/store";
 import type { AiInsightShape } from "@/lib/ai-insights-client";
 import { MONTHS } from "@/lib/types";
 
-type AiConclusionShape = {
-  achievements: string[];
-  risks: string[];
-  inProgress: string[];
-  nextSteps: string[];
-};
+type AiConclusionShape = Pick<AiInsightShape, "achievements" | "risks" | "inProgress" | "nextSteps"> & Partial<Pick<AiInsightShape, "dataHash" | "source" | "updatedAt">>;
 
 export interface SlidesViewProps {
   slides: SlideData[];
@@ -47,7 +42,7 @@ export interface SlidesViewProps {
   aiDraft: AiConclusionShape | null;
   /** Phase 4: aiConclusion расширен серверными полями (dataHash, source, updatedAt). */
   aiConclusion: AiInsightShape | null;
-  onSetAiDraft: (v: AiConclusionShape | null) => void;
+  onSetAiDraft: (v: AiInsightShape | null) => void;
   onApproveDraft: () => void;
   onDiscardDraft: () => void;
   onRemoveConclusion: () => void;
