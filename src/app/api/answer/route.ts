@@ -50,11 +50,15 @@ export async function POST(req: NextRequest) {
     };
     const updated = [...existing, newEntry];
 
+    const isAuthorReply = author?.trim() === question.author;
+    const newStatus = isAuthorReply ? "reopened" : "answered";
+
     const updatedQuestion = await prisma.question.update({
       where: { id: questionId },
       data: {
         answer: JSON.stringify(updated),
         answerDate: new Date(),
+        status: newStatus,
       },
     });
 
@@ -62,11 +66,13 @@ export async function POST(req: NextRequest) {
       success: true,
       answer: newEntry,
       answers: updated,
+      status: newStatus,
       question: {
         id: updatedQuestion.id,
         text: updatedQuestion.text,
         author: updatedQuestion.author,
         answers: updated,
+        status: newStatus,
         questionDate: updatedQuestion.questionDate.toISOString(),
         answerDate: updatedQuestion.answerDate?.toISOString() || null,
       },
@@ -91,15 +97,17 @@ export async function DELETE(req: NextRequest) {
 
     const existing = parseAnswers(question.answer);
     const filtered = existing.filter(a => a.id !== answerId);
+    const newStatus = filtered.length === 0 ? "open" : question.status;
     await prisma.question.update({
       where: { id: questionId },
       data: {
         answer: JSON.stringify(filtered),
         answerDate: filtered.length > 0 ? question.answerDate : null,
+        status: newStatus,
       },
     });
 
-    return NextResponse.json({ success: true, answers: filtered });
+    return NextResponse.json({ success: true, answers: filtered, status: newStatus });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Internal server error";
     return NextResponse.json({ error: message }, { status: 500 });

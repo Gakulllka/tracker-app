@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import {
-  STATUSES, PRIORITIES, MONTHS, PCOL,
+  STATUSES, PRIORITIES, MONTHS, PCOL, scolText,
   type Status, type Priority, type Task,
 } from "@/lib/types";
 import { useTaskStore } from "@/lib/store";
@@ -115,7 +115,9 @@ export function NewTaskDialog({ open, month, year, onClose }: NewTaskDialogProps
                 </SelectTrigger>
                 <SelectContent>
                   {Object.values(STATUSES).map(s => (
-                    <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                    <SelectItem key={s} value={s} className="text-xs">
+                      <span style={{ color: scolText(s, false) || "#888" }}>{s}</span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

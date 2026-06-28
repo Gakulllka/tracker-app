@@ -29,6 +29,7 @@ export async function GET() {
           text: q.text,
           author: q.author,
           answers,
+          status: q.status || "open",
           questionDate: q.questionDate.toISOString(),
           answerDate: q.answerDate?.toISOString() || null,
         };
@@ -64,10 +65,30 @@ export async function POST(req: NextRequest) {
         text: q.text,
         author: q.author,
         answer: q.answer,
+        status: q.status || "open",
         questionDate: q.questionDate.toISOString(),
         answerDate: null,
       },
     });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+// PUT /api/question — update question status
+// Body: { id, status }
+export async function PUT(req: NextRequest) {
+  try {
+    const { id, status } = await req.json();
+    if (!id || !status) {
+      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    }
+    const updated = await prisma.question.update({
+      where: { id },
+      data: { status },
+    });
+    return NextResponse.json({ success: true, question: { id: updated.id, status: updated.status } });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

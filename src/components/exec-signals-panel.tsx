@@ -21,7 +21,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Task, STATUSES, PRIORITIES, Status, Priority } from "@/lib/types";
+import { Task, STATUSES, PRIORITIES, PCOL, scolText, Status, Priority } from "@/lib/types";
 import { evalExpr, R2 } from "@/lib/metrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -330,7 +330,7 @@ export function ExecSignalsPanel({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.values(STATUSES).map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
+                    {Object.values(STATUSES).map(s => <SelectItem key={s} value={s} className="text-xs"><span style={{ color: scolText(s, false) || "#888" }}>{s}</span></SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -341,7 +341,7 @@ export function ExecSignalsPanel({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.values(PRIORITIES).map(p => <SelectItem key={p} value={p} className="text-xs">{p}</SelectItem>)}
+                    {Object.values(PRIORITIES).map(p => <SelectItem key={p} value={p} className="text-xs"><span style={{ color: PCOL[p] }}>{p}</span></SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

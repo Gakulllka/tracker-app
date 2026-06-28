@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ChevronLeft, ChevronRight, Download, Maximize2,
   Sparkles, Loader2, KeyRound, Check, X, Trash2,
-  Presentation, FileText,
+  Presentation, FileText, Layers, Brain,
 } from "lucide-react";
 import {
   PresentationSlide, PresentationBgLayer, buildTheme,
@@ -19,7 +19,7 @@ import type { PresBgSettings } from "@/lib/store";
 import type { AiInsightShape } from "@/lib/ai-insights-client";
 import { MONTHS } from "@/lib/types";
 
-type AiConclusionShape = Pick<AiInsightShape, "achievements" | "risks" | "inProgress" | "nextSteps"> & Partial<Pick<AiInsightShape, "dataHash" | "source" | "updatedAt">>;
+type AiConclusionShape = Pick<AiInsightShape, "achievements" | "risks" | "inProgress"> & { summary: string[] } & Partial<Pick<AiInsightShape, "dataHash" | "source" | "updatedAt">>;
 
 export interface SlidesViewProps {
   slides: SlideData[];
@@ -27,6 +27,7 @@ export interface SlidesViewProps {
   setCurrentSlide: (i: number) => void;
   accentHex: string;
   presBg: PresBgSettings;
+  customDark: boolean;
   onSetPresBg: (patch: Partial<PresBgSettings>) => void;
   onResetPresBg: () => void;
   onExportHTML: () => void;
@@ -59,10 +60,8 @@ export interface SlidesViewProps {
   /** Phase 7.3: есть ли валидный ключ Gemini в памяти сессии. */
   hasApiKey: boolean;
   /** Phase 3: активный под-таб + сеттер. */
-  presSubTab: "slides" | "design" | "ai";
-  setPresSubTab: (v: "slides" | "design" | "ai") => void;
-  /** Phase 3: открыть глобальный таб «Дизайн» (для полных настроек темы трекера). */
-  onOpenGlobalDesign: () => void;
+  presSubTab: "slides" | "ai";
+  setPresSubTab: (v: "slides" | "ai") => void;
   /** Phase 3: текущий месяц/год для шапки слайдов. */
   currentMonth: number;
   currentYear: number;
@@ -72,7 +71,7 @@ const AI_SECTION_LABELS: Record<string, string> = {
   achievements: "✅ Достижения",
   risks: "⚠️ Риски",
   inProgress: "⚙️ В процессе",
-  nextSteps: "🎯 Следующие шаги",
+  summary: "📊 Выводы",
 };
 
 export function SlidesView({
@@ -81,6 +80,7 @@ export function SlidesView({
   setCurrentSlide,
   accentHex,
   presBg,
+  customDark,
   onSetPresBg,
   onResetPresBg,
   onExportHTML,
@@ -104,31 +104,31 @@ export function SlidesView({
   hasApiKey,
   presSubTab,
   setPresSubTab,
-  onOpenGlobalDesign,
   currentMonth,
   currentYear,
 }: SlidesViewProps) {
 
   /* Sub-tabs header — общий для всех трёх режимов */
   const subTabsHeader = (
-    <div className="flex items-center gap-1 p-1 rounded-xl border self-start"
+    <div className="flex items-center gap-1 p-1.5 rounded-xl border self-start"
       style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
       {([
-        { key: "slides", label: "📑 Слайды" },
-        { key: "design", label: "🎨 Дизайн" },
-        { key: "ai",     label: "✨ AI-инсайты" + (aiConclusion || aiDraft ? " ·" : "") },
+        { key: "slides", icon: Layers, label: "Слайды" },
+        { key: "ai",     icon: Brain, label: "AI-инсайты" + (aiConclusion || aiDraft ? " ·" : "") },
       ] as const).map(t => {
         const active = presSubTab === t.key;
+        const Icon = t.icon;
         return (
           <button
             key={t.key}
             onClick={() => setPresSubTab(t.key)}
-            className="px-3 py-1.5 text-xs sm:text-sm rounded-lg transition-colors font-medium"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all font-medium"
             style={{
               background: active ? "var(--tracker-accent)" : "transparent",
               color: active ? "#fff" : "var(--tracker-text-muted)",
             }}
           >
+            <Icon className="size-4" />
             {t.label}
           </button>
         );
@@ -175,17 +175,17 @@ export function SlidesView({
   /* ════════════════════════════════════════════════════════════════ */
   if (presSubTab === "slides") {
     return (
-      <div className="space-y-3 -mx-2 sm:mx-0">
+      <div className="space-y-4 -mx-2 sm:mx-0">
         <div className="flex items-center justify-between gap-2 flex-wrap px-2 sm:px-0">
           {subTabsHeader}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={onEnterFullscreen}>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs" onClick={onEnterFullscreen}>
               <Maximize2 className="size-3.5" />Во весь экран
             </Button>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={onExportPDF}>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs" onClick={onExportPDF}>
               <FileText className="size-3.5" />PDF
             </Button>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={onExportHTML}>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs" onClick={onExportHTML}>
               <Download className="size-3.5" />HTML
             </Button>
           </div>
@@ -194,39 +194,39 @@ export function SlidesView({
         {/* Slide preview — большой, на всю доступную ширину */}
         <div ref={fullscreenContainerRef} className="relative">
           {slide && (
-            <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} aiConclusion={aiConclusion} />
+            <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} customDark={customDark} aiConclusion={aiConclusion} />
           )}
 
           {/* Floating navigation — поверх превью, не отъедает место */}
-          <div className="absolute inset-x-0 bottom-3 flex justify-center pointer-events-none z-10">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md pointer-events-auto"
-              style={{ background: "rgba(0,0,0,.45)", border: "1px solid rgba(255,255,255,.12)" }}>
+          <div className="absolute inset-x-0 bottom-4 flex justify-center pointer-events-none z-10">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-md pointer-events-auto"
+              style={{ background: "rgba(0,0,0,.5)", border: "1px solid rgba(255,255,255,.15)" }}>
               <button
                 onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
                 disabled={currentSlide === 0}
-                className="size-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                className="size-8 rounded-full flex items-center justify-center text-white/90 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
                 aria-label="Назад"
               >
-                <ChevronLeft className="size-4" />
+                <ChevronLeft className="size-5" />
               </button>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 {slides.map((_, i) => (
                   <button key={i} onClick={() => setCurrentSlide(i)}
-                    className={`h-1.5 rounded-full transition-all ${i === currentSlide ? "w-5 bg-white" : "w-1.5 bg-white/40 hover:bg-white/60"}`}
+                    className={`rounded-full transition-all ${i === currentSlide ? "h-2 w-6 bg-white" : "h-2 w-2 bg-white/40 hover:bg-white/60"}`}
                     aria-label={`Слайд ${i + 1}`}
                   />
                 ))}
               </div>
-              <span className="text-[11px] text-white/70 tabular-nums px-1 min-w-[28px] text-center">
-                {Math.min(currentSlide, slides.length - 1) + 1} / {slides.length}
+              <span className="text-xs text-white/80 tabular-nums px-1.5 min-w-[32px] text-center font-medium">
+                {Math.min(currentSlide, slides.length - 1) + 1}/{slides.length}
               </span>
               <button
                 onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))}
                 disabled={currentSlide >= slides.length - 1}
-                className="size-7 rounded-full flex items-center justify-center text-white/90 hover:bg-white/15 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                className="size-8 rounded-full flex items-center justify-center text-white/90 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
                 aria-label="Далее"
               >
-                <ChevronRight className="size-4" />
+                <ChevronRight className="size-5" />
               </button>
             </div>
           </div>
@@ -244,236 +244,6 @@ export function SlidesView({
             </Button>
           </div>
         )}
-      </div>
-    );
-  }
-
-  /* ════════════════════════════════════════════════════════════════ */
-  /* SUB-TAB: DESIGN                                                  */
-  /* ════════════════════════════════════════════════════════════════ */
-  if (presSubTab === "design") {
-    return (
-      <div className="space-y-4">
-        {subTabsHeader}
-
-        <div className="max-w-3xl mx-auto">
-
-          {/* Design controls — теперь во всю ширину (макс 768px) */}
-          <div className="space-y-5">
-
-            {/* Phase 6: Info — цвета привязаны к теме трекера */}
-            <section className="rounded-xl border p-3 flex items-center justify-between gap-3 flex-wrap"
-              style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-accent-bg)" }}>
-              <div className="text-xs flex items-center gap-2" style={{ color: "var(--tracker-accent-fg-dark)" }}>
-                <span className="text-base">🎨</span>
-                <span>Цвета презентации совпадают с темой трекера. Светлая/тёмная — как у сайта.</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={onResetPresBg}>
-                  ↺ Сбросить фон
-                </Button>
-              </div>
-            </section>
-
-            {/* Pattern */}
-            <section>
-              <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--tracker-text-main)" }}>Паттерн фона</h3>
-
-              {/* Мини-предпросмотр текущего фона */}
-              <div
-                className="w-full h-20 rounded-xl mb-3 overflow-hidden relative border"
-                style={{ borderColor: "var(--tracker-border)" }}
-              >
-                {/* Фон слайда */}
-                <div className="absolute inset-0" style={{ background: "var(--tracker-bg-card)" }} />
-                {/* Паттерн поверх */}
-                {presBg.pattern !== "none" && (() => {
-                  const sz = presBg.patternSize;
-                  const op = ((presBg.patternOpacity ?? 5) / 100).toFixed(2);
-                  const pcol = `rgba(var(--tracker-accent-rgb, 155,114,207),${op})`;
-                  const accentRaw = accentHex || "#9B72CF";
-                  const pr = parseInt(accentRaw.slice(1,3),16);
-                  const pg = parseInt(accentRaw.slice(3,5),16);
-                  const pb = parseInt(accentRaw.slice(5,7),16);
-                  const pcolRaw = `rgba(${pr},${pg},${pb},${op})`;
-                  let bg = "";
-                  switch (presBg.pattern) {
-                    case "grid":     bg = `linear-gradient(${pcolRaw} 1px,transparent 1px),linear-gradient(90deg,${pcolRaw} 1px,transparent 1px)`; break;
-                    case "diagonal": bg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2}px,${pcolRaw} ${sz/2}px,${pcolRaw} ${sz/2+1}px)`; break;
-                    case "diamond":  bg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2-1}px,${pcolRaw} ${sz/2-1}px,${pcolRaw} ${sz/2+1}px),repeating-linear-gradient(-45deg,transparent,transparent ${sz/2-1}px,${pcolRaw} ${sz/2-1}px,${pcolRaw} ${sz/2+1}px)`; break;
-                    case "waves":    bg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz/4} Q ${sz/4} 0 ${sz/2} ${sz/4} T ${sz} ${sz/4}' fill='none' stroke='rgba(${pr},${pg},${pb},${op})' stroke-width='1.5'/%3E%3C/svg%3E")`; break;
-                    case "zigzag":   bg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz/2} ${sz/4},0 ${sz/2},${sz/2} ${sz*3/4},0 ${sz},${sz/2}' fill='none' stroke='rgba(${pr},${pg},${pb},${op})' stroke-width='1.5'/%3E%3C/svg%3E")`; break;
-                  }
-                  return (
-                    <div className="absolute inset-0" style={{
-                      backgroundImage: bg,
-                      backgroundSize: `${sz}px ${sz}px`,
-                    }} />
-                  );
-                })()}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xs font-medium px-2 py-1 rounded-lg"
-                    style={{ background: "var(--tracker-bg-card)", color: "var(--tracker-text-muted)", opacity: 0.9 }}>
-                    Предпросмотр фона
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
-                {(["none", "grid", "diagonal", "diamond", "waves", "zigzag"] as const).map(p => {
-                  const active = (presBg.pattern || "none") === p;
-                  const labels: Record<string, string> = { none: "Нет", grid: "Сетка", diagonal: "Линии", diamond: "Ромбы", waves: "Волны", zigzag: "Зигзаг" };
-                  // Строим мини-паттерн для предпросмотра в кнопке
-                  const sz = 20;
-                  const accentRaw = accentHex || "#9B72CF";
-                  const pr = parseInt(accentRaw.slice(1,3),16);
-                  const pg = parseInt(accentRaw.slice(3,5),16);
-                  const pb = parseInt(accentRaw.slice(5,7),16);
-                  const pcol = `rgba(${pr},${pg},${pb},0.55)`;
-                  let thumbBg = "";
-                  switch (p) {
-                    case "grid":     thumbBg = `linear-gradient(${pcol} 1px,transparent 1px),linear-gradient(90deg,${pcol} 1px,transparent 1px)`; break;
-                    case "diagonal": thumbBg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2}px,${pcol} ${sz/2}px,${pcol} ${sz/2+1}px)`; break;
-                    case "diamond":  thumbBg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2-1}px,${pcol} ${sz/2-1}px,${pcol} ${sz/2+1}px),repeating-linear-gradient(-45deg,transparent,transparent ${sz/2-1}px,${pcol} ${sz/2-1}px,${pcol} ${sz/2+1}px)`; break;
-                    case "waves":    thumbBg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz/4} Q ${sz/4} 0 ${sz/2} ${sz/4} T ${sz} ${sz/4}' fill='none' stroke='rgba(${pr},${pg},${pb},0.55)' stroke-width='1.5'/%3E%3C/svg%3E")`; break;
-                    case "zigzag":   thumbBg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz/2} ${sz/4},0 ${sz/2},${sz/2} ${sz*3/4},0 ${sz},${sz/2}' fill='none' stroke='rgba(${pr},${pg},${pb},0.55)' stroke-width='1.5'/%3E%3C/svg%3E")`; break;
-                  }
-                  return (
-                    <button key={p} onClick={() => onSetPresBg({ pattern: p })}
-                      className="rounded-lg border-2 text-center transition-all overflow-hidden"
-                      style={{
-                        borderColor: active ? "var(--tracker-accent)" : "var(--tracker-border)",
-                        boxShadow: active ? `0 0 0 3px var(--tracker-accent)22` : undefined,
-                      }}>
-                      {/* Паттерн-миниатюра */}
-                      <div className="h-9 w-full relative"
-                        style={{ background: active ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)" }}>
-                        {p !== "none" && (
-                          <div className="absolute inset-0" style={{
-                            backgroundImage: thumbBg,
-                            backgroundSize: `${sz}px ${sz}px`,
-                          }} />
-                        )}
-                        {p === "none" && (
-                          <div className="absolute inset-0 flex items-center justify-center text-base" style={{ opacity: 0.4 }}>
-                            ✕
-                          </div>
-                        )}
-                      </div>
-                      <div className="px-1 py-1 text-[10px] font-medium"
-                        style={{ color: active ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-main)" }}>
-                        {labels[p]}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              {presBg.pattern !== "none" && (
-                <div className="grid grid-cols-3 gap-3">
-                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-                    Прозрачность <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.patternOpacity}%</span>
-                    <input type="range" min={0} max={30} value={presBg.patternOpacity}
-                      onChange={e => onSetPresBg({ patternOpacity: Number(e.target.value) })}
-                      className="w-full mt-1" />
-                  </label>
-                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-                    Размер <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.patternSize}px</span>
-                    <input type="range" min={10} max={100} step={5} value={presBg.patternSize}
-                      onChange={e => onSetPresBg({ patternSize: Number(e.target.value) })}
-                      className="w-full mt-1" />
-                  </label>
-                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-                    Толщина <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.patternLineThickness ?? 1}px</span>
-                    <input type="range" min={1} max={4} step={0.5} value={presBg.patternLineThickness ?? 1}
-                      onChange={e => onSetPresBg({ patternLineThickness: Number(e.target.value) })}
-                      className="w-full mt-1" />
-                  </label>
-                </div>
-              )}
-            </section>
-
-            {/* Emoji */}
-            <section>
-              <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--tracker-text-main)" }}>Эмодзи в фоне</h3>
-              <div className="space-y-3">
-                <input type="text" value={presBg.emojis}
-                  onChange={e => onSetPresBg({ emojis: e.target.value })}
-                  placeholder="🚀 ✨ 💡"
-                  className="w-full h-9 rounded-lg border px-3 text-sm bg-transparent outline-none"
-                  style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }} />
-                <div className="grid grid-cols-3 gap-3">
-                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-                    Кол-во <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiCount}</span>
-                    <input type="range" min={0} max={40} value={presBg.emojiCount}
-                      onChange={e => onSetPresBg({ emojiCount: Number(e.target.value) })}
-                      className="w-full mt-1" />
-                  </label>
-                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-                    Мин. размер <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiMinSize}px</span>
-                    <input type="range" min={10} max={60} value={presBg.emojiMinSize}
-                      onChange={e => onSetPresBg({ emojiMinSize: Number(e.target.value) })}
-                      className="w-full mt-1" />
-                  </label>
-                  <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-                    Макс. размер <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiMaxSize}px</span>
-                    <input type="range" min={20} max={120} value={presBg.emojiMaxSize}
-                      onChange={e => onSetPresBg({ emojiMaxSize: Number(e.target.value) })}
-                      className="w-full mt-1" />
-                  </label>
-                </div>
-
-                {/* Анимация: только выкл и падение */}
-                <div>
-                  <p className="text-xs mb-1.5" style={{ color: "var(--tracker-text-muted)" }}>Анимация эмодзи</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {([
-                      { id: "off",  label: "Выключена", emoji: "⏸" },
-                      { id: "fall", label: "Падение",   emoji: "🌧" },
-                    ] as const).map(opt => {
-                      const active = (presBg.emojiAnim === "drift" ? "fall" : (presBg.emojiAnim || "fall")) === opt.id;
-                      return (
-                        <button key={opt.id} onClick={() => onSetPresBg({ emojiAnim: opt.id })}
-                          className="rounded-lg p-2 border-2 text-center transition-all flex flex-col items-center gap-0.5"
-                          style={{
-                            borderColor: active ? "var(--tracker-accent)" : "var(--tracker-border)",
-                            background: active ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)",
-                          }}>
-                          <span className="text-base" style={{ filter: active ? "none" : "grayscale(0.4)" }}>{opt.emoji}</span>
-                          <span className="text-[10px] font-medium" style={{ color: active ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)" }}>
-                            {opt.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Прозрачность эмодзи */}
-                <label className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-                  Прозрачность эмодзи <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiOpacity ?? 25}%</span>
-                  <input type="range" min={5} max={50} value={presBg.emojiOpacity ?? 25}
-                    onChange={e => onSetPresBg({ emojiOpacity: Number(e.target.value) })}
-                    className="w-full mt-1" />
-                </label>
-              </div>
-            </section>
-
-            {/* Link to global design */}
-            <section className="rounded-xl border p-3 flex items-center justify-between gap-3 flex-wrap"
-              style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
-              <div className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>
-                Нужны настройки цвета и темы всего трекера?
-              </div>
-              <Button variant="outline" size="sm" onClick={onOpenGlobalDesign} className="gap-1.5">
-                Глобальный Дизайн
-              </Button>
-            </section>
-          </div>
-
-          {/* Phase 7.3: правая колонка «Предпросмотр» удалена.
-           * Слайды видно в под-табе «Слайды», смысла дублировать не было —
-           * лишь зажимало основные настройки в узкую полосу. */}
-        </div>
       </div>
     );
   }
@@ -507,7 +277,7 @@ export function SlidesView({
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs"
-            onClick={() => onSetAiDraft({ achievements: [""], risks: [""], inProgress: [""], nextSteps: [""] })}
+            onClick={() => onSetAiDraft({ achievements: [""], risks: [""], inProgress: [""], summary: [""] })}
             disabled={!!aiDraft}>
             ✏️ Заполнить вручную
           </Button>
@@ -580,7 +350,7 @@ export function SlidesView({
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {(["achievements", "risks", "inProgress", "nextSteps"] as const).map(key => (
+            {(["achievements", "risks", "inProgress", "summary"] as const).map(key => (
               <div key={key} className="space-y-1.5">
                 <p className="text-xs font-semibold" style={{ color: "var(--tracker-accent-fg-dark)" }}>
                   {AI_SECTION_LABELS[key]}
@@ -634,7 +404,7 @@ export function SlidesView({
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {(["achievements", "risks", "inProgress", "nextSteps"] as const).map(key => (
+            {(["achievements", "risks", "inProgress", "summary"] as const).map(key => (
               <div key={key}>
                 <p className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--tracker-text-muted)" }}>
                   {AI_SECTION_LABELS[key]}
@@ -660,7 +430,7 @@ export function SlidesView({
         {(() => {
           const summarySlide = slides.find(s => s.type === "summary");
           if (!summarySlide) return null;
-          return <SlidePreview slide={summarySlide} accentHex={accentHex} presBg={presBg} aiConclusion={aiConclusion} />;
+          return <SlidePreview slide={summarySlide} accentHex={accentHex} presBg={presBg} customDark={customDark} aiConclusion={aiConclusion} />;
         })()}
       </div>
     </div>
@@ -681,14 +451,16 @@ export function SlidePreview({
   slide,
   accentHex,
   presBg,
+  customDark,
   aiConclusion,
 }: {
   slide: SlideData;
   accentHex: string;
   presBg: PresBgSettings;
+  customDark: boolean;
   aiConclusion?: AiConclusion | null;
 }) {
-  const theme = useMemo(() => buildTheme(accentHex, presBg), [accentHex, presBg]);
+  const theme = useMemo(() => buildTheme(accentHex, presBg, undefined, customDark), [accentHex, presBg, customDark]);
   const [r, g, b] = theme.rgb;
 
   return (
@@ -707,10 +479,11 @@ export function SlidePreview({
           inset: 0,
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-          padding: "32px 48px",
+          justifyContent: "flex-start",
+          alignItems: "stretch",
+          padding: "24px 28px",
           zIndex: 1,
+          overflow: "hidden",
         }}
       >
         <PresentationSlide slide={slide} theme={theme} aiConclusion={aiConclusion} />

@@ -10,14 +10,16 @@ export interface QuestionAnswer {
   date: string;
 }
 
+export type QuestionStatus = "open" | "reopened" | "answered" | "archived";
+
 export interface Question {
   id: string;
   text: string;
   author: string;
   answers: QuestionAnswer[];
+  status: QuestionStatus;
   questionDate?: string;
   answerDate?: string;
-  /** Привязка к задаче (из панели сигналов руководителя) */
   linkedTaskId?: string;
   linkedTaskName?: string;
 }
@@ -28,8 +30,11 @@ type APIQuestion = {
   author: string;
   answers?: QuestionAnswer[];
   answer?: string;
+  status?: string;
   questionDate?: string;
   answerDate?: string;
+  linkedTaskId?: string;
+  linkedTaskName?: string;
 };
 
 /**
@@ -59,8 +64,11 @@ export function mapQuestionFromAPI(q: APIQuestion): Question {
     text: q.text,
     author: q.author || "Аноним",
     answers,
+    status: (q.status as QuestionStatus) || "open",
     questionDate: q.questionDate,
     answerDate: q.answerDate,
+    linkedTaskId: q.linkedTaskId || undefined,
+    linkedTaskName: q.linkedTaskName || undefined,
   };
 }
 

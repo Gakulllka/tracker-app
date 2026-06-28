@@ -42,6 +42,7 @@ export interface Task {
   comment: string;
   commentLog: CommentEntry[];
   _hidden?: boolean;
+  taskComments?: TaskComment[];
 
   // ── Delta fields (Монитор БА + Монитор Руководителя) ──────────────────────
   /** Общий запрошенный бюджет задачи в часах (может быть > лимита месяца). */
@@ -52,6 +53,8 @@ export interface Task {
   budgetRollover?: number;
   /** Задача первая на отсечение при нехватке бюджета. */
   isFirstToCut?: boolean;
+  /** Руководитель зафиксировал: задачу НЕ отсекать при нехватке бюджета. */
+  excludeFromCut?: boolean;
   /** Флаг от руководителя: "escalate" | "pause" | "cancel" | "request_status". */
   executiveFlag?: "escalate" | "pause" | "cancel" | "request_status";
   /**
@@ -76,14 +79,21 @@ export interface CommentEntry {
   status: Status;
 }
 
+export interface TaskComment {
+  id: string;
+  author: string;
+  date: string;
+  text: string;
+  attachments?: string[];
+  replies?: TaskComment[];
+}
+
 // Domain (workspace)
 export interface Domain {
   id: string;
   name: string;
 }
 
-// Month data = array of tasks, indexed 0-11
-export type MonthData = Task[][];
 export type AllData = Record<number, Task[]>;
 
 // Task metrics
@@ -120,8 +130,6 @@ export const COLS: Column[] = [
 
 export const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 export const MONTHS_SHORT = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"];
-
-export const NAV_CELLS = ["num", "name", "planH", "factH", "priority", "status", "comment"];
 
 // Priority colors
 export const PCOL: Record<Priority, string> = {
@@ -208,3 +216,38 @@ export const PRIO_START: Record<Priority, number> = {
   [PRIORITIES.LOW]: 40,
   [PRIORITIES.QUEUE]: 50,
 };
+
+const STATUS_PHASES = {
+  NEW: "new",
+  IN_PROGRESS: "in_progress",
+  DONE: "done",
+  CANCEL: "cancel",
+} as const;
+type StatusPhase = typeof STATUS_PHASES[keyof typeof STATUS_PHASES];
+
+const STATUS_TO_PHASE: Record<Status, StatusPhase> = {
+  [STATUSES.IDEA]: "new",
+  [STATUSES.NEW]: "new",
+  [STATUSES.ANALYSIS]: "in_progress",
+  [STATUSES.APPROVAL]: "in_progress",
+  [STATUSES.QUEUE_DEV]: "in_progress",
+  [STATUSES.DEV]: "in_progress",
+  [STATUSES.TEST]: "in_progress",
+  [STATUSES.RELEASE]: "in_progress",
+  [STATUSES.DOCS]: "in_progress",
+  [STATUSES.COMPLETED]: "done",
+  [STATUSES.PROD_CHECK]: "done",
+  [STATUSES.DONE]: "done",
+  [STATUSES.POSTPONED]: "cancel",
+  [STATUSES.CANCEL]: "cancel",
+};
+
+export const PHASE_COLORS: Record<StatusPhase, string> = {
+  new: "#38bdf8",
+  in_progress: "#f59e0b",
+  done: "#34d399",
+  cancel: "#ef4444",
+};
+
+export const getPhaseForStatus = (status: Status): StatusPhase =>
+  STATUS_TO_PHASE[status] ?? "in_progress";

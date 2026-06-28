@@ -1,10 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
-import { Check } from "lucide-react";
-import { createTheme, PALETTE_COLORS, NEUTRAL_COLORS, NAMED_THEMES, THEME_TO_PRES, EMOJI_CATS } from "@/lib/theme";
+import { Check, RotateCcw, Presentation } from "lucide-react";
+import { createTheme, NAMED_THEMES } from "@/lib/theme";
 import type { PresBgSettings } from "@/lib/store";
 
 export interface DesignViewProps {
@@ -190,10 +188,18 @@ export function DesignView({ themeId, customColor, customDark, accentHex, onSetT
     }
   };
 
-  return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+  const accentRaw = accentHex || "#9B72CF";
+  const pr = parseInt(accentRaw.slice(1,3),16);
+  const pg = parseInt(accentRaw.slice(3,5),16);
+  const pb = parseInt(accentRaw.slice(5,7),16);
 
-        {/* Section: Named themes */}
+  return (
+    <div className="space-y-6 w-full px-2">
+
+      {/* Two-column top: Themes grid + Custom color */}
+      <div className="grid gap-6" style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)" }}>
+
+        {/* Left: Named themes */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -224,7 +230,6 @@ export function DesignView({ themeId, customColor, customDark, accentHex, onSetT
                     boxShadow: isActive ? `0 0 0 3px ${theme.hex}22` : undefined,
                   }}
                 >
-                  {/* Color circle */}
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center text-base transition-transform group-hover:scale-110"
                     style={{ background: `${theme.hex}22`, boxShadow: `inset 0 0 0 2.5px ${theme.hex}` }}
@@ -250,7 +255,7 @@ export function DesignView({ themeId, customColor, customDark, accentHex, onSetT
           </div>
         </div>
 
-        {/* Section: Custom colour + Phase 7 палитра полутонов */}
+        {/* Right: Custom color + palette */}
         <div className="rounded-xl border p-4 space-y-4" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
           <div>
             <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Свой цвет</h3>
@@ -288,11 +293,6 @@ export function DesignView({ themeId, customColor, customDark, accentHex, onSetT
             </div>
           </div>
 
-          {/* Phase 7: палитра автоматических полутонов от выбранного акцента.
-           * Показывает, как именно выбранный цвет распределяется в UI: куда
-           * пойдёт акцент сам по себе, куда — мягкий вариант (фон карточек),
-           * куда — затемнённый (текст на акценте) и т.д.
-           * Все значения вычисляются движком темы из основного цвета. */}
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--tracker-text-muted)" }}>
               Палитра — автоматические оттенки
@@ -327,14 +327,155 @@ export function DesignView({ themeId, customColor, customDark, accentHex, onSetT
             </p>
           </div>
         </div>
+      </div>
 
-        {/* Phase 7: «Тёмный режим» удалён отсюда — теперь это иконка
-         * Sun/Moon в шапке (доступна с любой вкладки). */}
+      {/* Presentation background section */}
+      <div className="rounded-xl border p-5 space-y-5" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Presentation className="size-4" style={{ color: "var(--tracker-accent)" }} />
+            <div>
+              <h3 className="text-sm font-semibold" style={{ color: "var(--tracker-text-main)" }}>Фон презентации</h3>
+              <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Паттерн и эмодзи для слайдов</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" className="text-xs h-7 gap-1.5" onClick={() => onSetPresBg({ pattern: "none", emojis: "", emojiCount: 0, emojiAnim: "off", emojiOpacity: 25, emojiMinSize: 20, emojiMaxSize: 60, patternOpacity: 5, patternSize: 30, patternLineThickness: 1 })}>
+            <RotateCcw className="size-3" /> Сбросить
+          </Button>
+        </div>
 
-        {/* Phase 6: «Стиль презентации» с пресетами темы удалён.
-         * Теперь презентация полностью наследует цвета от текущей темы
-         * трекера. Настройки фона презентации (паттерн / эмодзи /
-         * анимации) живут в табе Презентация → Дизайн. */}
+        <div className="grid gap-6" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
+          {/* Left: Pattern */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Паттерн фона</h4>
+
+            {/* Pattern preview */}
+            <div className="w-full h-16 rounded-xl overflow-hidden relative border" style={{ borderColor: "var(--tracker-border)" }}>
+              <div className="absolute inset-0" style={{ background: "var(--tracker-bg-card)" }} />
+              {presBg.pattern !== "none" && (() => {
+                const sz = presBg.patternSize;
+                const op = ((presBg.patternOpacity ?? 5) / 100).toFixed(2);
+                const thick = presBg.patternLineThickness ?? 1;
+                const pcol = `rgba(${pr},${pg},${pb},${op})`;
+                let bg = "";
+                switch (presBg.pattern) {
+                  case "grid":     bg = `linear-gradient(${pcol} ${thick}px,transparent ${thick}px),linear-gradient(90deg,${pcol} ${thick}px,transparent ${thick}px)`; break;
+                  case "diagonal": bg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2}px,${pcol} ${sz/2}px,${pcol} ${sz/2+thick}px)`; break;
+                  case "diamond":  bg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2-thick}px,${pcol} ${sz/2-thick}px,${pcol} ${sz/2+thick}px),repeating-linear-gradient(-45deg,transparent,transparent ${sz/2-thick}px,${pcol} ${sz/2-thick}px,${pcol} ${sz/2+thick}px)`; break;
+                  case "waves":    bg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz/4} Q ${sz/4} 0 ${sz/2} ${sz/4} T ${sz} ${sz/4}' fill='none' stroke='rgba(${pr},${pg},${pb},${op})' stroke-width='${thick}'/%3E%3C/svg%3E")`; break;
+                  case "zigzag":   bg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz/2}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz/2} ${sz/4},0 ${sz/2},${sz/2} ${sz*3/4},0 ${sz},${sz/2}' fill='none' stroke='rgba(${pr},${pg},${pb},${op})' stroke-width='${thick}'/%3E%3C/svg%3E")`; break;
+                }
+                return <div className="absolute inset-0" style={{ backgroundImage: bg, backgroundSize: `${sz}px ${sz}px` }} />;
+              })()}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-[10px] font-medium px-2 py-1 rounded-lg" style={{ background: "var(--tracker-bg-card)", color: "var(--tracker-text-muted)", opacity: 0.9 }}>Предпросмотр</span>
+              </div>
+            </div>
+
+            {/* Pattern buttons */}
+            <div className="grid grid-cols-6 gap-1.5">
+              {(["none", "grid", "diagonal", "diamond", "waves", "zigzag"] as const).map(p => {
+                const active = (presBg.pattern || "none") === p;
+                const labels: Record<string, string> = { none: "Нет", grid: "Сетка", diagonal: "Линии", diamond: "Ромбы", waves: "Волны", zigzag: "Зигзаг" };
+                const sz = 14;
+                const thick = presBg.patternLineThickness ?? 1;
+                const pcol = `rgba(${pr},${pg},${pb},0.6)`;
+                let thumbBg = "";
+                switch (p) {
+                  case "grid":     thumbBg = `linear-gradient(${pcol} ${thick}px,transparent ${thick}px),linear-gradient(90deg,${pcol} ${thick}px,transparent ${thick}px)`; break;
+                  case "diagonal": thumbBg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2}px,${pcol} ${sz/2}px,${pcol} ${sz/2+thick}px)`; break;
+                  case "diamond":  thumbBg = `repeating-linear-gradient(45deg,transparent,transparent ${sz/2-thick}px,${pcol} ${sz/2-thick}px,${pcol} ${sz/2+thick}px),repeating-linear-gradient(-45deg,transparent,transparent ${sz/2-thick}px,${pcol} ${sz/2-thick}px,${pcol} ${sz/2+thick}px)`; break;
+                  case "waves":    thumbBg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 ${sz/2} Q ${sz/4} ${sz/4} ${sz/2} ${sz/2} T ${sz} ${sz/2}' fill='none' stroke='rgba(${pr},${pg},${pb},0.6)' stroke-width='${thick}'/%3E%3C/svg%3E")`; break;
+                  case "zigzag":   thumbBg = `url("data:image/svg+xml,%3Csvg width='${sz}' height='${sz}' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='0,${sz/2} ${sz/4},0 ${sz/2},${sz/2} ${sz*3/4},0 ${sz},${sz/2}' fill='none' stroke='rgba(${pr},${pg},${pb},0.6)' stroke-width='${thick}'/%3E%3C/svg%3E")`; break;
+                }
+                return (
+                  <button key={p} onClick={() => onSetPresBg({ pattern: p })}
+                    className="rounded-lg border-2 text-center transition-all overflow-hidden"
+                    style={{ borderColor: active ? "var(--tracker-accent)" : "var(--tracker-border)" }}>
+                    <div className="h-10 w-full relative" style={{ background: active ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)" }}>
+                      {p !== "none" && <div className="absolute inset-0" style={{ backgroundImage: thumbBg, backgroundSize: `${sz}px ${sz}px` }} />}
+                      {p === "none" && <div className="absolute inset-0 flex items-center justify-center text-xs" style={{ opacity: 0.4 }}>✕</div>}
+                    </div>
+                    <div className="px-1 py-0.5 text-[9px] font-medium" style={{ color: active ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-main)" }}>{labels[p]}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Pattern sliders */}
+            {presBg.pattern !== "none" && (
+              <div className="grid grid-cols-3 gap-2">
+                <label className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+                  Прозрачность <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.patternOpacity}%</span>
+                  <input type="range" min={0} max={30} value={presBg.patternOpacity} onChange={e => onSetPresBg({ patternOpacity: Number(e.target.value) })} className="w-full mt-1" />
+                </label>
+                <label className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+                  Размер <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.patternSize}px</span>
+                  <input type="range" min={10} max={100} step={5} value={presBg.patternSize} onChange={e => onSetPresBg({ patternSize: Number(e.target.value) })} className="w-full mt-1" />
+                </label>
+                <label className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+                  Толщина <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.patternLineThickness ?? 1}px</span>
+                  <input type="range" min={1} max={4} step={0.5} value={presBg.patternLineThickness ?? 1} onChange={e => onSetPresBg({ patternLineThickness: Number(e.target.value) })} className="w-full mt-1" />
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* Right: Emoji */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Эмодзи в фоне</h4>
+
+            <input type="text" value={presBg.emojis}
+              onChange={e => onSetPresBg({ emojis: e.target.value })}
+              placeholder="🚀 ✨ 💡"
+              className="w-full h-8 rounded-lg border px-3 text-xs bg-transparent outline-none"
+              style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }} />
+
+            <div className="grid grid-cols-3 gap-2">
+              <label className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+                Кол-во <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiCount}</span>
+                <input type="range" min={0} max={40} value={presBg.emojiCount} onChange={e => onSetPresBg({ emojiCount: Number(e.target.value) })} className="w-full mt-1" />
+              </label>
+              <label className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+                Мин. <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiMinSize}px</span>
+                <input type="range" min={10} max={60} value={presBg.emojiMinSize} onChange={e => onSetPresBg({ emojiMinSize: Number(e.target.value) })} className="w-full mt-1" />
+              </label>
+              <label className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+                Макс. <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiMaxSize}px</span>
+                <input type="range" min={20} max={120} value={presBg.emojiMaxSize} onChange={e => onSetPresBg({ emojiMaxSize: Number(e.target.value) })} className="w-full mt-1" />
+              </label>
+            </div>
+
+            <div>
+              <p className="text-[10px] mb-1.5" style={{ color: "var(--tracker-text-muted)" }}>Анимация</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {([
+                  { id: "off",  label: "Выключена", emoji: "⏸" },
+                  { id: "fall", label: "Падение",   emoji: "🌧" },
+                ] as const).map(opt => {
+                  const active = (presBg.emojiAnim === "drift" ? "fall" : (presBg.emojiAnim || "fall")) === opt.id;
+                  return (
+                    <button key={opt.id} onClick={() => onSetPresBg({ emojiAnim: opt.id })}
+                      className="rounded-lg p-1.5 border-2 text-center transition-all flex items-center justify-center gap-1"
+                      style={{
+                        borderColor: active ? "var(--tracker-accent)" : "var(--tracker-border)",
+                        background: active ? "var(--tracker-accent-bg)" : "var(--tracker-bg-card)",
+                      }}>
+                      <span className="text-xs" style={{ filter: active ? "none" : "grayscale(0.4)" }}>{opt.emoji}</span>
+                      <span className="text-[10px] font-medium" style={{ color: active ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)" }}>{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <label className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+              Прозрачность <span className="font-semibold" style={{ color: "var(--tracker-text-main)" }}>{presBg.emojiOpacity ?? 25}%</span>
+              <input type="range" min={5} max={50} value={presBg.emojiOpacity ?? 25} onChange={e => onSetPresBg({ emojiOpacity: Number(e.target.value) })} className="w-full mt-1" />
+            </label>
+          </div>
+        </div>
+      </div>
 
     </div>
   );

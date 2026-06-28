@@ -128,7 +128,7 @@ export async function DELETE(req: NextRequest) {
 
     const usersWithRole = await prisma.user.count({ where: { roleId } });
     if (usersWithRole > 0) {
-      const editorRole = await prisma.role.findFirst({ where: { id: "role_editor" } });
+      const editorRole = await prisma.role.findFirst({ where: { name: "editor" } });
       if (editorRole) {
         await prisma.user.updateMany({ where: { roleId }, data: { roleId: editorRole.id } });
       }

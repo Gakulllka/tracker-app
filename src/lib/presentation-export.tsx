@@ -84,7 +84,6 @@ interface ShellArgs {
 function buildShell({ theme, bgLayerHtml, slidesHtml, dotsHtml, slidesCount }: ShellArgs): string {
   const [r, g, b] = theme.rgb;
   const acA = `rgba(${r},${g},${b},1)`;
-  const acGrad = `linear-gradient(135deg,${acA},rgba(${r},${g},${b},.6))`;
 
   // Навигационная панель — единственное, что в экспорте отличается
   // от превью (в превью навигация — на родной React-кнопках в page.tsx).
@@ -161,7 +160,7 @@ body{
   cursor:pointer;
   transition:all .3s;
 }
-.dot.active{width:28px;background:${acGrad}}
+.dot.active{width:28px;background:${acA}}
 .counter{
   font-size:14px;
   color:rgba(${r},${g},${b},.4);

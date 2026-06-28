@@ -324,8 +324,8 @@ export async function exportAllXLSX(
       const plan = evalExpr(task.planH);
       const fact = evalExpr(task.factH);
       const totalH = task.num ? (totalFactMap[task.num] || 0) : fact;
-      const isDone = task.status === STATUSES.DONE;
-      const prog = isDone ? 100 : (plan > 0 ? Math.min(100, Math.round(totalH / plan * 100)) : 0);
+      const isClosed = [STATUSES.DONE, STATUSES.COMPLETED, STATUSES.PROD_CHECK].includes(task.status as typeof STATUSES.DONE);
+      const prog = isClosed ? 100 : (plan > 0 ? Math.min(100, Math.round(totalH / plan * 100)) : 0);
 
       const row = ws.addRow({
         idx: idx + 1,

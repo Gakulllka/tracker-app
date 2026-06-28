@@ -8,7 +8,7 @@ import { renderPresentationHtml } from "@/lib/presentation-export";
 import { generateSlides } from "@/lib/slides";
 import { saveInsight, deleteInsight } from "@/lib/ai-insights-client";
 import type { AiInsightShape } from "@/lib/ai-insights-client";
-import type { Task, Domain } from "@/lib/types";
+import type { Task } from "@/lib/types";
 import type { SlideData } from "@/lib/presentation-renderer";
 import type { PresBgSettings } from "@/lib/store";
 import { MONTHS } from "@/lib/types";
@@ -29,12 +29,15 @@ interface UsePresentationParams {
   setView: (v: string) => void;
   setApiKeyDialogOpen: (v: boolean) => void;
   toast: (opts: { title: string; description?: string; variant?: "destructive" }) => void;
+  /** План часов на месяц (из Дашборда). */
+  monthCapacity: number;
 }
 
 export function usePresentation({
   allData, currentMonth, currentYear, accentHex, customDark,
   totalFactMap, presBg, workspaceId, activeDomainId, insightMonthKey,
   chatModel, apiKeyRef, setView, setApiKeyDialogOpen, toast,
+  monthCapacity,
 }: UsePresentationParams) {
 
   const [currentSlide, setCurrentSlide]     = useState(0);
@@ -46,7 +49,7 @@ export function usePresentation({
   const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
 
   const slides: SlideData[] = generateSlides(
-    currentMonth, currentYear, allData, accentHex, totalFactMap
+    currentMonth, currentYear, allData, accentHex, totalFactMap, monthCapacity
   );
 
   const openPresentation = useCallback(() => setView("slides"), [setView]);
@@ -121,7 +124,7 @@ export function usePresentation({
       const summary = rows.map(r =>
         `#${r.num} "${r.name}" — статус: ${r.status}, план: ${r.planH || "—"}ч, факт: ${r.factH || "—"}ч`
       ).join("\n");
-      const prompt = `Ты аналитик проекта. На основе списка задач за ${MONTHS[currentMonth]} ${currentYear} напиши краткие выводы на русском языке. Ответь строго в формате JSON без пояснений:\n{"achievements":["...","..."],"risks":["...","..."],"inProgress":["...","..."],"nextSteps":["...","..."]}\nКаждый массив — 2-3 пункта, лаконично, до 10 слов каждый.\nЗадачи:\n${summary}`;
+      const prompt = `Ты аналитик проекта. На основе списка задач за ${MONTHS[currentMonth]} ${currentYear} напиши краткие выводы на русском языке. Ответь строго в формате JSON без пояснений:\n{"achievements":["...","..."],"risks":["...","..."],"inProgress":["...","..."],"summary":["...","..."]}\nКаждый массив — 2-3 пункта, лаконично, до 10 слов каждый.\nЗадачи:\n${summary}`;
       const res  = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", parts: [{ text: prompt }] }], apiKey, model: chatModel }) });
       const data = await res.json();
       if (data.error) throw new Error(data.error);

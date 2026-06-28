@@ -23,8 +23,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Task, STATUSES, MONTHS } from "@/lib/types";
 import {
-  R2, evalExpr, calcMonthBudgetUsed, calcHealthScore, MONTH_CAPACITY, fmt2, calcDaysInStatus,
+  R2, evalExpr, calcMonthBudgetUsed, MONTH_CAPACITY, fmt2, calcDaysInStatus,
 } from "@/lib/metrics";
+import { computeFirstToCut } from "@/lib/cut-algorithm";
 
 // ─── Типы ─────────────────────────────────────────────────────────────────────
 
@@ -342,7 +343,8 @@ export function DashboardDelta({
   const pendingTasks = useMemo(() => alive.filter(t => t.approvalStatus === "pending"), [alive]);
   const pendingHours = useMemo(() => R2(pendingTasks.reduce((s, t) => s + (t.budgetAllocated ?? evalExpr(t.planH)), 0)), [pendingTasks]);
 
-  const firstToCutTasks = useMemo(() => alive.filter(t => t.isFirstToCut && t.approvalStatus !== "rejected"), [alive]);
+  const isFirstToCutIds = useMemo(() => computeFirstToCut(alive, monthCapacity), [alive, monthCapacity]);
+  const firstToCutTasks = useMemo(() => alive.filter(t => isFirstToCutIds.has(t.id)), [alive, isFirstToCutIds]);
   const firstToCutHours = useMemo(() => R2(firstToCutTasks.reduce((s, t) => s + (t.budgetAllocated ?? evalExpr(t.planH)), 0)), [firstToCutTasks]);
 
   const rolloverHours = useMemo(() => R2(alive.reduce((s, t) => s + (t.budgetRollover ?? 0), 0)), [alive]);
@@ -429,11 +431,11 @@ export function DashboardDelta({
         planH, budgetH, factH: evalExpr(t.factH),
         daysInStatus,
         isPending: t.approvalStatus === "pending",
-        isFirstToCut: !!t.isFirstToCut,
+        isFirstToCut: isFirstToCutIds.has(t.id),
         color: isAhead ? "#a3e635" : color,
         task: t,
       };
-    }), [alive]);
+    }), [alive, isFirstToCutIds]);
 
   // Калькулятор: кандидаты на дозаливку (budgetAllocated < totalBudgetRequested или < planH)
   const topupCandidates = useMemo(() =>
@@ -838,19 +840,27 @@ export function DashboardDelta({
                 );
               })}
 
-              {/* Чекбокс "На отсечение" */}
+              {/* Авто-индикатор "На отсечение" */}
+              {isFirstToCutIds.has(selectedTask.id) && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                  style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.25)" }}>
+                  <span className="text-sm font-medium" style={{ color: "#f97316" }}>⚡ Авто: на отсечение</span>
+                </div>
+              )}
+
+              {/* Чекбокс "Зафиксировать — не отсекать" */}
               <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer"
-                style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.25)" }}>
+                style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.25)" }}>
                 <input type="checkbox"
-                  className="w-4 h-4 rounded accent-orange-500"
-                  checked={!!selectedTask.isFirstToCut}
+                  className="w-4 h-4 rounded accent-blue-500"
+                  checked={!!selectedTask.excludeFromCut}
                   onChange={() => {
-                    const v = !selectedTask.isFirstToCut;
-                    onUpdateTask(selectedTask.id, { isFirstToCut: v });
-                    setSelectedTask({ ...selectedTask, isFirstToCut: v });
+                    const v = !selectedTask.excludeFromCut;
+                    onUpdateTask(selectedTask.id, { excludeFromCut: v });
+                    setSelectedTask({ ...selectedTask, excludeFromCut: v });
                   }}
                 />
-                <span className="text-sm font-medium" style={{ color: "#f97316" }}>⚡ Первая на отсечение</span>
+                <span className="text-sm font-medium" style={{ color: "#3b82f6" }}>🔒 Зафиксировать (не отсекать)</span>
               </label>
             </div>
           </DialogContent>

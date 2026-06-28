@@ -24,7 +24,7 @@ interface InsightShape {
   achievements: string[];
   risks: string[];
   inProgress: string[];
-  nextSteps: string[];
+  summary: string[];
   dataHash: string;
   source: "ai" | "manual" | "edited";
   updatedAt: string;
@@ -59,7 +59,7 @@ function deserializeInsight(row: {
     achievements: parseArr(row.achievements),
     risks: parseArr(row.risks),
     inProgress: parseArr(row.inProgress),
-    nextSteps: parseArr(row.nextSteps),
+    summary: parseArr(row.nextSteps),
     dataHash: row.dataHash || "",
     source: (row.source as "ai" | "manual" | "edited") || "manual",
     updatedAt: row.updatedAt.toISOString(),
@@ -130,7 +130,7 @@ export async function PUT(req: NextRequest) {
     const achievements = sanitizeArr(body.achievements);
     const risks = sanitizeArr(body.risks);
     const inProgress = sanitizeArr(body.inProgress);
-    const nextSteps = sanitizeArr(body.nextSteps);
+    const summary = sanitizeArr(body.summary);
     const dataHash = typeof body.dataHash === "string" ? body.dataHash.slice(0, 200) : "";
     const source =
       body.source === "ai" || body.source === "manual" || body.source === "edited" ? body.source : "manual";
@@ -146,7 +146,7 @@ export async function PUT(req: NextRequest) {
         achievements: JSON.stringify(achievements),
         risks: JSON.stringify(risks),
         inProgress: JSON.stringify(inProgress),
-        nextSteps: JSON.stringify(nextSteps),
+        nextSteps: JSON.stringify(summary),
         dataHash,
         source,
       },
@@ -154,7 +154,7 @@ export async function PUT(req: NextRequest) {
         achievements: JSON.stringify(achievements),
         risks: JSON.stringify(risks),
         inProgress: JSON.stringify(inProgress),
-        nextSteps: JSON.stringify(nextSteps),
+        nextSteps: JSON.stringify(summary),
         dataHash,
         source,
       },

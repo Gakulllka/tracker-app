@@ -26,7 +26,6 @@ export interface ChatViewProps {
   totalFactMap: Record<string, number>;
   questions: Question[];
   addQuestion: (text: string, author: string) => void;
-  isDark: boolean;
 }
 
 function AiText({ text }: { text: string }) {
@@ -242,15 +241,17 @@ export function ChatView({
       <div className="flex-1 flex flex-col gap-3 overflow-y-auto rounded-xl border p-4 min-h-0"
         style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }}>
         {!log.length && !busy && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: "var(--tracker-accent-bg)" }}><span className="text-2xl">✦</span></div>
-            <p className="text-base font-semibold mb-1" style={{ color: "var(--tracker-text-main)" }}>AI-ассистент менеджера</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-8 animate-fade-in">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: "var(--tracker-accent-bg)" }}>
+              <span className="text-3xl">✦</span>
+            </div>
+            <p className="text-lg font-semibold mb-1" style={{ color: "var(--tracker-text-main)" }}>AI-ассистент менеджера</p>
             <p className="text-sm max-w-sm" style={{ color: "var(--tracker-text-muted)" }}>{hasKey ? "Нажмите быстрое действие или задайте свой вопрос." : "Нажмите «API ключ» чтобы подключить Gemini."}</p>
           </div>
         )}
         {log.map((m, i) => (
-          <div key={i} className={`flex flex-col gap-1 ${m.role === "user" ? "items-end" : "items-start"}`}>
-            <span className="text-[10px] font-medium px-1" style={{ color: "var(--tracker-text-muted)" }}>{m.role === "user" ? "Вы" : m.role === "error" ? "⚠ Ошибка" : "✦ AI-ассистент"}</span>
+          <div key={i} className={`flex flex-col gap-1.5 animate-fade-in-up ${m.role === "user" ? "items-end" : "items-start"}`} style={{ animationDelay: `${Math.min(i * 50, 200)}ms` }}>
+            <span className="text-[11px] font-semibold px-1.5" style={{ color: "var(--tracker-text-muted)" }}>{m.role === "user" ? "Вы" : m.role === "error" ? "⚠ Ошибка" : "✦ AI-ассистент"}</span>
             <div className={`rounded-2xl px-4 py-3 max-w-[85%] ${m.role === "user" ? "rounded-tr-sm" : "rounded-tl-sm"}`}
               style={m.role === "user" ? { background: "var(--tracker-accent-bg)", color: "var(--tracker-text-main)", border: "1px solid var(--tracker-border)" }
                 : m.role === "error" ? { background: "rgba(239,68,68,0.07)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }
@@ -258,10 +259,10 @@ export function ChatView({
               {m.role === "ai" ? <AiText text={m.text} /> : <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.text}</p>}
               {m.role === "ai" && m.suggestedQuestions && m.suggestedQuestions.length > 0 && (
                 <div className="mt-3 pt-3 border-t space-y-1.5" style={{ borderColor: "var(--tracker-border)" }}>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--tracker-text-muted)" }}>Добавить в вопросы команды:</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--tracker-text-muted)" }}>Добавить в вопросы команды:</p>
                   {m.suggestedQuestions.map((q, qi) => (
                     <button key={qi} onClick={() => setCreatingQuestion(q)}
-                      className="flex items-start gap-2 w-full text-left text-xs px-3 py-2 rounded-lg border transition-colors hover:bg-[var(--tracker-accent-bg)]"
+                      className="flex items-start gap-2 w-full text-left text-xs px-3 py-2.5 rounded-lg border transition-all hover:bg-[var(--tracker-accent-bg)] hover:border-[var(--tracker-accent)]/30"
                       style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}>
                       <span className="shrink-0 mt-0.5" style={{ color: "var(--tracker-accent)" }}>+</span><span className="flex-1">{q}</span>
                     </button>
@@ -272,10 +273,10 @@ export function ChatView({
           </div>
         ))}
         {busy && (
-          <div className="flex items-start gap-1">
+          <div className="flex items-start gap-1 animate-fade-in">
             <div className="rounded-2xl rounded-tl-sm px-4 py-3 border" style={{ background: "var(--tracker-bg-card)", borderColor: "var(--tracker-border)" }}>
               <div className="flex gap-1.5 items-center h-5">
-                {[0, 1, 2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "var(--tracker-accent)", animationDelay: `${i * 120}ms`, opacity: 0.7 }} />)}
+                {[0, 1, 2].map(i => <span key={i} className="w-2 h-2 rounded-full animate-bounce" style={{ background: "var(--tracker-accent)", animationDelay: `${i * 120}ms`, opacity: 0.7 }} />)}
               </div>
             </div>
           </div>
@@ -289,14 +290,14 @@ export function ChatView({
           <Textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={hasKey ? "Спросите что угодно..." : "Сначала введите API ключ →"}
-            rows={1} className="flex-1 resize-none border-0 bg-transparent p-0 text-sm focus-visible:ring-0 shadow-none" style={{ color: "var(--tracker-text-main)" }} />
-          <Button onClick={() => send()} disabled={busy || !input.trim()} size="icon" className="h-8 w-8 shrink-0 rounded-lg"
+            rows={1} className="flex-1 resize-none border-0 bg-transparent p-0 text-sm focus-visible:ring-0 shadow-none min-h-[36px]" style={{ color: "var(--tracker-text-main)" }} />
+          <Button onClick={() => send()} disabled={busy || !input.trim()} size="icon" className="h-9 w-9 shrink-0 rounded-xl transition-all hover:shadow-md active:scale-95"
             style={{ background: busy || !input.trim() ? "var(--tracker-border)" : "var(--tracker-accent)", color: "#fff" }}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
           </Button>
         </div>
       </div>
-      <p className="text-[10px] shrink-0 text-center" style={{ color: "var(--tracker-text-muted)" }}>Enter — отправить · Shift+Enter — перенос</p>
+      <p className="text-[11px] shrink-0 text-center" style={{ color: "var(--tracker-text-muted)" }}>Enter — отправить · Shift+Enter — перенос</p>
     </div>
   );
 }

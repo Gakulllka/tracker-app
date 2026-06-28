@@ -6,48 +6,27 @@ import React, {
   useEffect,
   useCallback,
   useRef,
-  type KeyboardEvent,
 } from "react";
 import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, undoStore } from "@/lib/store";
-import {
-  PresentationSlide,
-  PresentationBgLayer,
-  buildTheme,
-  type SlideData,
-  type AiConclusion,
-} from "@/lib/presentation-renderer";
-import { renderPresentationHtml } from "@/lib/presentation-export";
-import { generateSlides } from "@/lib/slides";
-import { createTheme, applyTheme, hexToRgb, NAMED_THEMES, THEME_TO_PRES } from "@/lib/theme";
-import { mapQuestionFromAPI, fmtDate as fmtDateUtil } from "@/lib/questions";
-import type { Question, QuestionAnswer } from "@/lib/questions";
+import { createTheme, applyTheme, THEME_TO_PRES } from "@/lib/theme";
 import { useServerSync } from "@/hooks/useServerSync";
 import { useAuth } from "@/hooks/useAuth";
-import type { AuthData, UserPermissions, RolePermissions } from "@/hooks/useAuth";
+import type { AuthData } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuestions } from "@/hooks/useQuestions";
 import { useExport } from "@/hooks/useExport";
 import { usePresentation } from "@/hooks/usePresentation";
 import {
   fetchInsight,
-  saveInsight,
-  deleteInsight,
   hashTasks,
-  type AiInsightShape,
 } from "@/lib/ai-insights-client";
 import {
-  COLS,
   MONTHS,
   MONTHS_SHORT,
   STATUSES,
-  PRIORITIES,
-  PCOL,
-  SCOL,
-  scolText,
   type Status,
   type Priority,
   type Task,
-  type Domain,
   STATUS_ORDER,
   PRIO_START,
 } from "@/lib/types";
@@ -58,43 +37,15 @@ import {
 } from "@/lib/comment-formulas";
 
 import {
-  getTaskMetrics,
   getRowsMetrics,
   calcQueueMap,
   buildTotalFactMap,
   evalExpr,
-  fmt2,
   R2,
-  progColor,
-  CLOSED_STATUSES,
-  createNewTask,
   sortVal,
 } from "@/lib/metrics";
-import {
-  exportJSON,
-  importJSON,
-  exportMonthXLSX,
-  exportAllXLSX,
-} from "@/lib/export";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/empty-state";
 import { ExcelImportModal } from "@/components/excel-import-modal";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -102,73 +53,50 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { AutoResizeTextarea } from "@/components/auto-resize-textarea";
 import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableFooter,
-  TableHead,
-  TableRow,
-  TableCell,
-} from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Plus,
-  Trash2,
-  Archive,
-  Search,
+  SidebarProvider,
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarSeparator,
+  SidebarTrigger,
+  SidebarInset,
+} from "@/components/ui/sidebar";
+import {
   Undo2,
   Redo2,
   Eye,
   EyeOff,
   Presentation,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  GripVertical,
-  Filter,
-  X,
-  Save,
-  FolderOpen,
-  FileSpreadsheet,
-  Download,
   Upload,
-  ArrowRight,
-  Sparkles,
   Settings,
-  Check,
   MessageSquare,
-  Send,
   Loader2,
-  KeyRound,
-  Share2,
   LogOut,
   Shield,
-  Maximize2,
-  FileText,
   Sun,
   Moon,
-  ArrowUpDown,
+  LayoutGrid,
+  Package,
+  HelpCircle,
+  BarChart3,
+  Palette,
 } from "lucide-react";
 import AuthScreen from "@/components/auth-screen";
-import { BudgetSignalsSheet } from "@/components/budget-signals-sheet";
+import { TaskDetailDialog } from "@/components/dialogs/task-detail-dialog";
 import { DashboardDelta } from "@/components/dashboard-delta";
 import { ExecSignalsPanel } from "@/components/exec-signals-panel";
 import { QuestionsView } from "@/components/views/questions-view";
@@ -183,37 +111,13 @@ import { TransferDialog } from "@/components/dialogs/transfer-dialog";
 import { ImportConfirmDialog } from "@/components/dialogs/import-confirm-dialog";
 import { NewTaskDialog } from "@/components/dialogs/new-task-dialog";
 import { SettingsDialog } from "@/components/dialogs/settings-dialog";
-import { TaskLink } from "@/lib/planfix";
 import { calcMonthBudgetUsed } from "@/lib/metrics";
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
+import { computeFirstToCut } from "@/lib/cut-algorithm";
 
 export interface EditingCell {
   rowId: string;
   col: string;
 }
-
-
-/* ------------------------------------------------------------------ */
-/*  Planfix Integration                                                 */
-/* ------------------------------------------------------------------ */
-
-
-/* ------------------------------------------------------------------ */
-/*  Theme Utilities (ported from original 8-color theme system)          */
-/* ------------------------------------------------------------------ */
-
-
-/* ------------------------------------------------------------------ */
-/*  Auth Context                                                       */
-/* ------------------------------------------------------------------ */
-
-
-/* ------------------------------------------------------------------ */
-/*  Main Page                                                          */
-/* ------------------------------------------------------------------ */
 
 export default function TaskTrackerPage() {
   return (
@@ -337,9 +241,25 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     null
   );
 
-  // ── Delta: Budget & Signals Sheet ────────────────────────────────────────
-  const [budgetSheetTask, setBudgetSheetTask] = useState<{ task: Task; month: number } | null>(null);
+  // ── Multi-select for bulk operations ────────────────────────────────────────
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const toggleTaskSelection = useCallback((id: string) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+  const selectAllTasks = useCallback((ids: string[]) => {
+    setSelectedTaskIds(prev => prev.size === ids.length ? new Set() : new Set(ids));
+  }, []);
+  const clearSelection = useCallback(() => setSelectedTaskIds(new Set()), []);
+  const bulkUpdateTasks = useTaskStore(s => s.bulkUpdateTasks);
+  const duplicateTask = useTaskStore(s => s.duplicateTask);
+
+  // ── Delta: Budget & Signals ───────────────────────────────────────────────
   const [signalsFilterActive, setSignalsFilterActive] = useState(false);
+  const [taskDetailTask, setTaskDetailTask] = useState<{ task: Task; month: number } | null>(null);
 
   // ── Диалог создания новой задачи ─────────────────────────────────────────
   const [newTaskDialog, setNewTaskDialog] = useState<{ open: boolean; month: number }>({ open: false, month: 0 });
@@ -351,6 +271,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     newQuestionText, setNewQuestionText,
     addQuestion, addQuestionDirect, addLinkedQuestion,
     removeQuestion, answerQuestion, deleteAnswer,
+    archiveQuestion, restoreQuestion,
   } = useQuestions(currentUsername);
 
   const [totalHDialog, setTotalHDialog] = useState<{
@@ -519,7 +440,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   }, [themeId, customColor, customDark]);
 
   /* ---- Server Sync (вынесено в хук) ---- */
-  useServerSync({
+  const { syncStatus } = useServerSync({
     workspaceId,
     token: authData.token,
     allData,
@@ -569,7 +490,10 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     [allData, currentMonth]
   );
 
-  const qMap = useMemo(() => calcQueueMap(rows), [rows]);
+  const qMap = useMemo(() => {
+    const sorted = [...rows].sort((a, b) => PRIO_START[a.priority] - PRIO_START[b.priority]);
+    return calcQueueMap(sorted);
+  }, [rows]);
 
   const visibleRows = useMemo(
     () =>
@@ -884,6 +808,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     allData, currentMonth, currentYear, accentHex, customDark,
     totalFactMap, presBg, workspaceId, activeDomainId, insightMonthKey,
     chatModel, apiKeyRef, setView: setView as (v: string) => void, setApiKeyDialogOpen, toast,
+    monthCapacity: monthlyPlan > 0 ? monthlyPlan : 240,
   });
 
   /* Phase 4: stale-флаг — данные изменились с момента генерации инсайта */
@@ -925,6 +850,23 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
       } else if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
         handleExportJSON();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        const searchInput = document.querySelector('input[placeholder*="Поиск задач"]') as HTMLInputElement | null;
+        if (searchInput) searchInput.focus();
+      } else if ((e.ctrlKey || e.metaKey) && e.key >= "1" && e.key <= "7") {
+        e.preventDefault();
+        const viewKeys = ["table", "backlog", "questions", "dashboard", "design", "chat", "slides"] as const;
+        const idx = parseInt(e.key) - 1;
+        if (idx < viewKeys.length && (!allowedTabs || allowedTabs.has(viewKeys[idx]))) {
+          setView(viewKeys[idx]);
+        }
+      } else if (e.key === "Escape") {
+        if (settingsOpen) setSettingsOpen(false);
+        else if (newTaskDialog.open) setNewTaskDialog({ open: false, month: 0 });
+        else if (transferDialog) { setTransferDialog(false); setTransferTarget(-1); }
+        else if (apiKeyDialogOpen) setApiKeyDialogOpen(false);
+        else if (editingCell) stopEditing();
       } else if (e.key === "Delete" && selectedRowId && !editingCell) {
         e.preventDefault();
         deleteTask(currentMonth, selectedRowId);
@@ -933,7 +875,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [storeUndo, storeRedo, clientMode, currentMonth, setNewTaskDialog, handleExportJSON, selectedRowId, editingCell, deleteTask]);
+  }, [storeUndo, storeRedo, clientMode, currentMonth, setNewTaskDialog, handleExportJSON, selectedRowId, editingCell, deleteTask, allowedTabs, setView, settingsOpen, setSettingsOpen, newTaskDialog, transferDialog, setTransferDialog, setTransferTarget, apiKeyDialogOpen, setApiKeyDialogOpen, editingCell, stopEditing]);
 
   /* ================================================================ */
   /*  RENDER                                                           */
@@ -1013,188 +955,197 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     </div>
 
     {/* ---- MAIN APP ---- */}
-    <div
-      className={`min-h-screen flex flex-col bg-background text-foreground transition-opacity duration-500 ${isInitialLoading ? "opacity-0" : "opacity-100"}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      {/* ---- DRAG OVERLAY ---- */}
-      {dragOverlay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-[var(--tracker-accent)] bg-background/90 p-12">
-            <Upload className="size-12 text-[var(--tracker-accent)]" />
-            <p className="text-lg font-semibold text-foreground">
-              Перетащите файл сюда
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Поддерживаются файлы .json и .xlsx
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ---- HEADER ---- */}
-      <header className="sticky top-0 z-30 backdrop-blur-md supports-[backdrop-filter]:bg-[var(--tracker-bg-card)]/90 bg-[var(--tracker-bg-card)]" style={{ borderBottom: "1px solid var(--tracker-border)", boxShadow: "0 1px 0 0 var(--tracker-border)" }}>
-        <div className="delta-header flex h-12 md:h-14 items-center justify-between px-3 md:px-4 gap-2 md:gap-3">
-          <h1 className="text-base md:text-xl font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5 md:gap-2">
-            <svg width="18" height="16" viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg"
-              style={{ flexShrink: 0, color: "var(--tracker-accent)" }}>
-              <polygon points="20,2 38,34 2,34" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round"/>
-              <polygon points="20,12 31,32 9,32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" opacity="0.4"/>
-            </svg>
-            <span style={{ color: "var(--tracker-text-main)" }}>Delta</span>
-          </h1>
-
-          {/* Sync status */}
-          <div className="flex items-center gap-1.5 ml-2" title={isOnline ? (lastSync ? `Синхронизировано: ${lastSync.toLocaleTimeString("ru-RU")}` : "Подключение...") : "Нет подключения"}>
-            <div className={`size-2 rounded-full ${isOnline ? "bg-green-400 animate-pulse" : "bg-red-400"}`} />
-            <span className="text-xs text-[var(--tracker-text-muted)] hidden md:inline">{isOnline ? "Онлайн" : "Оффлайн"}</span>
-          </div>
-
-          {/* Phase 7: Year selector в шапке (рядом с sync status) */}
-          {(view === "table" || view === "dashboard" || view === "slides") && (
-            <div className="header-year-selector hidden md:flex items-center gap-1 ml-2" title="Год">
-              <button
-                onClick={() => setCurrentYearStore(currentYear - 1)}
-                className="size-7 rounded-md text-sm font-medium text-[var(--tracker-text-muted)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-text-main)] transition-colors flex items-center justify-center"
-                aria-label="Предыдущий год"
-              >
-                ‹
-              </button>
-              <Select value={String(currentYear)} onValueChange={(v) => setCurrentYearStore(Number(v))}>
-                <SelectTrigger className="h-7 w-[78px] text-xs font-medium border-[var(--tracker-border)] bg-transparent text-[var(--tracker-text-main)]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(() => {
-                    const yrs = new Set<number>(getAvailableYears());
-                    const now = new Date().getFullYear();
-                    for (let dy = -2; dy <= 2; dy++) yrs.add(now + dy);
-                    yrs.add(currentYear);
-                    return Array.from(yrs).sort((a, b) => b - a).map((y) => (
-                      <SelectItem key={y} value={String(y)} className="text-sm">
-                        {y}{getAvailableYears().includes(y) ? "" : " ·"}
-                      </SelectItem>
-                    ));
-                  })()}
-                </SelectContent>
-              </Select>
-              <button
-                onClick={() => setCurrentYearStore(currentYear + 1)}
-                className="size-7 rounded-md text-sm font-medium text-[var(--tracker-text-muted)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-text-main)] transition-colors flex items-center justify-center"
-                aria-label="Следующий год"
-              >
-                ›
-              </button>
+    <SidebarProvider>
+      {/* ---- SIDEBAR ---- */}
+      <Sidebar collapsible="icon" className="border-r border-[var(--tracker-border)]">
+        <SidebarHeader className="p-3 relative">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "color-mix(in srgb, var(--tracker-accent, #9B72CF) 12%, transparent)" }}>
+              <svg width="18" height="16" viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg"
+                style={{ flexShrink: 0, color: "var(--tracker-accent)" }}>
+                <polygon points="20,2 38,34 2,34" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round"/>
+                <polygon points="20,12 31,32 9,32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" opacity="0.4"/>
+              </svg>
             </div>
+            <span className="text-lg font-bold tracking-tight group-data-[collapsible=icon]:hidden" style={{ color: "var(--tracker-text-main)" }}>Delta</span>
+          </div>
+        </SidebarHeader>
+
+        <SidebarContent>
+          {/* ---- Navigation ---- */}
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {(
+                  [
+                    { key: "table", icon: LayoutGrid, label: "Задачи" },
+                    { key: "backlog", icon: Package, label: "Беклог" },
+                    ...(canSeeQuestions ? [{ key: "questions" as const, icon: HelpCircle, label: "Вопросы" }] : []),
+                    { key: "dashboard", icon: BarChart3, label: "Дашборд" },
+                    { key: "design", icon: Palette, label: "Оформление" },
+                    { key: "chat", icon: MessageSquare, label: "Чат" },
+                    { key: "slides", icon: Presentation, label: "Презентация" },
+                  ] as const
+                )
+                  .filter((tab) => !allowedTabs || allowedTabs.has(tab.key))
+                  .map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <SidebarMenuItem key={tab.key}>
+                        <SidebarMenuButton
+                          isActive={view === tab.key}
+                          onClick={() => setView(tab.key)}
+                          tooltip={tab.label}
+                          className="h-10"
+                        >
+                          <Icon className="size-4" />
+                          <span>{tab.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          {/* ---- Month Selector (when applicable) ---- */}
+          {(view === "table" || view === "dashboard" || view === "slides") && (
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <div className="px-2 space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider px-2 text-[var(--tracker-text-muted)] group-data-[collapsible=icon]:hidden">Месяц</p>
+                  <div className="grid grid-cols-3 gap-1 group-data-[collapsible=icon]:hidden">
+                    {MONTHS.map((m, i) => (
+                      <button
+                        key={m}
+                        onClick={() => setCurrentMonth(i)}
+                        className={`relative flex items-center justify-center rounded-lg px-1.5 py-1.5 text-[11px] font-medium transition-all duration-150 ${
+                          currentMonth === i
+                            ? "bg-[var(--tracker-accent)] text-white shadow-sm"
+                            : "text-[var(--tracker-text-muted)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-text-main)]"
+                        }`}
+                      >
+                        {monthHasData(i) && (
+                          <span className={`absolute top-0.5 right-0.5 size-1 rounded-full ${currentMonth === i ? "bg-white/70" : "bg-[var(--tracker-accent)]"}`} />
+                        )}
+                        <span>{MONTHS_SHORT[i]}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {/* Year selector */}
+                  <div className="flex items-center justify-center gap-1 pt-1 group-data-[collapsible=icon]:hidden">
+                    <button onClick={() => setCurrentYearStore(currentYear - 1)} className="size-6 rounded text-xs font-medium text-[var(--tracker-text-muted)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-text-main)] transition-colors flex items-center justify-center">‹</button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="h-6 px-2 text-[11px] font-medium border border-[var(--tracker-border)] bg-transparent text-[var(--tracker-text-main)] rounded flex items-center justify-center min-w-[52px] hover:bg-[var(--tracker-accent-bg)] transition-colors">
+                          {currentYear}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-2" align="center" side="bottom">
+                        <div className="grid grid-cols-4 gap-1">
+                          {(() => {
+                            const yrs = new Set<number>(getAvailableYears());
+                            const now = new Date().getFullYear();
+                            for (let dy = -5; dy <= 5; dy++) yrs.add(now + dy);
+                            yrs.add(currentYear);
+                            return Array.from(yrs).sort((a, b) => b - a).map((y) => (
+                              <button
+                                key={y}
+                                onClick={() => setCurrentYearStore(y)}
+                                className={`text-[11px] font-medium rounded px-2 py-1 transition-colors ${
+                                  y === currentYear
+                                    ? "bg-[var(--tracker-accent)] text-white"
+                                    : "text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
+                                }`}
+                              >
+                                {y}
+                              </button>
+                            ));
+                          })()}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <button onClick={() => setCurrentYearStore(currentYear + 1)} className="size-6 rounded text-xs font-medium text-[var(--tracker-text-muted)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-text-main)] transition-colors flex items-center justify-center">›</button>
+                  </div>
+                </div>
+              </SidebarGroupContent>
+            </SidebarGroup>
           )}
+        </SidebarContent>
 
-          {/* Spacer */}
-          <div className="flex-1" />
+        <SidebarSeparator />
 
-          {/*
-           * Phase 7: новый порядок справа налево —
-           *   Logout → Учётка → Settings → Admin → Save (Файл) → Дем. режим → Домены
-           * (то есть на экране слева направо: Домены | Дем.режим | Файл | Admin | Settings | Учётка | Logout)
-           *
-           * Тёмная тема — отдельный иконочный тумблер слева от Settings.
-           */}
-          <div className="flex items-center gap-1.5">
-            {/* Domain selector (only if > 1 visible domain) */}
+        {/* ---- Sidebar Footer: controls ---- */}
+        <SidebarFooter className="p-2 space-y-1" />
+      </Sidebar>
+
+      <SidebarInset
+        className={`transition-opacity duration-500 ${isInitialLoading ? "opacity-0" : "opacity-100"}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* ---- DRAG OVERLAY ---- */}
+        {dragOverlay && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-[var(--tracker-accent)] bg-background/90 p-12">
+              <Upload className="size-12 text-[var(--tracker-accent)]" />
+              <p className="text-lg font-semibold text-foreground">
+                Перетащите файл сюда
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Поддерживаются файлы .json и .xlsx
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ---- HEADER ---- */}
+        <header className="sticky top-0 z-30 backdrop-blur-md supports-[backdrop-filter]:bg-[var(--tracker-bg-card)]/95 bg-[var(--tracker-bg-card)]" style={{ borderBottom: "1px solid var(--tracker-border)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+          <div className="delta-header flex h-12 md:h-14 items-center gap-2 px-3 md:px-4 flex-wrap">
+            {/* Left: trigger + domain + demo + undo/redo */}
+            <SidebarTrigger className="md:flex shrink-0" />
+
             {visibleDomains.length > 1 && (
               <Select value={activeDomainId} onValueChange={storeSetActiveDomain}>
-                <SelectTrigger className="h-8 w-auto max-w-[160px] text-xs border-[var(--tracker-border)] bg-transparent text-[var(--tracker-text-main)] hidden sm:flex">
+                <SelectTrigger className="h-8 w-auto min-w-[110px] max-w-[160px] text-xs border-[var(--tracker-border)] bg-transparent text-[var(--tracker-text-main)] shrink-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {visibleDomains.map((d) => (
-                    <SelectItem key={d.id} value={d.id} className="text-xs">
-                      {d.name}
-                    </SelectItem>
+                    <SelectItem key={d.id} value={d.id} className="text-xs">{d.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
 
-            {/* Client mode toggle */}
             <Button
-              variant={clientMode ? "default" : "outline"}
+              variant="ghost"
               size="sm"
               onClick={toggleClientMode}
-              className={
-                clientMode
-                  ? "gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)] hover:text-white border-[var(--tracker-accent)]"
-                  : "gap-1.5 border-[var(--tracker-border)] bg-transparent text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-accent-fg-dark)]"
-              }
+              className="h-8 gap-1.5 text-xs shrink-0"
+              title={clientMode ? "Выйти из режима демонстрации" : "Режим демонстрации"}
             >
-              {clientMode ? (
-                <>
-                  <EyeOff className="size-3.5" />
-                  <span className="hidden sm:inline">Выйти</span>
-                </>
-              ) : (
-                <>
-                  <Eye className="size-3.5" />
-                  <span className="hidden sm:inline">Демонстрация</span>
-                </>
-              )}
+              {clientMode ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              <span className="hidden lg:inline">{clientMode ? "Выйти" : "Демонстрация"}</span>
             </Button>
 
-            {/* Hidden file inputs */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={handleJSONFileSelect}
-            />
-            <input
-              ref={xlsxInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={handleXLSXFileSelect}
-            />
+            <div className="flex items-center gap-0.5 shrink-0">
+              <Button variant="ghost" size="icon" className="size-8" onClick={storeUndo} disabled={!undoStore.canUndo()} title="Отменить (Ctrl+Z)">
+                <Undo2 className="size-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="size-8" onClick={storeRedo} disabled={!undoStore.canRedo()} title="Повторить (Ctrl+Shift+Z)">
+                <Redo2 className="size-3.5" />
+              </Button>
+            </div>
 
-            {/* Undo / Redo */}
-            <span className="header-undo-redo contents">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
-              title="Отменить (Ctrl+Z)"
-              disabled={!undoStore.canUndo()}
-              onClick={storeUndo}
-            >
-              <Undo2 className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
-              title="Повторить (Ctrl+Shift+Z)"
-              disabled={!undoStore.canRedo()}
-              onClick={storeRedo}
-            >
-              <Redo2 className="size-4" />
-            </Button>
-            </span>
-
-            {/* Admin panel button */}
             {isAdmin && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
-                title="Админ-панель"
-                onClick={() => window.location.href = "/admin"}
-              >
-                <Shield className="size-4" />
+              <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs shrink-0" onClick={() => window.location.href = "/admin"} title="Админ-панель">
+                <Shield className="size-3.5" />
+                <span className="hidden lg:inline">Админ</span>
               </Button>
             )}
 
-            {/* ── Панель сигналов руководителя ── */}
             <ExecSignalsPanel
               allTasks={allData}
               backlogTasks={backlog}
@@ -1212,114 +1163,93 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
               onGoToQuestions={() => setView("questions")}
             />
 
-            {/* Phase 7: тумблер тёмной темы — глобальный, доступен в шапке */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
-              title={customDark ? "Светлая тема" : "Тёмная тема"}
-              onClick={() => storeSetCustomDark(!customDark)}
-            >
-              {customDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            <div className="flex-1 min-w-4" />
+
+            {/* Right: dark + settings + user + logout + sync */}
+            <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => storeSetCustomDark(!customDark)} title={customDark ? "Светлая тема" : "Тёмная тема"}>
+              {customDark ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
             </Button>
 
-            {/* Settings button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
-              title="Настройки"
-              onClick={() => setSettingsOpen(true)}
-            >
-              <Settings className="size-4" />
+            <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => setSettingsOpen(true)} title="Настройки">
+              <Settings className="size-3.5" />
             </Button>
 
-            {/* User info + Logout */}
-            <Separator
-              orientation="vertical"
-              className="header-separator mx-1 h-6 bg-[var(--tracker-border)] hidden sm:block"
-            />
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--tracker-accent-bg)]">
-              <div className="w-5 h-5 rounded-full bg-[var(--tracker-accent)]/20 flex items-center justify-center shrink-0">
+            <div className="flex items-center gap-2 px-2 py-1 rounded-xl bg-[var(--tracker-accent-bg)] shrink-0">
+              <div className="w-6 h-6 rounded-full bg-[var(--tracker-accent)]/20 flex items-center justify-center shrink-0">
                 <span className="text-[10px] font-bold text-[var(--tracker-accent-fg-dark)]">{(authData.user.displayName || authData.user.username).charAt(0).toUpperCase()}</span>
               </div>
-              <span className="text-xs text-[var(--tracker-text-main)] max-w-[120px] truncate hidden sm:inline">{authData.user.displayName || authData.user.username}</span>
+              <span className="text-xs font-medium text-[var(--tracker-text-main)] max-w-[100px] truncate hidden md:inline">{authData.user.displayName || authData.user.username}</span>
               {isAdmin && (
-                <span className="text-[9px] px-1 py-0.5 rounded font-bold hidden sm:inline" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)", border: "1px solid var(--tracker-border)" }}>ADMIN</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold hidden md:inline" style={{ background: "var(--tracker-accent)", color: "#fff" }}>ADMIN</span>
               )}
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:bg-[var(--tracker-accent-bg)]"
-              title="Выйти из аккаунта"
-              onClick={onLogout}
-            >
-              <LogOut className="size-4" />
+
+            <Button variant="ghost" size="icon" className="size-8 shrink-0 text-[var(--tracker-text-muted)]" onClick={onLogout} title="Выйти из аккаунта">
+              <LogOut className="size-3.5" />
             </Button>
-          </div>
-        </div>
-      </header>
 
-      {/* ---- MAIN CONTENT ---- */}
-      <main className="flex-1 w-full px-3 md:px-4 py-3 md:py-4 pb-20 md:pb-4 space-y-3 md:space-y-4">
-        {/* ---- NAVIGATION TABS ---- */}
-        <nav className="hidden md:flex gap-1 rounded-lg bg-muted/60 p-1">
-          {(
-            [
-              { key: "table", emoji: "📋", label: "Задачи" },
-              { key: "backlog", emoji: "📦", label: "Беклог" },
-              ...(canSeeQuestions ? [{ key: "questions" as const, emoji: "❓", label: "Вопросы" }] : []),
-              { key: "dashboard", emoji: "📊", label: "Дашборд" },
-              { key: "design", emoji: "🎨", label: "Оформление" },
-              { key: "chat", emoji: "💬", label: "Чат" },
-              { key: "slides", emoji: "📑", label: "Презентация" },
-            ] as const
-          )
-            .filter((tab) => !allowedTabs || allowedTabs.has(tab.key))
-            .map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setView(tab.key)}
-              className={`flex-1 rounded-md px-2 sm:px-3 py-2 text-sm font-medium transition-colors ${
-                view === tab.key
-                  ? "bg-[var(--tracker-accent)] text-white shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-[var(--tracker-accent-soft)]"
-              }`}
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium shrink-0"
+              style={{
+                background:
+                  syncStatus === "synced" ? "color-mix(in srgb, #22c55e 10%, transparent)" :
+                  syncStatus === "pending" || syncStatus === "pushing" ? "color-mix(in srgb, #f59e0b 10%, transparent)" :
+                  "color-mix(in srgb, #ef4444 10%, transparent)",
+                color:
+                  syncStatus === "synced" ? "#16a34a" :
+                  syncStatus === "pending" || syncStatus === "pushing" ? "#d97706" :
+                  "#dc2626",
+              }}
+              title={
+                syncStatus === "synced" ? (lastSync ? `Синхронизировано: ${lastSync.toLocaleTimeString("ru-RU")}` : "Подключение...") :
+                syncStatus === "pending" ? "Есть несохранённые изменения" :
+                syncStatus === "pushing" ? "Отправка данных на сервер..." :
+                syncStatus === "initializing" ? "Первая загрузка..." :
+                "Нет подключения к серверу"
+              }
             >
-              <span>{tab.emoji}</span>
-              <span className="hidden sm:inline ml-1">{tab.label}</span>
-            </button>
-          ))}
-        </nav>
+              <div className={`size-1.5 rounded-full ${
+                syncStatus === "synced" ? "bg-green-500" :
+                syncStatus === "pending" || syncStatus === "pushing" ? "bg-amber-500" :
+                "bg-red-500"
+              } ${syncStatus === "pushing" ? "animate-pulse" : ""}`} />
+              <span className="hidden md:inline">
+                {syncStatus === "synced" ? "Синхронизировано" :
+                 syncStatus === "pending" ? "Ожидает..." :
+                 syncStatus === "pushing" ? "Сохранение..." :
+                 syncStatus === "initializing" ? "Загрузка..." :
+                 "Оффлайн"}
+              </span>
+            </div>
 
-        {/* ---- MONTH SELECTOR ---- */}
+            {/* Hidden file inputs */}
+            <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleJSONFileSelect} />
+            <input ref={xlsxInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleXLSXFileSelect} />
+          </div>
+        </header>
+
+        {/* ---- MAIN CONTENT ---- */}
+        <main className="flex-1 w-full px-4 md:px-5 py-4 md:py-5 pb-20 md:pb-5 space-y-4 md:space-y-5">
+
+        {/* ---- MONTH SELECTOR (mobile / inline fallback) ---- */}
         {(view === "table" || view === "dashboard" || view === "slides") && (
-          <div className="w-full mt-4 space-y-2">
-            {/* Phase 7: переключатель года перенесён в шапку (см. <header>). */}
+          <div className="w-full space-y-2 md:hidden">
             <ScrollArea className="w-full" type="scroll">
-              <div className="flex gap-1.5 pb-1 sm:justify-center">
+              <div className="flex gap-2 pb-1">
                 {MONTHS.map((m, i) => (
                   <button
                     key={m}
                     onClick={() => setCurrentMonth(i)}
-                    className={`relative flex items-center justify-center gap-1.5 shrink-0 sm:flex-1 sm:min-w-0 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
+                    className={`relative flex items-center justify-center gap-2 shrink-0 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                       currentMonth === i
-                        ? "bg-[var(--tracker-accent)] text-white shadow-sm"
-                        : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        ? "bg-[var(--tracker-accent)] text-white shadow-md"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
                   >
                     {monthHasData(i) && (
-                      <span
-                        className={`size-1.5 rounded-full shrink-0 ${
-                          currentMonth === i
-                            ? "bg-white/70"
-                            : "bg-[var(--tracker-accent)]"
-                        }`}
-                      />
+                      <span className={`size-2 rounded-full shrink-0 ${currentMonth === i ? "bg-white/70" : "bg-[var(--tracker-accent)]"}`} />
                     )}
-                    <span className="truncate hidden sm:inline">{m}</span>
-                    <span className="sm:hidden text-[11px] font-semibold">{MONTHS_SHORT[i]}</span>
+                    <span className="text-xs font-semibold">{MONTHS_SHORT[i]}</span>
                   </button>
                 ))}
               </div>
@@ -1377,7 +1307,14 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             onImportJSON={() => fileInputRef.current?.click()}
             onImportXLSX={() => setIsImportOpen(true)}
             onOpenNewTaskDialog={(month) => setNewTaskDialog({ open: true, month })}
-            onOpenBudgetSheet={(task, month) => setBudgetSheetTask({ task, month })}
+            onOpenBudgetSheet={(task, month) => setTaskDetailTask({ task, month })}
+            onOpenTaskDetail={(task, month) => setTaskDetailTask({ task, month })}
+            selectedTaskIds={selectedTaskIds}
+            toggleTaskSelection={toggleTaskSelection}
+            selectAllTasks={selectAllTasks}
+            clearSelection={clearSelection}
+            bulkUpdateTasks={bulkUpdateTasks}
+            duplicateTask={duplicateTask}
           />
         )}
 
@@ -1418,11 +1355,16 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             newQuestionText={newQuestionText}
             setNewQuestionText={setNewQuestionText}
             addQuestion={addQuestion}
+            addLinkedQuestion={addLinkedQuestion}
             removeQuestion={removeQuestion}
             answerQuestion={answerQuestion}
             deleteAnswer={deleteAnswer}
+            archiveQuestion={archiveQuestion}
+            restoreQuestion={restoreQuestion}
             currentUsername={authData.user.displayName || authData.user.username}
             currentMonth={currentMonth}
+            allData={allData}
+            updateTask={updateTask}
             addToBacklog={(task) => {
               useTaskStore.setState({ backlog: [...useTaskStore.getState().backlog, { ...task, _ts: Date.now() }] });
             }}
@@ -1477,6 +1419,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             setCurrentSlide={setCurrentSlide}
             accentHex={accentHex}
             presBg={presBg}
+            customDark={customDark}
             onSetPresBg={storeSetPresBg}
             onResetPresBg={() => storeSetPresBg(DEFAULT_PRES_BG)}
             onExportHTML={handleExportSlidesHTML}
@@ -1500,16 +1443,16 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             hasApiKey={hasApiKey}
             presSubTab={presSubTab}
             setPresSubTab={setPresSubTab}
-            onOpenGlobalDesign={() => setView("design")}
             currentMonth={currentMonth}
             currentYear={currentYear}
           />
         )}
       </main>
+      </SidebarInset>
 
       {/* ---- MOBILE BOTTOM NAV ---- */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 mobile-bottom-nav">
-        <div className="flex items-stretch">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 mobile-bottom-nav" role="navigation" aria-label="Мобильная навигация">
+        <div className="flex items-stretch" role="tablist" aria-label="Вкладки приложения">
           {(
             [
               { key: "table",     emoji: "📋", label: "Задачи" },
@@ -1523,6 +1466,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             .map((tab) => (
             <button
               key={tab.key}
+              role="tab"
+              aria-selected={view === tab.key}
+              aria-label={tab.label}
               onClick={() => setView(tab.key)}
               className={`mobile-bottom-nav-item ${view === tab.key ? "active" : ""}`}
             >
@@ -1578,27 +1524,41 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         onClose={() => setNewTaskDialog({ open: false, month: 0 })}
       />
 
-      {/* ── Delta: BudgetSignalsSheet ── */}
-      {budgetSheetTask && (
-        <BudgetSignalsSheet
-          open={!!budgetSheetTask}
-          onOpenChange={(o) => { if (!o) setBudgetSheetTask(null); }}
-          task={budgetSheetTask.task}
-          usedHoursInMonth={calcMonthBudgetUsed(
-            (allData[budgetSheetTask.month] || []).filter(t => !t._deleted)
-          )}
-          monthCapacity={monthlyPlan > 0 ? monthlyPlan : 240}
-          onSave={(updates) => {
-            Object.entries(updates).forEach(([k, v]) => {
-              updateTask(budgetSheetTask.month, budgetSheetTask.task.id, k as keyof Task, v);
-            });
-            const freshTask = (allData[budgetSheetTask.month] || []).find(
-              t => t.id === budgetSheetTask.task.id
-            );
-            if (freshTask) setBudgetSheetTask({ task: freshTask, month: budgetSheetTask.month });
-          }}
-        />
-      )}
+      {/* ── TaskDetailDialog (unified) ── */}
+      {taskDetailTask && (() => {
+        const monthTasks = (allData[taskDetailTask.month] || []).filter(t => !t._deleted);
+        const cap = monthlyPlan > 0 ? monthlyPlan : 240;
+        const cutIds = computeFirstToCut(monthTasks, cap);
+        return (
+          <TaskDetailDialog
+            open={!!taskDetailTask}
+            onOpenChange={(o) => {
+              if (!o) setTaskDetailTask(null);
+              else {
+                const storeData = useTaskStore.getState().allData;
+                const fresh = (storeData[taskDetailTask.month] || []).find(t => t.id === taskDetailTask.task.id);
+                if (fresh) setTaskDetailTask({ task: fresh, month: taskDetailTask.month });
+              }
+            }}
+            task={taskDetailTask.task}
+            month={taskDetailTask.month}
+            isDark={customDark}
+            currentUsername={currentUsername}
+            allData={allData}
+            onDeleteTask={(m, id) => { deleteTask(m, id); setTaskDetailTask(null); }}
+            onMoveToBacklog={(m, id) => { moveToBacklog(m, id); setTaskDetailTask(null); }}
+            usedHoursInMonth={calcMonthBudgetUsed(monthTasks)}
+            monthCapacity={cap}
+            isFirstToCutIds={cutIds}
+            onUpdateTask={(month, taskId, key, value) => {
+              updateTask(month, taskId, key, value);
+              const storeData = useTaskStore.getState().allData;
+              const fresh = (storeData[month] || []).find(t => t.id === taskId);
+              if (fresh) setTaskDetailTask({ task: fresh, month });
+            }}
+          />
+        );
+      })()}
 
 
       {/* ---- SETTINGS ---- */}
@@ -1630,7 +1590,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         onApplyChanges={handleSyncApply}
         initialFile={pendingXlsxFile}
       />
-    </div>{/* /MAIN APP */}
+    </SidebarProvider>
     </>
   );
 }

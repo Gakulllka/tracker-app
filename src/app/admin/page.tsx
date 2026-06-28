@@ -496,13 +496,13 @@ function LogsTab() {
                     {log.oldValue && (
                       <div>
                         <div className="font-medium text-gray-500 mb-1">Было:</div>
-                        <pre className="bg-white rounded p-2 text-gray-600 overflow-x-auto max-h-32">{JSON.stringify(JSON.parse(log.oldValue), null, 2)}</pre>
+                        <pre className="bg-white rounded p-2 text-gray-600 overflow-x-auto max-h-32">{(() => { try { return JSON.stringify(JSON.parse(log.oldValue), null, 2); } catch { return log.oldValue; } })()}</pre>
                       </div>
                     )}
                     {log.newValue && (
                       <div>
                         <div className="font-medium text-gray-500 mb-1">Стало:</div>
-                        <pre className="bg-white rounded p-2 text-gray-600 overflow-x-auto max-h-32">{JSON.stringify(JSON.parse(log.newValue), null, 2)}</pre>
+                        <pre className="bg-white rounded p-2 text-gray-600 overflow-x-auto max-h-32">{(() => { try { return JSON.stringify(JSON.parse(log.newValue), null, 2); } catch { return log.newValue; } })()}</pre>
                       </div>
                     )}
                     {log.ipAddress && (

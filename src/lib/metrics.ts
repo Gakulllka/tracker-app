@@ -166,13 +166,9 @@ export const fixPriority = (s: unknown): Priority => {
 };
 
 export const calcQueueMap = (rows: Task[]): Record<string, number> => {
-  const cnt: Record<string, number> = {};
   const map: Record<string, number> = {};
-  rows.forEach(row => {
-    const b = PRIO_START[row.priority] ?? 50;
-    cnt[row.priority] = (cnt[row.priority] || 0);
-    map[row.id] = b + cnt[row.priority];
-    cnt[row.priority]++;
+  rows.forEach((row, i) => {
+    map[row.id] = i + 1;
   });
   return map;
 };
@@ -204,54 +200,10 @@ export const sortVal = (row: Task, key: string, qMap: Record<string, number>, to
  *  - в процессе                        → синий / жёлтый по % */
 export const progColor = (p: number, isClosed?: boolean, isOver?: boolean): string => {
   if (isClosed) return isOver ? "#ef4444" : "#22c55e";
-  return "#f59e0b";
+  if (p >= 75) return "#3b82f6";
+  if (p >= 40) return "#f59e0b";
+  return "#ef4444";
 };
-
-export interface CommentFormulaResult {
-  comment: string;
-  planH: string;
-  factH: string;
-}
-
-export function processCommentFormulas(
-  comment: string,
-  row: { planH: string; factH: string }
-): CommentFormulaResult | null {
-  const rx = /@(план|факт)\s*([+\-*=])\s*([\d.,]+)/gi;
-  let nc = comment;
-  let np = row.planH;
-  let nf = row.factH;
-  const logs: string[] = [];
-  let m: RegExpExecArray | null;
-
-  while ((m = rx.exec(comment)) !== null) {
-    const [full, field, op, ns] = m;
-    const num = parseFloat(ns.replace(",", "."));
-    if (isNaN(num)) continue;
-    const isPlan = /план/i.test(field);
-    const cur = evalExpr(isPlan ? row.planH : row.factH);
-    let nv: number;
-    switch (op) {
-      case "+": nv = cur + num; break;
-      case "-": nv = cur - num; break;
-      case "*": nv = R2(cur * num); break;
-      case "=": nv = num; break;
-      default: continue;
-    }
-    nv = R2(Math.max(0, nv));
-    const lbl = isPlan ? "План" : "Факт";
-    logs.push(`${lbl}: ${cur}→${nv}`);
-    if (isPlan) np = String(nv); else nf = String(nv);
-    nc = nc.replace(full, "");
-  }
-
-  if (!logs.length) return null;
-
-  nc = nc.replace(/\n{2,}/g, "\n").trim();
-  const tag = `[${logs.join(", ")}]`;
-  nc = nc ? nc + "\n" + tag : tag;
-  return { comment: nc, planH: np, factH: nf };
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Delta: Ролловер бюджета
@@ -290,55 +242,6 @@ export function calcMonthBudgetUsed(tasks: Task[]): number {
       .filter((t) => !t._deleted && t.approvalStatus !== "rejected" && (t.status as string) !== "Очередь")
       .reduce((sum, t) => sum + (t.budgetAllocated ?? evalExpr(t.planH)), 0),
   );
-}
-
-/**
- * Индикатор здоровья команды (0–100).
- * Падает если factH > monthCapacity или есть блокеры.
- */
-export function calcHealthScore(
-  tasks: Task[],
-  monthCapacity: number = MONTH_CAPACITY,
-): number {
-  const alive = tasks.filter((t) => !t._deleted && t.approvalStatus !== "rejected");
-  if (alive.length === 0) return 100;
-
-  const totalFact = alive.reduce((s, t) => s + evalExpr(t.factH), 0);
-  const totalAllocated = alive.reduce((s, t) => s + (t.budgetAllocated ?? evalExpr(t.planH)), 0);
-  const blockers = alive.filter((t) => (t.status as string) === "Блокер").length;
-
-  let score = 100;
-  // Перегрев факта
-  if (monthCapacity > 0) {
-    const overload = Math.max(0, totalFact - monthCapacity) / monthCapacity;
-    score -= Math.round(overload * 40);
-  }
-  // Перегрев аллокации
-  if (monthCapacity > 0 && totalAllocated > monthCapacity) {
-    score -= Math.round(((totalAllocated - monthCapacity) / monthCapacity) * 20);
-  }
-  // Блокеры
-  score -= blockers * 5;
-
-  return Math.max(0, Math.min(100, score));
-}
-
-/**
- * Прогноз даты исчерпания бюджета.
- * @param remainingHours — оставшиеся зарезервированные часы
- * @param hoursPerDay    — скорость расходования (дефолт 12ч/день)
- * @returns строка "dd.mm.yyyy" или null
- */
-export function calcBudgetExhaustDate(
-  remainingHours: number,
-  hoursPerDay: number = 12,
-): string | null {
-  if (remainingHours <= 0 || hoursPerDay <= 0) return null;
-  const days = Math.ceil(remainingHours / hoursPerDay);
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
 /**

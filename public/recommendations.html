@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delta — Рекомендации по улучшению</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  :root {
+    --accent: #9B72CF;
+    --accent-soft: rgba(155,114,207,0.11);
+    --accent-bg: #f4f1fc;
+    --accent-fg: #9B72CF;
+    --accent-fg-dark: #3d2264;
+    --bg: #f8f6ff;
+    --card: #ffffff;
+    --text: #1a1a2e;
+    --muted: #8b8ba3;
+    --border: #e8e0f5;
+    --danger: #e86b6b;
+    --green: #22c55e;
+    --orange: #f97316;
+    --yellow: #eab308;
+    --blue: #5B9BD5;
+    --teal: #4DB6AC;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .hero {
+    background: linear-gradient(135deg, #f3f0ff 0%, #fce4f4 40%, #e8f4fd 100%);
+    padding: 80px 40px 60px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -100px; right: -100px;
+    width: 400px; height: 400px;
+    border-radius: 50%;
+    background: rgba(155,114,207,0.06);
+    animation: float 8s ease-in-out infinite;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: -80px;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: rgba(91,155,213,0.06);
+    animation: float 10s ease-in-out infinite reverse;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(20px, -20px); }
+  }
+
+  .hero-logo {
+    width: 64px; height: 56px;
+    margin: 0 auto 20px;
+    color: var(--accent);
+  }
+
+  .hero h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--accent-fg-dark);
+    margin-bottom: 8px;
+  }
+
+  .hero p {
+    font-size: 1.1rem;
+    color: var(--muted);
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+
+  .slide {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 40px;
+    margin-bottom: 32px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04), 0 0 0 1px var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .slide::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--blue), var(--teal));
+    border-radius: 20px 20px 0 0;
+  }
+
+  .slide-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 4px 12px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+  }
+
+  .slide h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .slide > p {
+    color: var(--muted);
+    margin-bottom: 24px;
+    font-size: 0.95rem;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 768px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 1.8rem; }
+    .slide { padding: 24px; }
+  }
+
+  /* ── Mock-up Card ── */
+  .mock-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+
+  .mock-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    border-radius: 16px 0 0 16px;
+  }
+
+  .mock-card:hover {
+    box-shadow: 0 8px 24px rgba(155,114,207,0.1);
+    transform: translateY(-1px);
+  }
+
+  .mock-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .mock-grip {
+    color: var(--muted);
+    opacity: 0.4;
+    margin-top: 2px;
+    font-size: 14px;
+  }
+
+  .mock-checkbox {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  .mock-card-body { flex: 1; min-width: 0; }
+
+  .mock-num {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+    margin-bottom: 2px;
+  }
+
+  .mock-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.4;
+  }
+
+  .mock-name-input {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 2px 6px;
+    width: 100%;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(155,114,207,0.15);
+  }
+
+  .mock-badges {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .mock-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+
+  .mock-badge:hover {
+    filter: brightness(0.95);
+    border-color: currentColor;
+  }
+
+  .mock-badge-select {
+    appearance: none;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 1px dashed;
+    background: transparent;
+    transition: all 0.15s;
+  }
+
+  .mock-badge-select:hover {
+    border-style: solid;
+    filter: brightness(0.95);
+  }
+
+  .mock-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 12px;
+    padding-left: 36px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .mock-card-meta .hours {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .mock-card-meta .hours-editable {
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    padding: 1px 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .mock-card-meta .hours-editable:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .mock-progress {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mock-progress-bar {
+    flex: 1;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--border);
+    overflow: hidden;
+  }
+
+  .mock-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.5s;
+  }
+
+  .mock-progress-text {
+    font-size: 0.75rem;
+    font-weight: 600;
+    min-width: 32px;
+    text-align: right;
+  }
+
+  .mock-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  .mock-action-btn {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+
+  .mock-action-btn:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .mock-action-btn.danger:hover {
+    background: rgba(232,107,107,0.1);
+    color: var(--danger);
+  }
+
+  .mock-comment {
+    margin-top: 8px;
+    padding-left: 36px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+
+  .mock-comment:hover { color: var(--text); }
+
+  /* ── Priority colors ── */
+  .prio-highest { color: #d45454; background: rgba(212,84,84,0.1); }
+  .prio-high { color: #d48040; background: rgba(212,128,64,0.1); }
+  .prio-medium { color: #b89830; background: rgba(184,152,48,0.1); }
+  .prio-low { color: #66BB6A; background: rgba(102,187,106,0.1); }
+  .prio-queue { color: var(--muted); background: rgba(139,139,163,0.08); }
+
+  /* ── Status colors ── */
+  .status-dev { color: #7cc3fc; background: rgba(124,195,252,0.12); }
+  .status-test { color: #9B72CF; background: rgba(155,114,207,0.12); }
+  .status-new { color: #5B9BD5; background: rgba(91,155,213,0.12); }
+  .status-done { color: #22c55e; background: rgba(34,197,94,0.12); }
+
+  /* ── Comparison ── */
+  .compare-box {
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+  }
+
+  .compare-label {
+    position: absolute;
+    top: -10px; left: 16px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 10px;
+    border-radius: 999px;
+  }
+
+  .compare-before {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+  }
+  .compare-before .compare-label {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
+
+  .compare-after {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+  }
+  .compare-after .compare-label {
+    background: #dcfce7;
+    color: #15803d;
+  }
+
+  /* ── Table mock ── */
+  .mock-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.8rem;
+  }
+
+  .mock-table th {
+    background: var(--accent-bg);
+    color: var(--accent-fg-dark);
+    font-weight: 700;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1.5px solid var(--border);
+  }
+
+  .mock-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mock-table tr:nth-child(even) td {
+    background: rgba(244,241,252,0.3);
+  }
+
+  /* ── Sidebar mock ── */
+  .mock-sidebar {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    width: 240px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+
+  .mock-sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .mock-sidebar-item:hover {
+    background: var(--accent-soft);
+    color: var(--text);
+  }
+
+  .mock-sidebar-item.active {
+    background: var(--accent-soft);
+    color: var(--accent-fg-dark);
+    font-weight: 600;
+  }
+
+  .mock-sidebar-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 3px;
+    height: 20px;
+    background: var(--accent);
+    border-radius: 0 3px 3px 0;
+  }
+
+  .mock-sidebar-icon {
+    width: 18px;
+    text-align: center;
+    font-size: 14px;
+  }
+
+  /* ── Search mock ── */
+  .mock-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 14px;
+    transition: all 0.2s;
+  }
+
+  .mock-search:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(155,114,207,0.12);
+  }
+
+  .mock-search input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 0.85rem;
+    color: var(--text);
+    width: 100%;
+  }
+
+  .mock-search-icon { color: var(--muted); font-size: 14px; }
+
+  /* ── Dialog mock ── */
+  .mock-dialog-overlay {
+    background: rgba(0,0,0,0.4);
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    backdrop-filter: blur(4px);
+  }
+
+  .mock-dialog {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 360px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    text-align: center;
+  }
+
+  .mock-dialog h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .mock-dialog p {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  .mock-dialog-btns {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .mock-btn {
+    padding: 8px 20px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .mock-btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+
+  .mock-btn-primary:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+  }
+
+  .mock-btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .mock-btn-danger {
+    background: var(--danger);
+    color: white;
+  }
+
+  /* ── Keyboard shortcut ── */
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 24px;
+    padding: 0 6px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: 'SF Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+
+  /* ── Priority list ── */
+  .priority-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+
+  .priority-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+
+  .priority-dot.high { background: var(--danger); }
+  .priority-dot.mid { background: var(--orange); }
+  .priority-dot.low { background: var(--green); }
+
+  .priority-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 2px;
+  }
+
+  .priority-desc {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* ── Separator ── */
+  .section-sep {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* ── Animations ── */
+  .slide { animation: slideUp 0.4s ease-out both; }
+  .slide:nth-child(2) { animation-delay: 0.05s; }
+  .slide:nth-child(3) { animation-delay: 0.1s; }
+  .slide:nth-child(4) { animation-delay: 0.15s; }
+  .slide:nth-child(5) { animation-delay: 0.2s; }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .mock-card-accent-red::before { background: #d45454; }
+  .mock-card-accent-orange::before { background: #d48040; }
+  .mock-card-accent-yellow::before { background: #b89830; }
+  .mock-card-accent-green::before { background: #66BB6A; }
+  .mock-card-accent-blue::before { background: #5B9BD5; }
+
+  .tag { display: inline-block; font-size: 0.65rem; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+  .tag-new { background: rgba(91,155,213,0.12); color: #5B9BD5; }
+  .tag-fix { background: rgba(232,107,107,0.12); color: #e86b6b; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- HERO -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="hero">
+  <svg class="hero-logo" viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="20,2 38,34 2,34" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+    <polygon points="20,11 31.5,32 8.5,32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" opacity="0.35"/>
+    <circle cx="20" cy="2" r="2" fill="currentColor" opacity="0.7"/>
+  </svg>
+  <h1>Delta — Рекомендации</h1>
+  <p>Визуальный обзор предлагаемых улучшений интерфейса трекера задач</p>
+</div>
+
+<div class="container">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 1: Карточки с полным функционалом -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-badge">✨ Приоритет 1</div>
+  <h2>Карточки с полным функционалом</h2>
+  <p>Сейчас карточки показывают данные, но не дают их менять. Предлагаю добавить inline-редактирование и Select-ы.</p>
+
+  <div class="grid-2">
+    <!-- Текущее состояние -->
+    <div class="compare-box compare-before">
+      <span class="compare-label">Сейчас</span>
+      <div style="padding-top: 8px;">
+        <div class="mock-card mock-card-accent-red" style="margin-top: 8px;">
+          <div class="mock-card-header">
+            <div class="mock-card-body">
+              <div class="mock-num">#35191</div>
+              <div class="mock-name">Разработка модуля оплаты</div>
+            </div>
+            <div class="mock-badges">
+              <span class="mock-badge prio-high">Высокий</span>
+              <span class="mock-badge status-dev">Разработка</span>
+            </div>
+          </div>
+          <div class="mock-card-meta">
+            <span class="hours">📐 24ч</span>
+            <span class="hours">⏱ 18ч</span>
+            <div class="mock-progress">
+              <div class="mock-progress-bar">
+                <div class="mock-progress-fill" style="width:75%; background: var(--accent);"></div>
+              </div>
+              <span class="mock-progress-text" style="color: var(--accent);">75%</span>
+            </div>
+          </div>
+          <div class="mock-comment">💬 Проверить интеграцию с шлюзом...</div>
+        </div>
+        <p style="font-size: 0.75rem; color: var(--muted); margin-top: 12px; text-align: center;">
+          ❌ Нельзя менять статус/приоритет<br>
+          ❌ Нельзя редактировать имя/часы<br>
+          ❌ Нет архива комментариев
+        </p>
+      </div>
+    </div>
+
+    <!-- Новое состояние -->
+    <div class="compare-box compare-after">
+      <span class="compare-label">Предлагаю</span>
+      <div style="padding-top: 8px;">
+        <div class="mock-card mock-card-accent-red" style="margin-top: 8px;">
+          <div class="mock-card-header">
+            <div class="mock-grip">⋮⋮</div>
+            <div class="mock-checkbox"></div>
+            <div class="mock-card-body">
+              <div class="mock-num">#35191</div>
+              <div class="mock-name-input" contenteditable="false" style="border-color: transparent; box-shadow: none; cursor: pointer;" onclick="this.style.borderColor='var(--accent)'; this.style.boxShadow='0 0 0 3px rgba(155,114,207,0.15)'">Разработка модуля оплаты</div>
+            </div>
+            <div class="mock-badges">
+              <select class="mock-badge-select prio-high">
+                <option>Наивысший</option>
+                <option selected>Высокий</option>
+                <option>Средний</option>
+                <option>Низкий</option>
+              </select>
+              <select class="mock-badge-select status-dev">
+                <option>Новая</option>
+                <option>Анализ</option>
+                <option selected>Разработка</option>
+                <option>Тестирование</option>
+                <option>Выполненная</option>
+              </select>
+            </div>
+          </div>
+          <div class="mock-card-meta">
+            <span class="hours">📐 <span class="hours-editable">24ч</span></span>
+            <span class="hours">⏱ <span class="hours-editable">18ч</span></span>
+            <div class="mock-progress">
+              <div class="mock-progress-bar">
+                <div class="mock-progress-fill" style="width:75%; background: var(--accent);"></div>
+              </div>
+              <span class="mock-progress-text" style="color: var(--accent);">75%</span>
+            </div>
+            <div class="mock-actions">
+              <button class="mock-action-btn" title="Скрыть">👁</button>
+              <button class="mock-action-btn" title="В беклог">📦</button>
+              <button class="mock-action-btn danger" title="Удалить">🗑</button>
+            </div>
+          </div>
+          <div class="mock-comment">💬 Проверить интеграцию с шлюзом... <span style="opacity:0.4">📜</span></div>
+        </div>
+        <p style="font-size: 0.75rem; color: #15803d; margin-top: 12px; text-align: center;">
+          ✅ Select статуса/приоритета — клик и выбираешь<br>
+          ✅ Клик по имени → inline редактирование<br>
+          ✅ Клик по часам → inline input<br>
+          ✅ Архив комментариев 📜
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 2: Беклог в карточном стиле -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-badge">📦 Приоритет 2</div>
+  <h2>Беклог в карточном стиле</h2>
+  <p>Сейчас беклог — это таблица. Предлагаю перевести на карточки для единообразия с основным видом.</p>
+
+  <div class="grid-2">
+    <div class="compare-box compare-before">
+      <span class="compare-label">Сейчас — Таблица</span>
+      <div style="padding-top: 8px;">
+        <table class="mock-table">
+          <thead>
+            <tr>
+              <th style="width:50px">№</th>
+              <th>Наименование</th>
+              <th style="width:70px">План</th>
+              <th style="width:60px">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="font-weight:600; color:var(--danger)">1</td>
+              <td>Интеграция с/payment gateway</td>
+              <td>16ч</td>
+              <td style="text-align:center">→ 🗑</td>
+            </tr>
+            <tr>
+              <td style="font-weight:600; color:var(--orange)">2</td>
+              <td>Рефакторинг модуля авторизации</td>
+              <td>8ч</td>
+              <td style="text-align:center">→ 🗑</td>
+            </tr>
+            <tr>
+              <td style="font-weight:600; color:var(--yellow)">3</td>
+              <td>Написание unit-тестов</td>
+              <td>12ч</td>
+              <td style="text-align:center">→ 🗑</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="compare-box compare-after">
+      <span class="compare-label">Предлагаю — Карточки</span>
+      <div style="padding-top: 8px;">
+        <div class="mock-card" style="margin-bottom: 8px; border-left: 4px solid var(--danger); background: rgba(232,107,107,0.03);">
+          <div class="mock-card-header">
+            <div class="mock-grip">⋮⋮</div>
+            <div class="mock-card-body">
+              <div class="mock-num">Очередь #1 <span style="color:var(--danger); font-weight:700;">● КРИТИЧНО</span></div>
+              <div class="mock-name">Интеграция с payment gateway</div>
+            </div>
+            <span style="font-size:0.8rem; color:var(--muted);">16ч</span>
+          </div>
+          <div class="mock-card-meta" style="padding-left: 28px;">
+            <div class="mock-actions">
+              <button class="mock-action-btn" title="На месяц →">📅</button>
+              <button class="mock-action-btn danger" title="Удалить">🗑</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mock-card" style="margin-bottom: 8px; border-left: 4px solid var(--orange); background: rgba(249,115,22,0.02);">
+          <div class="mock-card-header">
+            <div class="mock-grip">⋮⋮</div>
+            <div class="mock-card-body">
+              <div class="mock-num">Очередь #2</div>
+              <div class="mock-name">Рефакторинг модуля авторизации</div>
+            </div>
+            <span style="font-size:0.8rem; color:var(--muted);">8ч</span>
+          </div>
+        </div>
+
+        <div class="mock-card" style="border-left: 4px solid var(--yellow); background: rgba(234,179,8,0.02);">
+          <div class="mock-card-header">
+            <div class="mock-grip">⋮⋮</div>
+            <div class="mock-card-body">
+              <div class="mock-num">Очередь #3</div>
+              <div class="mock-name">Написание unit-тестов</div>
+            </div>
+            <span style="font-size:0.8rem; color:var(--muted);">12ч</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 3: Sidebar тема -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-badge">🎨 Приоритет 2</div>
+  <h2>Sidebar в стиле tracker-темы</h2>
+  <p>Сейчас sidebar использует стандартные shadcn-цвета. Предлагаю синхронизировать с tracker-акцентом.</p>
+
+  <div class="grid-2">
+    <div class="compare-box compare-before">
+      <span class="compare-label">Сейчас</span>
+      <div style="padding-top: 8px; display: flex; justify-content: center;">
+        <div class="mock-sidebar">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px; padding: 0 12px;">
+            <span style="font-size:18px; color: var(--muted);">△</span>
+            <span style="font-weight:700; font-size:1rem; color: var(--text);">Delta</span>
+          </div>
+          <div class="mock-sidebar-item" style="position:relative;">
+            <span class="mock-sidebar-icon">📋</span>
+            <span>Задачи</span>
+          </div>
+          <div class="mock-sidebar-item active" style="position:relative; background: #f3f4f6; color: #374151;">
+            <span class="mock-sidebar-icon">📦</span>
+            <span>Беклог</span>
+          </div>
+          <div class="mock-sidebar-item" style="position:relative;">
+            <span class="mock-sidebar-icon">📊</span>
+            <span>Дашборд</span>
+          </div>
+          <div class="mock-sidebar-item" style="position:relative;">
+            <span class="mock-sidebar-icon">💬</span>
+            <span>Чат</span>
+          </div>
+          <div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
+            <div class="mock-sidebar-item" style="position:relative;">
+              <span class="mock-sidebar-icon">🌙</span>
+              <span>Тёмная</span>
+            </div>
+            <div class="mock-sidebar-item" style="position:relative;">
+              <span class="mock-sidebar-icon">⚙️</span>
+              <span>Настройки</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:0.75rem; color:var(--muted); text-align:center; margin-top:12px;">
+        Активный пункт — серый (shadcn default)
+      </p>
+    </div>
+
+    <div class="compare-box compare-after">
+      <span class="compare-label">Предлагаю</span>
+      <div style="padding-top: 8px; display: flex; justify-content: center;">
+        <div class="mock-sidebar" style="border-color: var(--border);">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px; padding: 0 12px;">
+            <span style="font-size:18px; color: var(--accent);">△</span>
+            <span style="font-weight:700; font-size:1rem; color: var(--text);">Delta</span>
+          </div>
+          <div class="mock-sidebar-item" style="position:relative;">
+            <span class="mock-sidebar-icon">📋</span>
+            <span>Задачи</span>
+          </div>
+          <div class="mock-sidebar-item active" style="position:relative; background: var(--accent-soft); color: var(--accent-fg-dark);">
+            <span class="mock-sidebar-icon">📦</span>
+            <span>Беклог</span>
+          </div>
+          <div class="mock-sidebar-item" style="position:relative;">
+            <span class="mock-sidebar-icon">📊</span>
+            <span>Дашборд</span>
+          </div>
+          <div class="mock-sidebar-item" style="position:relative;">
+            <span class="mock-sidebar-icon">💬</span>
+            <span>Чат</span>
+          </div>
+          <div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
+            <div class="mock-sidebar-item" style="position:relative;">
+              <span class="mock-sidebar-icon">🌙</span>
+              <span>Тёмная</span>
+            </div>
+            <div class="mock-sidebar-item" style="position:relative;">
+              <span class="mock-sidebar-icon">⚙️</span>
+              <span>Настройки</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:0.75rem; color:#15803d; text-align:center; margin-top:12px;">
+        ✅ Активный пункт — акцент темы<br>
+        ✅ Border sidebar = tracker-border
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 4: Поиск + удаление -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-badge">🔍 Приоритет 2</div>
+  <h2>Поиск и безопасность удаления</h2>
+  <p>Поиск сейчас скрыт в dropdown — неудобно. Удаление происходит без подтверждения.</p>
+
+  <div class="grid-2">
+    <div>
+      <h3 style="font-size: 0.95rem; margin-bottom: 12px;">🔍 Поиск — вынесен наверх</h3>
+      <div class="compare-box compare-after" style="margin-bottom: 16px;">
+        <span class="compare-label">Новый поиск</span>
+        <div style="padding-top: 8px;">
+          <div class="mock-search">
+            <span class="mock-search-icon">🔍</span>
+            <input type="text" placeholder="Поиск задач по номеру, названию, статусу..." value="модул" />
+            <span style="font-size: 0.7rem; color: var(--muted); white-space: nowrap;">3 найдено</span>
+          </div>
+          <div style="margin-top: 8px; font-size: 0.75rem; color: var(--muted);">
+            <div style="padding: 6px 10px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onmouseover="this.style.background='var(--accent-soft)'" onmouseout="this.style.background='transparent'">
+              <span><strong>#35191</strong> Разработка <strong>модул</strong>я оплаты</span>
+              <span style="font-size: 0.65rem; background: var(--accent-bg); color: var(--accent-fg-dark); padding: 2px 6px; border-radius: 999px;">Январь</span>
+            </div>
+            <div style="padding: 6px 10px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onmouseover="this.style.background='var(--accent-soft)'" onmouseout="this.style.background='transparent'">
+              <span><strong>#35204</strong> Тестирование API <strong>модул</strong>я</span>
+              <span style="font-size: 0.65rem; background: var(--accent-bg); color: var(--accent-fg-dark); padding: 2px 6px; border-radius: 999px;">Февраль</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3 style="font-size: 0.95rem; margin-bottom: 12px;">⚠️ Подтверждение удаления</h3>
+      <div class="compare-box compare-after">
+        <span class="compare-label">Dialog</span>
+        <div style="padding-top: 8px;">
+          <div class="mock-dialog-overlay">
+            <div class="mock-dialog">
+              <div style="font-size: 2rem; margin-bottom: 8px;">⚠️</div>
+              <h3>Удалить задачу #35191?</h3>
+              <p>Это действие нельзя отменить. Задача будет удалена безвозвратно.</p>
+              <div class="mock-dialog-btns">
+                <button class="mock-btn mock-btn-ghost">Отмена</button>
+                <button class="mock-btn mock-btn-danger">Удалить</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 5: Keyboard shortcuts -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-badge">⌨️ Приоритет 3</div>
+  <h2>Keyboard Shortcuts</h2>
+  <p>Быстрые клавиши для навигации и действий.</p>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--card);">
+      <span style="font-size: 0.85rem;">Переключить на Задачи</span>
+      <div><span class="kbd">Ctrl</span> + <span class="kbd">1</span></div>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--card);">
+      <span style="font-size: 0.85rem;">Переключить на Беклог</span>
+      <div><span class="kbd">Ctrl</span> + <span class="kbd">2</span></div>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--card);">
+      <span style="font-size: 0.85rem;">Переключить на Дашборд</span>
+      <div><span class="kbd">Ctrl</span> + <span class="kbd">4</span></div>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--card);">
+      <span style="font-size: 0.85rem;">Фокус на поиск</span>
+      <div><span class="kbd">Ctrl</span> + <span class="kbd">F</span></div>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--card);">
+      <span style="font-size: 0.85rem;">Новая задача</span>
+      <div><span class="kbd">Ctrl</span> + <span class="kbd">N</span></div>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--card);">
+      <span style="font-size: 0.85rem;">Закрыть диалог</span>
+      <div><span class="kbd">Esc</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 6: Итого -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-badge">📋 Итого</div>
+  <h2>Приоритеты реализации</h2>
+  <p>Распределение по важности и трудоёмкости.</p>
+
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    <div class="priority-item">
+      <div class="priority-dot high"></div>
+      <div>
+        <div class="priority-title">Высокий приоритет <span class="tag tag-fix">КРИТИЧНО</span></div>
+        <div class="priority-desc">
+          <strong>Карточки с полным функционалом</strong> — без Select статуса/приоритета невозможно менять статус задачи в новом интерфейсе. Inline editing имён и часов — основной UX.
+        </div>
+      </div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-dot mid"></div>
+      <div>
+        <div class="priority-title">Средний приоритет <span class="tag tag-new">УЛУЧШЕНИЕ</span></div>
+        <div class="priority-desc">
+          <strong>Беклог → карточки</strong> — единообразие стиля. <strong>Sidebar тема</strong> — визуальная целостность. <strong>Поиск + удаление</strong> — UX и безопасность.
+        </div>
+      </div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-dot low"></div>
+      <div>
+        <div class="priority-title">Низкий приоритет <span class="tag tag-new">БОНУС</span></div>
+        <div class="priority-desc">
+          <strong>Keyboard shortcuts</strong> — удобство для power users. <strong>Дизайн-превью</strong> — обновить mini-preview. <strong>Optimistic UI</strong> — ощущение скорости.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align: center; padding: 40px 0; color: var(--muted); font-size: 0.85rem;">
+  <p>Delta — Трекер задач · Рекомендации по улучшению</p>
+  <p style="margin-top: 4px; font-size: 0.75rem;">Выберите что реализовать и я приступлю к работе</p>
+</div>
+
+</div>
+</body>
+</html>

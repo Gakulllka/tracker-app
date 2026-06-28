@@ -1,25 +1,18 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // ── Admin route protection ─────────────────────────────────────────────
-  // The /admin page requires an auth_token cookie.
-  // We can't validate the token in Edge middleware (no DB access), so we
-  // just ensure the cookie exists. The page itself calls /api/admin/* which
-  // fully validates admin role server-side.
   if (pathname.startsWith("/admin")) {
     const token = request.cookies.get("auth_token")?.value
       || request.nextUrl.searchParams.get("token");
 
     if (!token) {
-      // Redirect to home — the auth screen will appear
       return NextResponse.redirect(new URL("/", request.url));
     }
   }
 
-  // ── Strip conditional request headers (prevent 412 / proxy caching) ───
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete("if-none-match");
   requestHeaders.delete("if-modified-since");

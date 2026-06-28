@@ -25,6 +25,8 @@ interface UseServerSyncParams {
   setQuestions: React.Dispatch<React.SetStateAction<Question[]>>;
 }
 
+export type SyncStatus = "initializing" | "synced" | "pending" | "pushing" | "offline";
+
 export function useServerSync({
   workspaceId,
   token,
@@ -41,6 +43,8 @@ export function useServerSync({
   const serverUpdatedAtRef = useRef<string>("");
   const lastLocalChangeRef = useRef(0);
   const suppressNextPushRef = useRef(false);
+  const [syncStatus, setSyncStatus] = React.useState<SyncStatus>("initializing");
+  const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Push ──────────────────────────────────────────────────────────────────
 
@@ -48,6 +52,7 @@ export function useServerSync({
     if (isSyncingRef.current) return;
     if (!initialLoadDoneRef.current) return;
     isSyncingRef.current = true;
+    setSyncStatus("pushing");
     try {
       const s = useTaskStore.getState();
       const activeDom = s.domainData[s.activeDomainId];
@@ -80,11 +85,14 @@ export function useServerSync({
         if (result.updatedAt) serverUpdatedAtRef.current = result.updatedAt;
         setLastSync(new Date());
         setIsOnline(true);
+        setSyncStatus("synced");
       } else {
         setIsOnline(false);
+        setSyncStatus("offline");
       }
     } catch {
       setIsOnline(false);
+      setSyncStatus("offline");
     } finally {
       isSyncingRef.current = false;
     }
@@ -96,7 +104,10 @@ export function useServerSync({
     try {
       const url = `/api/sync?id=${encodeURIComponent(workspaceId)}&token=${encodeURIComponent(token)}`;
       const res = await fetch(url);
-      if (!res.ok) return;
+      if (!res.ok) {
+        setSyncStatus("offline");
+        return;
+      }
       const data = await res.json();
       if (data.updatedAt) serverUpdatedAtRef.current = data.updatedAt;
       if (data.domainData && Object.keys(data.domainData).length > 0) {
@@ -105,8 +116,10 @@ export function useServerSync({
       }
       setLastSync(new Date());
       setIsOnline(true);
+      setSyncStatus(prev => prev === "initializing" || prev === "offline" ? "synced" : prev);
     } catch {
       setIsOnline(false);
+      setSyncStatus("offline");
     }
   }, [workspaceId, token, setIsOnline, setLastSync]);
 
@@ -159,8 +172,13 @@ export function useServerSync({
       return;
     }
     lastLocalChangeRef.current = Date.now();
-    const timer = setTimeout(pushToServer, 400);
-    return () => clearTimeout(timer);
+    setSyncStatus("pending");
+    if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
+    pushTimerRef.current = setTimeout(() => {
+      pushTimerRef.current = null;
+      pushToServer();
+    }, 400);
+    return () => { if (pushTimerRef.current) { clearTimeout(pushTimerRef.current); pushTimerRef.current = null; } };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allData, backlog, monthlyPlanByYearMonth, pushToServer]);
 
@@ -229,4 +247,6 @@ export function useServerSync({
       window.removeEventListener("touchstart",mark);
     };
   }, [token]);
+
+  return { syncStatus };
 }

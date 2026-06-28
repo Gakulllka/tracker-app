@@ -57,7 +57,7 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.42 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -92,7 +92,7 @@
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --muted-foreground: oklch(0.78 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
@@ -286,126 +286,229 @@
 }
 
 /* ================================================================ */
-/*  Sticky Table Header                                            */
-/*  Uses border-separate + border-spacing-0 so position:sticky      */
-/*  works on thead / tfoot in all browsers.                         */
+/*  Task Cards (desktop list view)                                  */
 /* ================================================================ */
 
-.sticky-table-header {
-  border-collapse: separate !important;
-  border-spacing: 0;
+.task-card {
+  background: var(--tracker-bg-card, #fff);
+  border: 1px solid var(--tracker-border, #e8e0f5);
+  border-radius: 16px;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  position: relative;
+  overflow: hidden;
 }
 
-/* The shadcn Table wrapper creates its own scroll context with
-   overflow-x-auto, which breaks position:sticky on thead/tfoot.
-   When the table uses sticky headers, let the parent Card handle
-   all scrolling instead. Also make the container grow to fill
-   the flex parent so the table can be full-height. */
-[data-slot="table-container"]:has(> .sticky-table-header) {
-  overflow: visible !important;
-  flex: 1 1 0%;
-  min-height: 0;
-}
-
-.sticky-table-header thead tr th,
-.sticky-table-header tfoot tr td {
-  position: sticky;
-  z-index: 10;
-  background: var(--tracker-accent-bg, #f4f1fc);
-  color: var(--tracker-accent-fg-dark, #3d2264);
-}
-
-.sticky-table-header thead tr th {
+.task-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
   top: 0;
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.045em;
-  text-transform: uppercase;
-  border-bottom: 1.5px solid var(--tracker-border, #e8e0f5);
-}
-
-.sticky-table-header tfoot tr td {
   bottom: 0;
-  border-top: 1.5px solid var(--tracker-border, #e8e0f5);
-  background: var(--tracker-accent-bg, #f4f1fc);
-  color: var(--tracker-accent-fg-dark, #3d2264);
+  width: 0;
+  background: var(--card-accent-color, var(--tracker-accent, #9B72CF));
+  border-radius: 16px 0 0 16px;
+  transition: width 0.2s ease;
+}
+
+.task-card:hover {
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 12%, transparent);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 30%, var(--tracker-border, #e8e0f5));
+}
+
+.task-card:hover::before {
+  width: 0;
+}
+
+.task-card:active {
+  transform: translateY(0);
+}
+
+.task-card.selected {
+  border-color: var(--card-accent-color, var(--tracker-accent, #9B72CF));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 14%, transparent),
+    0 4px 16px color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 12%, transparent);
+}
+
+.task-card.selected::before {
+  width: 5px;
+}
+
+.task-card.drag-over {
+  border-color: var(--card-accent-color, var(--tracker-accent, #9B72CF));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 20%, transparent);
+}
+
+.task-card[draggable="true"] {
+  cursor: grab;
+}
+
+.task-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.task-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 10px;
+}
+
+.priority-group {
+  margin-bottom: 16px;
+}
+
+.priority-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
   font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.priority-group-header.ring-2 {
+  border-style: dashed;
+  transform: scale(1.01);
+}
+
+.priority-group-header .priority-group-count {
+  font-size: 0.65rem;
+  font-weight: 500;
+  opacity: 0.6;
+  text-transform: none;
+}
+
+.task-card-num {
+  font-family: var(--font-geist-mono, monospace);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--tracker-text-muted, #888);
+  letter-spacing: 0.02em;
+}
+
+.task-card-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--tracker-text-main, #1a1a2e);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.field-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--tracker-border, var(--border));
+  background: var(--tracker-bg, var(--background));
+  color: var(--tracker-text-main, var(--foreground));
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field-input:focus {
+  border-color: var(--tracker-accent, #1D9E75);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tracker-accent, #1D9E75) 12%, transparent);
+}
+textarea.field-input {
+  height: auto;
+  padding: 6px 8px;
+  line-height: 1.4;
+}
+select.field-input {
+  cursor: pointer;
+}
+
+.task-card-progress {
+  height: 4px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--tracker-border, #e8e0f5) 60%, transparent);
+  overflow: hidden;
+}
+
+.task-card-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ================================================================ */
-/*  Progress Bar Animations                                        */
+/*  Sidebar — Delta theme overrides                                 */
 /* ================================================================ */
 
-.progress-bar-animated {
-  background-image: linear-gradient(45deg,
-    rgba(255,255,255,0.15) 25%, transparent 25%,
-    transparent 50%, rgba(255,255,255,0.15) 50%,
-    rgba(255,255,255,0.15) 75%, transparent 75%, transparent);
-  background-size: 1rem 1rem;
-  animation: progress-bar-stripes 1s linear infinite;
+/* Sidebar background matches tracker card */
+[data-slot="sidebar"][data-slot="sidebar"] {
+  background: var(--tracker-bg-card, #fff) !important;
 }
 
-@keyframes progress-bar-stripes {
-  from { background-position: 1rem 0; }
-  to { background-position: 0 0; }
+[data-slot="sidebar"] {
+  border-right: 1px solid var(--tracker-border, #e8e0f5);
 }
 
-.progress-over-pulse {
-  animation: progress-over-pulse 1.5s ease-in-out infinite;
+/* Sidebar text inherits tracker text */
+[data-slot="sidebar"] [data-slot="sidebar-menu-button"] {
+  color: var(--tracker-text-muted, #888);
+  position: relative;
+  border-left: 3px solid transparent;
+  transition: all 0.2s ease;
 }
 
-@keyframes progress-over-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+/* Active menu item — accent glow + left bar */
+[data-slot="sidebar"] [data-slot="sidebar-menu-button"][data-active="true"] {
+  background: var(--tracker-accent-soft, rgba(155,114,207,0.11)) !important;
+  color: var(--tracker-accent-fg-dark, #3d2264) !important;
+  font-weight: 600;
+  border-left-color: var(--tracker-accent, #9B72CF);
 }
 
-/* ================================================================ */
-/*  Shimmer Animation for Skeleton                              */
-/* ================================================================ */
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+/* Hover state */
+[data-slot="sidebar"] [data-slot="sidebar-menu-button"]:hover:not([data-active="true"]) {
+  background: color-mix(in srgb, var(--tracker-accent, #9B72CF) 8%, transparent);
+  color: var(--tracker-text-main, #1a1a2e);
+  border-left-color: color-mix(in srgb, var(--tracker-accent, #9B72CF) 40%, transparent);
 }
 
-@keyframes slide-up {
-  from { transform: translateX(-50%) translateY(20px); opacity: 0; }
-  to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+/* Sidebar separator */
+[data-slot="sidebar-separator"] {
+  background: var(--tracker-border, #e8e0f5) !important;
 }
 
-.animate-shimmer       { animation: shimmer 1.5s ease-in-out infinite; }
-.animate-slide-up       { animation: slide-up 0.3s ease-out; }
+/* Sidebar footer background */
+[data-slot="sidebar-footer"] {
+  background: var(--tracker-bg-card, #fff);
+}
 
 /* ================================================================ */
 /*  Micro Animations                                            */
 /* ================================================================ */
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes fade-in-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes fade-in-down { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes fade-in-left { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes fade-in-right { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes scale-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-@keyframes slide-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
-@keyframes slide-down { from { opacity: 0; transform: translateY(-10px); max-height: 0; } to { opacity: 1; transform: translateY(0); max-height: 500px; } }
-@keyframes bounce-in { 0% { transform: scale(0); } 50% { transform: scale(1.15); } 70% { transform: scale(0.95); } 100% { transform: scale(1); } }
-@keyframes count-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fade-in-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fade-in-down { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes scale-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
 @keyframes check-draw { 0% { stroke-dashoffset: 24; } 100% { stroke-dashoffset: 0; } }
-@keyframes progress-fill { from { width: 0%; } }
-@keyframes row-enter { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes row-enter { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes stagger-in { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
-.animate-fade-in        { animation: fade-in 0.2s ease-out; }
-.animate-fade-in-up   { animation: fade-in-up 0.3s ease-out; }
-.animate-fade-in-down { animation: fade-in-down 0.3s ease-out; }
-.animate-fade-in-left { animation: fade-in-left 0.3s ease-out; }
-.animate-fade-in-right { animation: fade-in-right 0.3s ease-out; }
-.animate-scale-in     { animation: scale-in 0.2s ease-out; }
-.animate-slide-right  { animation: slide-right 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-.animate-slide-down   { animation: slide-down 0.3s ease-out; }
-.animate-bounce-in    { animation: bounce-in 0.4s ease-out; }
-.animate-count-up     { animation: count-up 0.4s ease-out; }
-.animate-row-enter    { animation: row-enter 0.3s ease-out both; }
-.animate-progress-fill { animation: progress-fill 0.6s ease-out; }
+.animate-fade-in        { animation: fade-in 0.3s ease-out; }
+.animate-fade-in-up   { animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-fade-in-down { animation: fade-in-down 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-scale-in     { animation: scale-in 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-row-enter    { animation: row-enter 0.35s ease-out both; }
+.animate-stagger-in   { animation: stagger-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 /* ================================================================ */
 /*  Pastel Design Enhancements                                       */
@@ -434,39 +537,25 @@ body {
   transition: box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
-/* ================================================================ */
-/*  Loading screen pastel background                                 */
-/* ================================================================ */
-.loader-bg-pastel {
-  background: linear-gradient(135deg, #f3f0ff 0%, #fce4f4 40%, #e8f4fd 100%);
+/* ── Interactive states — active press feedback ── */
+button:not([disabled]):active,
+a:not([disabled]):active {
+  transform: scale(0.97);
+}
+button[data-slot="button"]:active:not([disabled]) {
+  transform: scale(0.98);
+}
+
+/* ── Focus visible — consistent accent ring ── */
+:focus-visible {
+  outline: 2px solid var(--tracker-accent, #9B72CF);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 
 /* ================================================================ */
 /*  Design System — Refined Pastel                                  */
 /* ================================================================ */
-
-/* ── Table ──────────────────────────────────────────────────────── */
-
-/* Row dividers — hairline, not gutter */
-.sticky-table-header tbody tr {
-  border-bottom: 1px solid color-mix(in srgb, var(--tracker-border, #e8e0f5) 60%, transparent);
-  transition: background 0.12s ease;
-}
-
-/* Row hover — a whisper of the accent */
-.sticky-table-header tbody tr:hover {
-  background: color-mix(in srgb, var(--tracker-accent, #9B72CF) 5%, transparent) !important;
-}
-
-/* Alternating rows — almost invisible, just a tiny depth cue */
-.sticky-table-header tbody tr:nth-child(even) {
-  background: color-mix(in srgb, var(--tracker-accent-bg, #f4f1fc) 35%, transparent);
-}
-
-/* Selected row */
-.sticky-table-header tbody tr.row-selected {
-  background: var(--tracker-accent-soft, rgba(155,114,207,0.11)) !important;
-}
 
 /* ── Cards ──────────────────────────────────────────────────────── */
 
@@ -487,6 +576,23 @@ input, textarea, select {
 input:focus, textarea:focus {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tracker-accent, #9B72CF) 14%, transparent);
   border-color: color-mix(in srgb, var(--tracker-accent, #9B72CF) 55%, transparent) !important;
+}
+
+select:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tracker-accent, #9B72CF) 14%, transparent);
+  border-color: color-mix(in srgb, var(--tracker-accent, #9B72CF) 55%, transparent) !important;
+}
+
+/* ── Accent divider between header and content ── */
+.delta-header::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--tracker-accent, #9B72CF), transparent);
+  opacity: 0.3;
 }
 
 /* ── Buttons ────────────────────────────────────────────────────── */
@@ -528,11 +634,7 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
   background: color-mix(in srgb, var(--tracker-accent, #9B72CF) 40%, var(--tracker-border, #ccc));
 }
 
-/* ── Loader pastel bg ────────────────────────────────────────────── */
 
-.loader-bg-pastel {
-  background: linear-gradient(135deg, #f3f0ff 0%, #fce4f4 40%, #e8f4fd 100%);
-}
 
 /* ── Selection highlight ─────────────────────────────────────────── */
 
@@ -552,8 +654,8 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
   border-top: 1px solid var(--tracker-border, #e8e0f5);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   box-shadow:
-    0 -1px 0 0 var(--tracker-border, #e8e0f5),
-    0 -4px 20px rgba(0,0,0,0.05);
+    0 -2px 8px rgba(0,0,0,0.04),
+    0 -1px 0 0 var(--tracker-border, #e8e0f5);
 }
 
 .mobile-bottom-nav-item {
@@ -617,17 +719,17 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
 .mobile-task-card {
   background: var(--tracker-bg-card, #fff);
   border: 1px solid var(--tracker-border, #e8e0f5);
-  border-radius: 12px;
-  padding: 12px 14px;
+  border-radius: 16px;
+  padding: 14px 16px;
   cursor: pointer;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   box-shadow: 0 1px 3px rgba(0,0,0,0.03);
 }
 
 .mobile-task-card:active {
-  transform: scale(0.985);
+  transform: scale(0.98);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
@@ -702,38 +804,15 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
 
 /* ── Mobile month bar – full width pills ────────────────────────── */
 @media (max-width: 639px) {
-  /* month bar: don't center, let it scroll */
-  .month-pill-bar {
-    justify-content: flex-start !important;
-  }
-
   /* Header: tighten gap */
   header .flex.h-14 {
     padding-left: 12px;
     padding-right: 12px;
     gap: 8px;
   }
-
-  /* Mobile toolbar: stack search full width */
-  .table-toolbar {
-    flex-direction: column;
-  }
-  .table-toolbar .search-wrap {
-    max-width: 100%;
-    width: 100%;
-  }
 }
 
-/* ── Header: hide extra controls on mobile ──────────────────────── */
-@media (max-width: 767px) {
-  /* Keep only: title, sync dot, user avatar, settings icon */
-  .header-undo-redo,
-  .header-file-btn,
-  .header-separator,
-  .header-domain-select {
-    display: none !important;
-  }
-}
+
 
 /* ================================================================
    DASHBOARD — REDESIGNED
@@ -741,49 +820,7 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
    (from .dashboard-kpi-card to the closing @media block)
    ================================================================ */
 
-.dash-kpi-card {
-  background: var(--tracker-bg-card, #fff);
-  border: 1px solid var(--tracker-border, #e8e0f5);
-  border-radius: 14px;
-  padding: 14px 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
-.dash-kpi-card:hover {
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--tracker-accent, #9B72CF) 10%, transparent);
-}
-.dash-kpi-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--tracker-text-muted, #888);
-}
-.dash-kpi-value {
-  font-size: 1.75rem;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-.dash-section {
-  background: var(--tracker-bg-card, #fff);
-  border: 1px solid var(--tracker-border, #e8e0f5);
-  border-radius: 14px;
-  padding: 14px 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-}
-.dash-section-title {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--tracker-text-muted, #888);
-}
-@media (max-width: 639px) {
-  .dash-kpi-value { font-size: 1.4rem; }
-  .dash-kpi-card, .dash-section { padding: 12px 13px; border-radius: 12px; }
-}
+
 
 /* ────────────────────────────────────────────────────────────────
  * Phase 6: Fullscreen mode для презентации.
@@ -803,14 +840,7 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
   box-shadow: none !important;
 }
 
-/* ── Delta: Lime glow для задач с опережением ── */
-@keyframes pulse-glow-lime {
-  0%, 100% { box-shadow: 0 0 8px rgba(163,230,53,0.6); }
-  50%       { box-shadow: 0 0 20px rgba(163,230,53,1); }
-}
-.glow-lime {
-  animation: pulse-glow-lime 2s ease-in-out infinite;
-}
+
 
 /* ================================================================
    MOBILE APP — полноценная мобильная версия
@@ -830,10 +860,7 @@ html, body {
     padding-right: 12px !important;
   }
 
-  /* Прячем лишнее в шапке */
-  .header-year-selector,
-  .header-domain-selector,
-  .header-separator { display: none !important; }
+
 
   /* Bottom nav — увеличиваем safe-area padding */
   .mobile-bottom-nav {
@@ -843,11 +870,22 @@ html, body {
 
 /* ── Dashboard Delta — мобильный layout ──────────────────────── */
 @media (max-width: 767px) {
-  /* Строка 1: все карточки в столбик */
+  /* Строка 1: KPI карточки горизонтальный скролл */
   .delta-row1 {
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: row !important;
     gap: 12px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scroll-snap-type: x mandatory !important;
+    padding-bottom: 8px !important;
+  }
+  .delta-row1 > * {
+    flex: 0 0 70% !important;
+    scroll-snap-align: start !important;
+  }
+  .delta-row1::-webkit-scrollbar {
+    display: none !important;
   }
 
   /* Здоровье: горизонтальная компактная плашка */
@@ -869,15 +907,7 @@ html, body {
   .delta-chart-card { padding: 12px 14px !important; }
   .delta-chart-height { height: 140px !important; }
 
-  /* Карта рисков — скролл по горизонтали */
-  .delta-risk-map {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-  .delta-risk-map-inner {
-    min-width: 480px !important;
-    height: 280px !important;
-  }
+
 
   /* Калькулятор sheet — полный экран на мобиле */
   [data-radix-dialog-content],
@@ -909,6 +939,11 @@ html, body {
 
 /* ── Task card — дополнительные мобильные улучшения ─────────── */
 @media (max-width: 767px) {
+  /* Увеличиваем touch-targets */
+  button, a, [role="button"] {
+    min-height: 44px;
+  }
+  
   .mobile-task-card {
     padding: 14px 16px;
     border-radius: 14px;
@@ -939,31 +974,11 @@ html, body {
   }
 }
 
-/* ── Budget Sheet (BudgetSignalsSheet) — мобиль ──────────────── */
-@media (max-width: 767px) {
-  /* Sheet на мобиле — снизу */
-  .budget-sheet-content {
-    border-radius: 20px 20px 0 0 !important;
-    max-height: 90dvh !important;
-    padding-bottom: env(safe-area-inset-bottom, 16px) !important;
-  }
-}
 
-/* ── Backlog mobile ──────────────────────────────────────────── */
-@media (max-width: 767px) {
-  .backlog-mobile-list { padding-bottom: 80px; }
-}
 
-/* ── Месяц-пиллы на мобиле — горизонтальный скролл ──────────── */
-@media (max-width: 639px) {
-  .month-scroll-container {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
-    padding-bottom: 2px;
-  }
-  .month-scroll-container::-webkit-scrollbar { display: none; }
-}
+
+
+
 
 /* ── Swipe hint для карты рисков ─────────────────────────────── */
 .delta-risk-scroll-hint {

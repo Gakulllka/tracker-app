@@ -382,6 +382,7 @@ export async function POST(req: NextRequest) {
             id,
             allData: clientDomainData ? JSON.stringify(clientDomainData) : "{}",
             backlog: "[]",
+            userId: "system",
           },
         });
       } catch (err) {

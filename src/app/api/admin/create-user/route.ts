@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     let targetRoleId = roleId;
     if (!targetRoleId) {
-      const editorRole = await prisma.role.findFirst({ where: { id: "role_editor" } });
+      const editorRole = await prisma.role.findFirst({ where: { name: "editor" } });
       targetRoleId = editorRole?.id;
     } else {
       const roleExists = await prisma.role.findUnique({ where: { id: targetRoleId } });

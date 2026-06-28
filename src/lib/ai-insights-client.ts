@@ -17,7 +17,7 @@ export interface AiInsightShape {
   achievements: string[];
   risks: string[];
   inProgress: string[];
-  nextSteps: string[];
+  summary: string[];
   dataHash?: string;
   source?: "ai" | "manual" | "edited";
   updatedAt?: string;
@@ -85,7 +85,7 @@ export async function saveInsight(
     achievements: string[];
     risks: string[];
     inProgress: string[];
-    nextSteps: string[];
+    summary: string[];
     dataHash: string;
     source: "ai" | "manual" | "edited";
   },

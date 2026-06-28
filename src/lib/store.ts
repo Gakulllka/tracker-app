@@ -53,7 +53,7 @@ export interface PresBgSettings {
   patternLineThickness?: number;
 }
 
-export interface PresStylePreset {
+interface PresStylePreset {
   id: PresBgSettings["styleId"];
   label: string;
   emoji: string;
@@ -67,7 +67,7 @@ export interface PresStylePreset {
   mutedColor: string;
 }
 
-export const PRES_STYLE_PRESETS: PresStylePreset[] = [
+const PRES_STYLE_PRESETS: PresStylePreset[] = [
   {
     id: "dark",
     label: "Тёмный",
@@ -187,15 +187,15 @@ export const DEFAULT_PRES_BG: PresBgSettings = {
  * ================================================================ */
 
 /** Год + месяц как строка "YYYY-MM" (zero-padded). */
-export type MonthKey = string;
+type MonthKey = string;
 
 /** Constructs "2025-10" from (2025, 9). Внимание: month 0..11. */
-export function monthKey(year: number, month: number): MonthKey {
+function monthKey(year: number, month: number): MonthKey {
   return `${year}-${String(month + 1).padStart(2, "0")}`;
 }
 
 /** Парсит "2025-10" → { year: 2025, month: 9 }. Возвращает null если невалидно. */
-export function parseMonthKey(key: MonthKey): { year: number; month: number } | null {
+function parseMonthKey(key: MonthKey): { year: number; month: number } | null {
   const m = /^(\d{4})-(\d{2})$/.exec(key);
   if (!m) return null;
   const year = Number(m[1]);
@@ -205,7 +205,7 @@ export function parseMonthKey(key: MonthKey): { year: number; month: number } | 
 }
 
 /** Из полного dataByYearMonth собирает срез для одного года. */
-export function buildAllDataForYear(
+function buildAllDataForYear(
   dataByYearMonth: Record<MonthKey, Task[]>,
   year: number,
 ): AllData {
@@ -224,7 +224,7 @@ export function buildAllDataForYear(
 }
 
 /** Список годов, в которых есть хоть одна задача. Текущий год всегда включён. */
-export function listYearsWithData(dataByYearMonth: Record<MonthKey, Task[]>): number[] {
+function listYearsWithData(dataByYearMonth: Record<MonthKey, Task[]>): number[] {
   const years = new Set<number>();
   years.add(new Date().getFullYear());
   for (const [k, tasks] of Object.entries(dataByYearMonth)) {
@@ -236,7 +236,7 @@ export function listYearsWithData(dataByYearMonth: Record<MonthKey, Task[]>): nu
 }
 
 /** Per-domain isolated data */
-export interface DomainData {
+interface DomainData {
   /** Срез текущего года для UI (Record<0..11, Task[]>). Производное от dataByYearMonth. */
   allData: AllData;
   /** Беклог — глобальный для домена, без привязки к году. */
@@ -264,7 +264,7 @@ interface AppState {
   currentYear: number;
   view: "table" | "backlog" | "dashboard" | "slides" | "chat" | "design" | "questions";
   /** Phase 3: активный под-таб внутри Презентации. */
-  presSubTab: "slides" | "design" | "ai";
+  presSubTab: "slides" | "ai";
   clientMode: boolean;
 
   // Theme
@@ -364,6 +364,8 @@ interface AppState {
   // Bulk operations
   moveTasksBetweenMonths: (fromMonth: number, toMonth: number) => void;
   clearMonth: (month: number) => void;
+  bulkUpdateTasks: (month: number, ids: string[], key: keyof Task, value: unknown) => void;
+  duplicateTask: (month: number, taskId: string) => void;
 
   // Import / Export
   exportJSON: () => string;
@@ -415,6 +417,26 @@ function withDomainSync(
         backlog: newBacklog,
         dataByYearMonth: updatedByKey,
       },
+    },
+  };
+}
+
+/** Сохраняет данные текущего домена (allData/backlog) в dataByYearMonth. */
+function saveCurrentDomainData(
+  state: Pick<AppState, "activeDomainId" | "domainData" | "allData" | "backlog" | "currentYear">,
+): Record<string, DomainData> {
+  const currentDom = state.domainData[state.activeDomainId];
+  const currentByKey: Record<MonthKey, Task[]> = currentDom?.dataByYearMonth ?? {};
+  const updated: Record<MonthKey, Task[]> = { ...currentByKey };
+  for (let m = 0; m < 12; m++) {
+    updated[monthKey(state.currentYear, m)] = state.allData[m] || [];
+  }
+  return {
+    ...state.domainData,
+    [state.activeDomainId]: {
+      allData: state.allData,
+      backlog: state.backlog,
+      dataByYearMonth: updated,
     },
   };
 }
@@ -563,7 +585,7 @@ export const useTaskStore = create<AppState>()(
         // If setting status to POSTPONED — move to backlog automatically
         if (key === "status" && value === STATUSES.POSTPONED) {
           const task = rows.find(r => r.id === taskId);
-          if (!task) return {}; // no-op patch
+          if (!task) return state; // no-op
           const newAllData = {
             ...state.allData,
             [month]: rows.filter(r => r.id !== taskId),
@@ -592,7 +614,9 @@ export const useTaskStore = create<AppState>()(
         return withDomainSync(state, { allData: newAllData });
       }),
 
-      archiveComment: (month, taskId) => set(state => {
+      archiveComment: (month, taskId) => {
+        undoHelpers.snapshot(getStateSnapshot);
+        set(state => {
         const rows = state.allData[month] || [];
         const newAllData = {
           ...state.allData,
@@ -618,8 +642,8 @@ export const useTaskStore = create<AppState>()(
           }),
         };
         return withDomainSync(state, { allData: newAllData });
-      }),
-
+      });
+      },
 
       deleteTask: (month, taskId) => {
         undoHelpers.snapshot(getStateSnapshot);
@@ -640,7 +664,7 @@ export const useTaskStore = create<AppState>()(
         set(state => {
           const fromRows = state.allData[fromMonth] || [];
           const task = fromRows.find(r => r.id === taskId);
-          if (!task) return {}; // no-op patch
+          if (!task) return state; // no-op
           const toRows = state.allData[toMonth] || [];
           const newAllData = {
             ...state.allData,
@@ -657,7 +681,7 @@ export const useTaskStore = create<AppState>()(
           const rows = [...(state.allData[month] || [])];
           const fi = rows.findIndex(r => r.id === fromId);
           const ti = rows.findIndex(r => r.id === toId);
-          if (fi < 0 || ti < 0) return {}; // no-op patch
+          if (fi < 0 || ti < 0) return state; // no-op
           const [item] = rows.splice(fi, 1);
           rows.splice(ti, 0, item);
           const newAllData = { ...state.allData, [month]: rows };
@@ -684,7 +708,7 @@ export const useTaskStore = create<AppState>()(
         set(state => {
           const rows = state.allData[month] || [];
           const task = rows.find(r => r.id === taskId);
-          if (!task) return {}; // no-op patch
+          if (!task) return state; // no-op
           const newAllData = {
             ...state.allData,
             [month]: rows.filter(r => r.id !== taskId),
@@ -705,7 +729,7 @@ export const useTaskStore = create<AppState>()(
         undoHelpers.snapshot(getStateSnapshot);
         set(state => {
           const task = state.backlog.find(t => t.id === taskId);
-          if (!task) return {}; // no-op patch
+          if (!task) return state; // no-op
           const clean: Task = {
             id: task.id,
             num: task.num,
@@ -732,7 +756,7 @@ export const useTaskStore = create<AppState>()(
         undoHelpers.snapshot(getStateSnapshot);
         set(state => {
           const task = state.backlog.find(t => t.id === taskId);
-          if (!task) return {}; // no-op patch
+          if (!task) return state; // no-op
           const clean: Task = {
             id: task.id,
             num: edits.num,
@@ -771,7 +795,7 @@ export const useTaskStore = create<AppState>()(
         set(state => {
           const fromIdx = state.backlog.findIndex(t => t.id === fromId);
           const toIdx = state.backlog.findIndex(t => t.id === toId);
-          if (fromIdx === -1 || toIdx === -1) return {}; // no-op patch
+          if (fromIdx === -1 || toIdx === -1) return state; // no-op
           const newBacklog = [...state.backlog];
           const [moved] = newBacklog.splice(fromIdx, 1);
           newBacklog.splice(toIdx, 0, moved);
@@ -792,22 +816,7 @@ export const useTaskStore = create<AppState>()(
       addDomain: (name) => {
         const id = "dom_" + Date.now();
         set(state => {
-          // Save current domain data first — Phase 2 with dataByYearMonth
-          const currentDom = state.domainData[state.activeDomainId];
-          const currentByKey: Record<MonthKey, Task[]> = currentDom?.dataByYearMonth ?? {};
-          const updatedCurrentByKey: Record<MonthKey, Task[]> = { ...currentByKey };
-          for (let m = 0; m < 12; m++) {
-            updatedCurrentByKey[monthKey(state.currentYear, m)] = state.allData[m] || [];
-          }
-          const savedDomainData = {
-            ...state.domainData,
-            [state.activeDomainId]: {
-              allData: state.allData,
-              backlog: state.backlog,
-              dataByYearMonth: updatedCurrentByKey,
-            },
-          };
-          // Initialize new domain — пустой во всех годах
+          const savedDomainData = saveCurrentDomainData(state);
           const newEntry: DomainData = {
             allData: initAllData(),
             backlog: [],
@@ -829,7 +838,7 @@ export const useTaskStore = create<AppState>()(
       })),
 
       deleteDomain: (id) => set(state => {
-        if (state.domains.length <= 1) return {}; // no-op patch
+        if (state.domains.length <= 1) return state; // no-op
         const remaining = state.domains.filter(d => d.id !== id);
         const isCurrent = state.activeDomainId === id;
         // Remove deleted domain's data
@@ -859,48 +868,20 @@ export const useTaskStore = create<AppState>()(
             searchQuery: "",
           };
         }
-        // Save current domain data — Phase 2 with dataByYearMonth
-        const currentDom = state.domainData[state.activeDomainId];
-        const currentByKey: Record<MonthKey, Task[]> = currentDom?.dataByYearMonth ?? {};
-        const updatedCurrentByKey: Record<MonthKey, Task[]> = { ...currentByKey };
-        for (let m = 0; m < 12; m++) {
-          updatedCurrentByKey[monthKey(state.currentYear, m)] = state.allData[m] || [];
-        }
+        // Save current domain data
+        const savedDomainData = saveCurrentDomainData(state);
         return {
           domains: remaining,
           domainData: {
-            ...newDomainData,
-            [state.activeDomainId]: {
-              allData: state.allData,
-              backlog: state.backlog,
-              dataByYearMonth: updatedCurrentByKey,
-            },
+            ...savedDomainData,
+            [id]: savedDomainData[id], // keep deleted domain's saved data briefly
           },
         };
       }),
 
       setActiveDomain: (id) => set(state => {
-        // Save current domain data — Phase 2: с актуализацией dataByYearMonth
-        // под текущий год.
-        const currentDom = state.domainData[state.activeDomainId];
-        const currentByKey: Record<MonthKey, Task[]> = currentDom?.dataByYearMonth ?? {};
-        const updatedCurrentByKey: Record<MonthKey, Task[]> = { ...currentByKey };
-        for (let m = 0; m < 12; m++) {
-          updatedCurrentByKey[monthKey(state.currentYear, m)] = state.allData[m] || [];
-        }
-        const updatedDomainData = {
-          ...state.domainData,
-          [state.activeDomainId]: {
-            allData: state.allData,
-            backlog: state.backlog,
-            dataByYearMonth: updatedCurrentByKey,
-          },
-        };
+        const updatedDomainData = saveCurrentDomainData(state);
 
-        // Load new domain — пересобираем allData как срез нового домена
-        // под currentYear. Если у нового домена нет dataByYearMonth (старый
-        // формат, миграция уже была в onRehydrateStorage, но защитимся), —
-        // используем legacy allData как есть.
         const newDom = updatedDomainData[id];
         let newAllData: AllData;
         let newBacklog: Task[];
@@ -934,7 +915,7 @@ export const useTaskStore = create<AppState>()(
       /** Phase 7.2: записать план часов в monthlyPlanByYearMonth активного домена. */
       setMonthlyPlan: (monthKey, hours) => set((s) => {
         const dom = s.domainData[s.activeDomainId];
-        if (!dom) return {}; // no-op: домена нет, ничего не меняем
+        if (!dom) return s; // no-op: домена нет, ничего не меняем
         const existing = dom.monthlyPlanByYearMonth || {};
         const next: Record<MonthKey, number> = { ...existing };
         if (!hours || isNaN(hours) || hours <= 0) {
@@ -982,21 +963,7 @@ export const useTaskStore = create<AppState>()(
         const newActiveId = domains.some(d => d.id === state.activeDomainId)
           ? state.activeDomainId
           : (domains[0]?.id || "default");
-        // Save current domain data with dataByYearMonth synced
-        const currentDom = state.domainData[state.activeDomainId];
-        const currentByKey: Record<MonthKey, Task[]> = currentDom?.dataByYearMonth ?? {};
-        const updatedCurrentByKey: Record<MonthKey, Task[]> = { ...currentByKey };
-        for (let m = 0; m < 12; m++) {
-          updatedCurrentByKey[monthKey(state.currentYear, m)] = state.allData[m] || [];
-        }
-        const savedDomainData = {
-          ...state.domainData,
-          [state.activeDomainId]: {
-            allData: state.allData,
-            backlog: state.backlog,
-            dataByYearMonth: updatedCurrentByKey,
-          },
-        };
+        const savedDomainData = saveCurrentDomainData(state);
         const newDom = savedDomainData[newActiveId];
         let newAllData: AllData;
         let newBacklog: Task[];
@@ -1018,42 +985,7 @@ export const useTaskStore = create<AppState>()(
           backlog: newBacklog,
         };
       }),
-      setActiveDomainId: (id) => set(state => {
-        // Same logic as setActiveDomain — Phase 2 aware.
-        const currentDom = state.domainData[state.activeDomainId];
-        const currentByKey: Record<MonthKey, Task[]> = currentDom?.dataByYearMonth ?? {};
-        const updatedCurrentByKey: Record<MonthKey, Task[]> = { ...currentByKey };
-        for (let m = 0; m < 12; m++) {
-          updatedCurrentByKey[monthKey(state.currentYear, m)] = state.allData[m] || [];
-        }
-        const savedDomainData = {
-          ...state.domainData,
-          [state.activeDomainId]: {
-            allData: state.allData,
-            backlog: state.backlog,
-            dataByYearMonth: updatedCurrentByKey,
-          },
-        };
-        const newDom = savedDomainData[id];
-        let newAllData: AllData;
-        let newBacklog: Task[];
-        if (newDom) {
-          newAllData = newDom.dataByYearMonth
-            ? buildAllDataForYear(newDom.dataByYearMonth, state.currentYear)
-            : newDom.allData;
-          newBacklog = newDom.backlog;
-        } else {
-          newAllData = initAllData();
-          newBacklog = [];
-          savedDomainData[id] = { allData: newAllData, backlog: newBacklog, dataByYearMonth: {} };
-        }
-        return {
-          activeDomainId: id,
-          domainData: savedDomainData,
-          allData: newAllData,
-          backlog: newBacklog,
-        };
-      }),
+      setActiveDomainId: (id) => { get().setActiveDomain(id); },
       setThemeId: (id) => set({ themeId: id }),
 
       // Batch operations
@@ -1111,7 +1043,7 @@ export const useTaskStore = create<AppState>()(
         set(state => {
           const fromRows = state.allData[fromMonth] || [];
           const toRows = state.allData[toMonth] || [];
-          if (fromRows.length === 0) return {}; // no-op patch
+          if (fromRows.length === 0) return state; // no-op
           const newAllData = {
             ...state.allData,
             [fromMonth]: [createNewTask()],
@@ -1132,19 +1064,70 @@ export const useTaskStore = create<AppState>()(
         });
       },
 
+      bulkUpdateTasks: (month, ids, key, value) => {
+        undoHelpers.snapshot(getStateSnapshot);
+        set(state => {
+          const idSet = new Set(ids);
+          const newAllData = {
+            ...state.allData,
+            [month]: (state.allData[month] || []).map(r =>
+              idSet.has(r.id) ? { ...r, [key]: value, _ts: Date.now() } : r
+            ),
+          };
+          return withDomainSync(state, { allData: newAllData });
+        });
+      },
+
+      duplicateTask: (month, taskId) => {
+        undoHelpers.snapshot(getStateSnapshot);
+        set(state => {
+          const rows = state.allData[month] || [];
+          const task = rows.find(r => r.id === taskId);
+          if (!task) return state;
+          const copy: Task = {
+            ...task,
+            id: crypto.randomUUID(),
+            num: task.num ? `${task.num}-copy` : "",
+            _ts: Date.now(),
+          };
+          const idx = rows.findIndex(r => r.id === taskId);
+          const newRows = [...rows];
+          newRows.splice(idx + 1, 0, copy);
+          const newAllData = { ...state.allData, [month]: newRows };
+          return withDomainSync(state, { allData: newAllData });
+        });
+      },
+
       // Export / Import
       exportJSON: () => {
         const state = get();
         return JSON.stringify({
-          allData: state.allData,
-          backlog: state.backlog,
+          version: 2,
+          domainData: state.domainData,
+          domains: state.domains,
+          activeDomainId: state.activeDomainId,
           currentMonth: state.currentMonth,
+          currentYear: state.currentYear,
         }, null, 2);
       },
 
       importJSON: (json: string) => {
         try {
           const data = JSON.parse(json);
+          if (data.version === 2 && data.domainData) {
+            set(state => ({
+              ...withDomainSync(state, {
+                allData: state.allData,
+                backlog: state.backlog,
+              }),
+              domainData: data.domainData,
+              domains: data.domains || state.domains,
+              activeDomainId: data.activeDomainId || state.activeDomainId,
+              currentMonth: data.currentMonth ?? state.currentMonth,
+              currentYear: data.currentYear ?? state.currentYear,
+            }));
+            return true;
+          }
           if (data.allData) {
             set(state => ({
               ...withDomainSync(state, {
