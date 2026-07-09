@@ -118,6 +118,10 @@ export interface TableViewProps {
   clearSelection: () => void;
   bulkUpdateTasks: (month: number, ids: string[], key: keyof Task, value: unknown) => void;
   duplicateTask: (month: number, taskId: string) => void;
+  /** Руководитель — видит назначенные домены, может комментировать, но не менять статусы. */
+  isExecutive?: boolean;
+  /** Гость — только просмотр, без возможности редактирования. */
+  isGuest?: boolean;
 }
 
 export function TableView({
@@ -176,6 +180,8 @@ export function TableView({
   clearSelection,
   bulkUpdateTasks,
   duplicateTask,
+  isExecutive,
+  isGuest,
 }: TableViewProps) {
   const { toast } = useToast();
   /* ---- Drag & Drop state ---- */
@@ -457,15 +463,17 @@ export function TableView({
             <div className="flex-1" />
 
             {/* ── ДОБАВИТЬ ЗАДАЧУ ───────────────────────────────────── */}
-            <Button
-              size="sm"
-              className="h-8 gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)] shadow-md"
-              style={{ boxShadow: "0 2px 12px color-mix(in srgb, var(--tracker-accent, #9B72CF) 35%, transparent)" }}
-              onClick={() => onOpenNewTaskDialog(month)}
-            >
-              <Plus className="size-3.5" />
-              Добавить задачу
-            </Button>
+            {!isGuest && (
+              <Button
+                size="sm"
+                className="h-8 gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)] shadow-md"
+                style={{ boxShadow: "0 2px 12px color-mix(in srgb, var(--tracker-accent, #9B72CF) 35%, transparent)" }}
+                onClick={() => onOpenNewTaskDialog(month)}
+              >
+                <Plus className="size-3.5" />
+                Добавить задачу
+              </Button>
+            )}
 
             {/* ── ПЕРЕНЕСТИ ────────────────────────────────────────── */}
             <Button variant="outline" size="sm" className={btnClass} onClick={onOpenTransfer}>
@@ -601,7 +609,7 @@ export function TableView({
           })
         )}
         {/* Mobile FAB */}
-        {!clientMode && (
+        {!clientMode && !isGuest && (
           <button
             className="mobile-fab"
             onClick={() => onOpenNewTaskDialog(month)}
@@ -615,8 +623,8 @@ export function TableView({
       </div>
 
       {/* ---- DESKTOP CARD LIST ---- */}
-      {/* Bulk actions bar */}
-      {selectedTaskIds.size > 0 && (() => {
+      {/* Bulk actions bar (hidden for executives and guests — can't change statuses) */}
+      {!isExecutive && !isGuest && selectedTaskIds.size > 0 && (() => {
         const snapshot = useTaskStore.getState().snapshot;
         return (
           <div className="flex items-center gap-2 p-2 rounded-lg border bg-[var(--tracker-accent-bg)]/60 border-[var(--tracker-accent)]/30">
@@ -805,6 +813,7 @@ export function TableView({
                           deleteTask={deleteTask}
                           moveToBacklog={moveToBacklog}
                           duplicateTask={duplicateTask}
+                          isGuest={isGuest}
                         >
                         <div
                           className={`task-card ${dragRowId === task.id ? "opacity-40" : ""} ${dropTargetId === task.id && dragRowId !== task.id ? "drag-over" : ""}`}
@@ -892,49 +901,62 @@ export function TableView({
                               )}
                             </div>
                             <div className="flex flex-col items-end gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <button
-                                    className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity"
-                                    style={{
-                                      color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
-                                      background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
-                                    }}
-                                  >
-                                    {task.status}
-                                  </button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[280px] p-2" align="end" side="bottom">
-                                  <div className="flex flex-col gap-1.5">
-                                    {([
-                                      { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW], color: PHASE_COLORS.new },
-                                      { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS], color: PHASE_COLORS.in_progress },
-                                      { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE], color: PHASE_COLORS.done },
-                                      { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL], color: PHASE_COLORS.cancel },
-                                    ]).map((group) => (
-                                      <div key={group.label}>
-                                        <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: group.color }}>{group.label}</div>
-                                        <div className="flex flex-wrap gap-1">
-                                          {group.items.map((s) => (
-                                            <button
-                                              key={s}
-                                              onClick={() => { useTaskStore.getState().snapshot(); updateTask(month, task.id, "status", s); }}
-                                              className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full transition-all ${task.status === s ? "ring-1 ring-offset-1" : "opacity-70 hover:opacity-100"}`}
-                                              style={{
-                                                color: scolText(s, isDark) || "#888",
-                                                background: (scolText(s, isDark) || "#888") + "20",
-                                                ...(task.status === s ? { ringColor: scolText(s, isDark) || "#888", outlineColor: scolText(s, isDark) || "#888" } : {}),
-                                              }}
-                                            >
-                                              {s}
-                                            </button>
-                                          ))}
+                              {isExecutive || isGuest ? (
+                                /* Executive: status badge is read-only */
+                                <span
+                                  className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center justify-center"
+                                  style={{
+                                    color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
+                                    background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
+                                  }}
+                                >
+                                  {task.status}
+                                </span>
+                              ) : (
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity"
+                                      style={{
+                                        color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
+                                        background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
+                                      }}
+                                    >
+                                      {task.status}
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[280px] p-2" align="end" side="bottom">
+                                    <div className="flex flex-col gap-1.5">
+                                      {([
+                                        { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW], color: PHASE_COLORS.new },
+                                        { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS], color: PHASE_COLORS.in_progress },
+                                        { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE], color: PHASE_COLORS.done },
+                                        { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL], color: PHASE_COLORS.cancel },
+                                      ]).map((group) => (
+                                        <div key={group.label}>
+                                          <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: group.color }}>{group.label}</div>
+                                          <div className="flex flex-wrap gap-1">
+                                            {group.items.map((s) => (
+                                              <button
+                                                key={s}
+                                                onClick={() => { useTaskStore.getState().snapshot(); updateTask(month, task.id, "status", s); }}
+                                                className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full transition-all ${task.status === s ? "ring-1 ring-offset-1" : "opacity-70 hover:opacity-100"}`}
+                                                style={{
+                                                  color: scolText(s, isDark) || "#888",
+                                                  background: (scolText(s, isDark) || "#888") + "20",
+                                                  ...(task.status === s ? { ringColor: scolText(s, isDark) || "#888", outlineColor: scolText(s, isDark) || "#888" } : {}),
+                                                }}
+                                              >
+                                                {s}
+                                              </button>
+                                            ))}
+                                          </div>
                                         </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
+                                      ))}
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              )}
                             </div>
                           </div>
 
@@ -1006,7 +1028,7 @@ export function TableView({
                             </div>
                           </div>
 
-                          {!clientMode && (
+                          {!clientMode && !isGuest && (
                             <div className="flex items-center gap-0.5 shrink-0 mt-1.5 ml-5" onClick={(e) => e.stopPropagation()}>
                               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => toggleHidden(task.id)} title={task._hidden ? "Показать" : "Скрыть"}>
                                 {task._hidden ? <EyeOff className="size-3 text-muted-foreground" /> : <Eye className="size-3" />}
@@ -1025,8 +1047,8 @@ export function TableView({
 
                           {task.comment && !isEditing(task.id, "comment") && (
                             <div
-                              className="mt-1.5 pl-5 flex items-center gap-1 text-[11px] text-[var(--tracker-text-muted)] truncate cursor-pointer hover:text-[var(--tracker-text-main)] transition-colors"
-                              onClick={(e) => { e.stopPropagation(); startEditing(task.id, "comment"); }}
+                              className={`mt-1.5 pl-5 flex items-center gap-1 text-[11px] text-[var(--tracker-text-muted)] truncate ${isGuest ? 'cursor-default' : 'cursor-pointer hover:text-[var(--tracker-text-main)] transition-colors'}`}
+                              onClick={(e) => { if (!isGuest) { e.stopPropagation(); startEditing(task.id, "comment"); } }}
                             >
                               <span className="truncate">💬 {task.comment}</span>
                               {task.commentLog && task.commentLog.length > 0 && (

@@ -27,10 +27,29 @@ function parseAnswers(raw: string): AnswerEntry[] {
   }
 }
 
+// Auth helper
+async function resolveUserFromToken(token: string | undefined) {
+  if (!token) return null;
+  const session = await prisma.session.findUnique({
+    where: { token },
+    include: { user: { select: { id: true, username: true } } },
+  });
+  if (!session || session.expiresAt < new Date()) return null;
+  return { sessionId: session.id, user: session.user };
+}
+
 // POST /api/answer — append a new answer to a question
 // Body: { questionId, answer, author }
 export async function POST(req: NextRequest) {
   try {
+    const token = req.nextUrl.searchParams.get("token") || undefined;
+    const auth = token ? await resolveUserFromToken(token) : null;
+
+    // Гость не может отвечать на вопросы
+    if (auth?.user.username === "guest") {
+      return NextResponse.json({ error: "Гость не может отвечать на вопросы" }, { status: 403 });
+    }
+
     const { questionId, answer, author } = await req.json();
     if (!questionId || !answer?.trim()) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
@@ -86,6 +105,14 @@ export async function POST(req: NextRequest) {
 // DELETE /api/answer?questionId=<id>&answerId=<id> — delete a specific answer
 export async function DELETE(req: NextRequest) {
   try {
+    const token = req.nextUrl.searchParams.get("token") || undefined;
+    const auth = token ? await resolveUserFromToken(token) : null;
+
+    // Гость не может удалять ответы
+    if (auth?.user.username === "guest") {
+      return NextResponse.json({ error: "Гость не может удалять ответы" }, { status: 403 });
+    }
+
     const questionId = req.nextUrl.searchParams.get("questionId");
     const answerId = req.nextUrl.searchParams.get("answerId");
     if (!questionId || !answerId) {

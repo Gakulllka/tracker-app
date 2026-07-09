@@ -69,6 +69,20 @@ export async function GET(req: NextRequest) {
       rolePermissions = {};
     }
 
+    // Shared workspaces (workspaces this user has been granted access to)
+    const sharedWorkspaces = await prisma.workspaceShare.findMany({
+      where: { userId: session.userId },
+      include: {
+        workspace: {
+          select: {
+            id: true,
+            name: true,
+            user: { select: { displayName: true, username: true } },
+          },
+        },
+      },
+    });
+
     return NextResponse.json({
       success: true,
       user: {
@@ -79,6 +93,17 @@ export async function GET(req: NextRequest) {
         roleName: session.user.role?.name || "viewer",
       },
       workspaceId: workspace.id,
+      accessibleWorkspaces: sharedWorkspaces.map((s) => {
+        let domainIds: string[] = [];
+        try { domainIds = JSON.parse(s.domainIds || "[]"); } catch { /* empty */ }
+        return {
+          workspaceId: s.workspace.id,
+          name: s.workspace.name,
+          role: s.role,
+          ownerName: s.workspace.user.displayName || s.workspace.user.username,
+          domainIds,
+        };
+      }),
       permissions: perms ? {
         visibleTabs: perms.visibleTabs,
         visibleDomainIds: perms.visibleDomainIds,

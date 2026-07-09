@@ -67,12 +67,12 @@ function mergeDomains(
     } else {
       result[domainId] = {
         allData: mergeMonthData(
-          serverDomain.allData as Record<string, Task[]>,
-          clientDomain.allData as Record<string, Task[]>,
+          (serverDomain.allData || {}) as Record<string, Task[]>,
+          (clientDomain.allData || {}) as Record<string, Task[]>,
         ),
         backlog: mergeTasks(
-          serverDomain.backlog as Task[],
-          clientDomain.backlog as Task[],
+          (Array.isArray(serverDomain.backlog) ? serverDomain.backlog : []) as Task[],
+          (Array.isArray(clientDomain.backlog) ? clientDomain.backlog : []) as Task[],
         ),
         monthlyPlanByYearMonth: clientDomain.monthlyPlanByYearMonth ?? serverDomain.monthlyPlanByYearMonth,
       };
@@ -91,12 +91,13 @@ function filterDeletedFromDomains(
   const result: Record<string, DomainData> = {};
   for (const [domainId, domain] of Object.entries(domains)) {
     const filteredAllData: Record<string, Task[]> = {};
-    for (const [month, tasks] of Object.entries(domain.allData)) {
-      filteredAllData[month] = (tasks as Task[]).filter((t) => !t._deleted);
+    const allData = domain.allData || {};
+    for (const [month, tasks] of Object.entries(allData)) {
+      filteredAllData[month] = (Array.isArray(tasks) ? tasks : []).filter((t) => !t._deleted);
     }
     result[domainId] = {
       allData: filteredAllData,
-      backlog: (domain.backlog as Task[]).filter((t) => !t._deleted),
+      backlog: (Array.isArray(domain.backlog) ? domain.backlog : []).filter((t) => !t._deleted),
       monthlyPlanByYearMonth: domain.monthlyPlanByYearMonth,
     };
   }
@@ -122,8 +123,8 @@ function wrapAsDomainData(
 ): Record<string, DomainData> {
   return {
     default: {
-      allData: allData as Record<string, Task[]>,
-      backlog: backlog as Task[],
+      allData: (allData || {}) as Record<string, Task[]>,
+      backlog: (Array.isArray(backlog) ? backlog : []) as Task[],
     },
   };
 }
@@ -238,8 +239,10 @@ async function logTaskChanges(
 function flattenAllTasks(domains: Record<string, DomainData>): Task[] {
   const out: Task[] = [];
   for (const d of Object.values(domains)) {
-    for (const tasks of Object.values(d.allData)) out.push(...(tasks as Task[]));
-    out.push(...(d.backlog as Task[]));
+    if (d.allData) {
+      for (const tasks of Object.values(d.allData)) out.push(...(Array.isArray(tasks) ? tasks : []));
+    }
+    if (Array.isArray(d.backlog)) out.push(...d.backlog);
   }
   return out;
 }
@@ -267,6 +270,39 @@ function getClientIp(req: NextRequest): string {
 }
 
 // ---------------------------------------------------------------------------
+//  Access control: check if user can access / write to a workspace
+// ---------------------------------------------------------------------------
+
+type AccessResult = { allowed: true; isOwner: boolean; shareRole: string | null } | { allowed: false; status: number; error: string };
+
+async function checkWorkspaceAccess(
+  userId: string,
+  workspaceId: string,
+  requireWrite: boolean,
+): Promise<AccessResult> {
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  if (!workspace) return { allowed: false, status: 404, error: "Workspace not found" };
+
+  if (workspace.userId === userId) {
+    return { allowed: true, isOwner: true, shareRole: null };
+  }
+
+  const share = await prisma.workspaceShare.findUnique({
+    where: { workspaceId_userId: { workspaceId, userId } },
+  });
+
+  if (!share) {
+    return { allowed: false, status: 403, error: "Access denied" };
+  }
+
+  if (requireWrite && share.role === "viewer") {
+    return { allowed: false, status: 403, error: "Viewer cannot modify workspace" };
+  }
+
+  return { allowed: true, isOwner: false, shareRole: share.role };
+}
+
+// ---------------------------------------------------------------------------
 //  GET — return workspace data (tombstones filtered out)
 // ---------------------------------------------------------------------------
 
@@ -276,7 +312,17 @@ export async function GET(req: NextRequest) {
     const token = req.nextUrl.searchParams.get("token") || undefined;
     if (!id) return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
 
-    // Touch lastActivity on pull too — pull часто означает «открыл вкладку, синкаю».
+    // Access control
+    const auth = token ? await resolveUserFromToken(token) : null;
+    let access: AccessResult | null = null;
+    if (auth) {
+      access = await checkWorkspaceAccess(auth.user.id, id, false);
+      if (!access.allowed) {
+        return NextResponse.json({ error: access.error }, { status: access.status });
+      }
+    }
+
+    // Heartbeat
     if (token) {
       const auth = await resolveUserFromToken(token);
       if (auth) {
@@ -289,27 +335,81 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const ws = await prisma.workspace.findUnique({ where: { id } });
-    if (!ws) {
-      return NextResponse.json({
-        id,
-        name: "Моё пространство",
-        domainData: {},
-        updatedAt: new Date().toISOString(),
+    // Читаем задачи из таблицы Task
+    const tasks = await prisma.task.findMany({
+      where: { workspaceId: id, deleted: false },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Читаем беклог из таблицы BacklogItem
+    const backlogItems = await prisma.backlogItem.findMany({
+      where: { deleted: false },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Все задачи видны всем — фильтрация по visibleTo не нужна
+    const validTasks = tasks.filter(
+      (t) => (t.name && t.name !== "EMPTY") || (t.num && t.num !== "EMPTY")
+    );
+
+    // Собираем domainData из Task таблицы
+    const domainData: Record<string, DomainData> = {};
+    for (const task of validTasks) {
+      if (!domainData[task.domainId]) {
+        domainData[task.domainId] = { allData: {}, backlog: [] };
+      }
+      const domain = domainData[task.domainId];
+
+      if (!domain.allData[task.monthKey]) {
+        domain.allData[task.monthKey] = [];
+      }
+      domain.allData[task.monthKey].push({
+        id: task.id,
+        num: task.num,
+        name: task.name,
+        planH: task.planH,
+        factH: task.factH,
+        priority: task.priority,
+        status: task.status,
+        comment: task.comment,
+        commentLog: JSON.parse(task.commentLog || "[]"),
+        _ts: task.ts.getTime(),
       });
     }
 
-    const domainData = parseDomainData(ws.allData, ws.backlog);
-    const cleanDomainData = filterDeletedFromDomains(domainData);
+    // Добавляем беклог из BacklogItem таблицы
+    for (const item of backlogItems) {
+      if (!domainData[item.domainId]) {
+        domainData[item.domainId] = { allData: {}, backlog: [] };
+      }
+      domainData[item.domainId].backlog.push({
+        id: item.id,
+        num: item.num,
+        name: item.name,
+        planH: item.planH,
+        factH: item.factH,
+        priority: item.priority,
+        status: item.status,
+        comment: item.comment,
+        commentLog: JSON.parse(item.commentLog || "[]"),
+        _ts: item.ts.getTime(),
+      });
+    }
+
+    // Также читаем allData для обратной совместимости
+    const ws = await prisma.workspace.findUnique({ where: { id } });
 
     return NextResponse.json({
-      id: ws.id,
-      name: ws.name,
-      domainData: cleanDomainData,
-      updatedAt: ws.updatedAt.toISOString(),
+      id: ws?.id || id,
+      name: ws?.name || "Моё пространство",
+      domainData: Object.keys(domainData).length > 0 ? domainData : (ws ? (() => {
+        try { return JSON.parse(ws.allData); } catch { return {}; }
+      })() : {}),
+      updatedAt: ws?.updatedAt?.toISOString() || new Date().toISOString(),
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[sync] GET error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -321,20 +421,32 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, domainData: clientDomainData, token } = body as {
+    const { id, domainData: clientDomainData, token, domainNames } = body as {
       id?: string;
       domainData?: Record<string, DomainData>;
       token?: string;
+      domainNames?: Record<string, string>;
     };
 
     if (!id) return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
 
-    // Resolve user (best-effort, не блокируем sync, если токена нет —
-    // backward-compat для legacy клиентов).
-    const auth = await resolveUserFromToken(token);
+    // Resolve user
+    const auth = token ? await resolveUserFromToken(token) : null;
+
+    // Access control
+    if (auth) {
+      if (auth.user.username === "guest") {
+        return NextResponse.json({ error: "Гость не может изменять данные" }, { status: 403 });
+      }
+      const access = await checkWorkspaceAccess(auth.user.id, id, true);
+      if (!access.allowed) {
+        return NextResponse.json({ error: access.error }, { status: access.status });
+      }
+    }
+
     const ip = getClientIp(req);
 
-    // Heartbeat: каждый sync обновляет lastActivity сессии.
+    // Heartbeat
     if (auth) {
       try {
         await prisma.session.update({
@@ -344,59 +456,192 @@ export async function POST(req: NextRequest) {
       } catch { /* ignore */ }
     }
 
-    const existing = await prisma.workspace.findUnique({ where: { id } });
+    // Сохраняем задачи в таблицу Task
+    if (clientDomainData != null) {
+      // Разворачиваем domainData в плоский список задач
+      const allTasks: Array<{
+        id: string;
+        domainId: string;
+        monthKey: string;
+        num: string;
+        name: string;
+        planH: string;
+        factH: string;
+        priority: string;
+        status: string;
+        comment: string;
+        commentLog: string;
+        visibleTo: string;
+        ts: Date;
+        deleted: boolean;
+      }> = [];
 
-    if (existing) {
-      if (clientDomainData != null) {
-        const serverDomainData = parseDomainData(existing.allData, existing.backlog);
-        const merged = mergeDomains(serverDomainData, clientDomainData);
-
-        // Считаем diff и пишем логи — только при наличии auth-юзера,
-        // иначе мы не знаем кто это.
-        if (auth) {
-          const serverBefore = flattenAllTasks(serverDomainData);
-          const clientPushed = flattenAllTasks(clientDomainData);
-          const changes = diffTasks(serverBefore, clientPushed);
-          // Огранчим — слишком большой sync не валит DB логами:
-          // 1000 строк за один пуш максимум.
-          if (changes.length > 0 && changes.length <= 1000) {
-            await logTaskChanges(auth.user, ip, changes);
+      for (const [domainId, domain] of Object.entries(clientDomainData)) {
+        // Используем имя домена вместо ID
+        const domainName = domainNames?.[domainId] || domainId;
+        if (domain.allData) {
+          for (const [monthKey, tasks] of Object.entries(domain.allData)) {
+            if (!Array.isArray(tasks)) continue;
+            for (const t of tasks) {
+              // Пропускаем пустые задачи
+              if ((!t.name || t.name === "EMPTY") && (!t.num || t.num === "EMPTY")) continue;
+              allTasks.push({
+                id: t.id,
+                domainId: domainName,
+                monthKey,
+                num: t.num || "",
+                name: t.name || "",
+                planH: t.planH || "0",
+                factH: t.factH || "0",
+                priority: t.priority || "Средний",
+                status: t.status || "Идея",
+                comment: t.comment || "",
+                commentLog: JSON.stringify(t.commentLog || []),
+                visibleTo: JSON.stringify(t.visibleTo || []),
+                ts: t._ts ? new Date(t._ts) : new Date(),
+                deleted: Boolean(t._deleted),
+              });
+            }
           }
         }
-
-        await prisma.workspace.update({
-          where: { id },
-          data: { allData: JSON.stringify(merged), updatedAt: new Date() },
-        });
-      } else {
-        await prisma.workspace.update({ where: { id }, data: { updatedAt: new Date() } });
+        // Беклог
+        if (Array.isArray(domain.backlog)) {
+          for (const t of domain.backlog) {
+            if ((!t.name || t.name === "EMPTY") && (!t.num || t.num === "EMPTY")) continue;
+            allTasks.push({
+              id: t.id,
+              domainId: domainName,
+              monthKey: "backlog",
+              num: t.num || "",
+              name: t.name || "",
+              planH: t.planH || "0",
+              factH: t.factH || "0",
+              priority: t.priority || "Средний",
+              status: t.status || "Идея",
+              comment: t.comment || "",
+              commentLog: JSON.stringify(t.commentLog || []),
+              visibleTo: JSON.stringify(t.visibleTo || []),
+              ts: t._ts ? new Date(t._ts) : new Date(),
+              deleted: Boolean(t._deleted),
+            });
+          }
+        }
       }
 
-      const updated = await prisma.workspace.findUnique({ where: { id } });
-      return NextResponse.json({ success: true, updatedAt: updated?.updatedAt.toISOString() });
-    } else {
-      // New workspace
-      try {
+      // Массовый upsert в таблицу Task
+      if (allTasks.length > 0) {
+        // Только обновляем/создаём задачи которые прислал клиент
+        // НЕ удаляем то что клиент не прислал — это были бы чужие задачи
+        for (const t of allTasks) {
+          await prisma.task.upsert({
+            where: { id: t.id },
+            create: {
+              id: t.id,
+              workspaceId: id,
+              domainId: t.domainId,
+              monthKey: t.monthKey,
+              num: t.num,
+              name: t.name,
+              planH: t.planH,
+              factH: t.factH,
+              priority: t.priority,
+              status: t.status,
+              comment: t.comment,
+              commentLog: t.commentLog,
+              visibleTo: t.visibleTo,
+              ts: t.ts,
+              deleted: t.deleted,
+            },
+            update: {
+              domainId: t.domainId,
+              monthKey: t.monthKey,
+              num: t.num,
+              name: t.name,
+              planH: t.planH,
+              factH: t.factH,
+              priority: t.priority,
+              status: t.status,
+              comment: t.comment,
+              commentLog: t.commentLog,
+              visibleTo: t.visibleTo,
+              ts: t.ts,
+              deleted: t.deleted,
+            },
+          });
+        }
+      }
+
+      // Сохраняем беклог в таблицу BacklogItem
+      const backlogTasks = allTasks.filter(t => t.monthKey === "backlog");
+      if (backlogTasks.length > 0) {
+        // Удаляем старый беклог для этих domain
+        const backlogDomainIds = [...new Set(backlogTasks.map(t => t.domainId))];
+        for (const domainId of backlogDomainIds) {
+          await prisma.backlogItem.deleteMany({
+            where: { domainId, id: { notIn: backlogTasks.filter(t => t.domainId === domainId).map(t => t.id) } },
+          }).catch(() => {});
+        }
+        // Upsert беклог
+        for (const t of backlogTasks) {
+          await prisma.backlogItem.upsert({
+            where: { id: t.id },
+            create: {
+              id: t.id,
+              domainId: t.domainId,
+              num: t.num,
+              name: t.name,
+              planH: t.planH,
+              factH: t.factH,
+              priority: t.priority,
+              status: t.status,
+              comment: t.comment,
+              commentLog: t.commentLog,
+              ts: t.ts,
+              deleted: t.deleted,
+            },
+            update: {
+              domainId: t.domainId,
+              num: t.num,
+              name: t.name,
+              planH: t.planH,
+              factH: t.factH,
+              priority: t.priority,
+              status: t.status,
+              comment: t.comment,
+              commentLog: t.commentLog,
+              ts: t.ts,
+              deleted: t.deleted,
+            },
+          });
+        }
+      }
+
+      // Также сохраняем в allData для обратной совместимости
+      const existing = await prisma.workspace.findUnique({ where: { id } });
+      if (existing) {
+        await prisma.workspace.update({
+          where: { id },
+          data: { allData: JSON.stringify(clientDomainData), updatedAt: new Date() },
+        });
+      } else {
         await prisma.workspace.create({
           data: {
             id,
-            allData: clientDomainData ? JSON.stringify(clientDomainData) : "{}",
+            allData: JSON.stringify(clientDomainData),
             backlog: "[]",
-            userId: "system",
+            userId: auth?.user.id || "system",
           },
         });
-      } catch (err) {
-        const prismaErr = err as { code?: string };
-        if (prismaErr.code === "P2002") {
-          const ws = await prisma.workspace.findUnique({ where: { id } });
-          if (ws) return NextResponse.json({ success: true, updatedAt: ws.updatedAt.toISOString() });
-        }
-        throw err;
       }
-      return NextResponse.json({ success: true });
+    } else {
+      await prisma.workspace.update({ where: { id }, data: { updatedAt: new Date() } }).catch(() => {});
     }
+
+    const updated = await prisma.workspace.findUnique({ where: { id } });
+    return NextResponse.json({ success: true, updatedAt: updated?.updatedAt.toISOString() });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[sync] POST error:", message, error);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

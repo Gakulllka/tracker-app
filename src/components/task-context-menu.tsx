@@ -22,11 +22,12 @@ interface TaskContextMenuProps {
   deleteTask: (month: number, taskId: string) => void;
   moveToBacklog: (month: number, taskId: string) => void;
   duplicateTask: (month: number, taskId: string) => void;
+  isGuest?: boolean;
   children: React.ReactNode;
 }
 
 export function TaskContextMenu({
-  task, month, isDark, updateTask, deleteTask, moveToBacklog, duplicateTask, children,
+  task, month, isDark, updateTask, deleteTask, moveToBacklog, duplicateTask, isGuest, children,
 }: TaskContextMenuProps) {
   const moveTasks = useTaskStore(s => s.moveTasks);
   const snapshot = useTaskStore(s => s.snapshot);
@@ -45,6 +46,11 @@ export function TaskContextMenu({
     snapshot();
     moveTasks(task.id, month, toMonth);
   }, [task.id, month, snapshot, moveTasks]);
+
+  // Гость — только просмотр, без контекстного меню
+  if (isGuest) {
+    return <>{children}</>;
+  }
 
   return (
     <ContextMenu>

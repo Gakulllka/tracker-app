@@ -43,6 +43,7 @@ export interface Task {
   commentLog: CommentEntry[];
   _hidden?: boolean;
   taskComments?: TaskComment[];
+  visibleTo?: string; // JSON array of user IDs — who can see this task
 
   // ── Delta fields (Монитор БА + Монитор Руководителя) ──────────────────────
   /** Общий запрошенный бюджет задачи в часах (может быть > лимита месяца). */

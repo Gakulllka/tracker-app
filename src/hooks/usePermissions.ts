@@ -2,9 +2,13 @@
 /**
  * usePermissions — вычисление прав доступа пользователя.
  * Вынесено из TaskTrackerInner.
+ *
+ * Поддерживает роль "executive" (руководитель) — видит только
+ * назначенные домены, может комментировать и ставить флаги,
+ * но не может менять статусы задач.
  */
 import { useMemo, useEffect } from "react";
-import type { AuthData } from "./useAuth";
+import type { AuthData, AccessibleWorkspace } from "./useAuth";
 import type { Domain } from "@/lib/types";
 
 interface UsePermissionsParams {
@@ -12,27 +16,38 @@ interface UsePermissionsParams {
   domains: Domain[];
   activeDomainId: string;
   storeSetActiveDomain: (id: string) => void;
+  /** Текущий workspace share (если пользователь — не владелец workspace). */
+  currentShare?: AccessibleWorkspace;
 }
 
 export function usePermissions({
-  authData, domains, activeDomainId, storeSetActiveDomain,
+  authData, domains, activeDomainId, storeSetActiveDomain, currentShare,
 }: UsePermissionsParams) {
   const isAdmin = authData.user.role === "admin";
+  const isGuest = authData.user.role === "guest";
   const perms = authData.permissions;
   const rolePerms = authData.rolePermissions;
+  const isExecutive = currentShare?.role === "executive";
 
   const canEdit = useMemo(() => {
+    if (isGuest) return false; // гость — только просмотр
+    if (isExecutive) return false; // руководитель не может менять статусы
     if (isAdmin) return true;
     if (perms) return perms.canEdit;
     if (rolePerms && typeof rolePerms.canEditTasks === "boolean") return rolePerms.canEditTasks;
     return true;
-  }, [isAdmin, perms, rolePerms]);
+  }, [isAdmin, isGuest, perms, rolePerms, isExecutive]);
 
-  const canDeleteTasks       = isAdmin || rolePerms?.canDeleteTasks !== false;
-  const canEditBacklog       = isAdmin || (rolePerms?.canEditBacklog ?? canEdit);
-  const canDeleteBacklog     = isAdmin || rolePerms?.canDeleteBacklog !== false;
-  const canCreatePresentations = isAdmin || rolePerms?.canCreatePresentations !== false;
-  const canUseAI             = isAdmin || rolePerms?.canUseAI !== false;
+  // Руководитель может комментировать и ставить флаги
+  // Гость — ничего не может
+  const canComment = isGuest ? false : (isExecutive ? true : undefined);
+  const canSetFlags = isGuest ? false : (isExecutive ? true : undefined);
+
+  const canDeleteTasks       = !isGuest && !isExecutive && (isAdmin || rolePerms?.canDeleteTasks !== false);
+  const canEditBacklog       = !isGuest && !isExecutive && (isAdmin || (rolePerms?.canEditBacklog ?? canEdit));
+  const canDeleteBacklog     = !isGuest && !isExecutive && (isAdmin || rolePerms?.canDeleteBacklog !== false);
+  const canCreatePresentations = !isGuest && (isAdmin || rolePerms?.canCreatePresentations !== false);
+  const canUseAI             = !isGuest && (isAdmin || rolePerms?.canUseAI !== false);
 
   const allowedTabs = useMemo(() => {
     if (isAdmin || !perms?.visibleTabs) return null;
@@ -41,6 +56,10 @@ export function usePermissions({
   }, [isAdmin, perms]);
 
   const allowedDomainIds = useMemo(() => {
+    // Executive: restrict to assigned domains
+    if (isExecutive && currentShare?.domainIds && currentShare.domainIds.length > 0) {
+      return new Set(currentShare.domainIds);
+    }
     if (isAdmin) return null;
     if (perms?.visibleDomainIds && perms.visibleDomainIds !== "[]") {
       try {
@@ -55,7 +74,7 @@ export function usePermissions({
       } catch { /* fall through */ }
     }
     return null;
-  }, [isAdmin, perms, rolePerms]);
+  }, [isAdmin, perms, rolePerms, isExecutive, currentShare]);
 
   const visibleDomains = useMemo(() => {
     if (!allowedDomainIds) return domains;
@@ -78,9 +97,10 @@ export function usePermissions({
   }, [isAdmin, perms, rolePerms]);
 
   return {
-    isAdmin, canEdit,
+    isAdmin, isGuest, canEdit, canComment, canSetFlags,
     canDeleteTasks, canEditBacklog, canDeleteBacklog,
     canCreatePresentations, canUseAI,
     allowedTabs, visibleDomains, canSeeQuestions,
+    isExecutive,
   };
 }

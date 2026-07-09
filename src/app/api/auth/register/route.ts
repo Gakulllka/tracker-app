@@ -8,9 +8,9 @@ export async function POST(req: NextRequest) {
   try {
     const { username, password, displayName } = await req.json();
 
-    if (!username || !password) {
+    if (!username) {
       return NextResponse.json(
-        { error: "Укажите имя пользователя и пароль" },
+        { error: "Укажите имя пользователя" },
         { status: 400 }
       );
     }
@@ -18,13 +18,6 @@ export async function POST(req: NextRequest) {
     if (username.length < 3) {
       return NextResponse.json(
         { error: "Имя пользователя должно быть не менее 3 символов" },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 8) {
-      return NextResponse.json(
-        { error: "Пароль должен быть не менее 8 символов" },
         { status: 400 }
       );
     }
@@ -42,8 +35,8 @@ export async function POST(req: NextRequest) {
     const userCount = await prisma.user.count();
     const isFirstUser = userCount === 0;
 
-    // Create user
-    const passwordHash = await hashPassword(password);
+    // Create user — пароль может быть пустым
+    const passwordHash = password ? await hashPassword(password) : await hashPassword("");
     const defaultRole = await prisma.role.findFirst({
       where: { name: isFirstUser ? "admin" : "editor" },
     });

@@ -35,6 +35,7 @@ export interface QuestionsViewProps {
   addToBacklog: (task: Task) => void;
   addToTable: (month: number, task: Task) => void;
   isDark: boolean;
+  isGuest?: boolean;
 }
 
 interface QuestionToTaskDialog {
@@ -70,7 +71,7 @@ const FILTER_TABS: { key: FilterTab; label: string; icon: React.ReactNode }[] = 
 export function QuestionsView({
   questions, newQuestionText, setNewQuestionText, addQuestion, addLinkedQuestion,
   removeQuestion, answerQuestion, deleteAnswer, archiveQuestion, restoreQuestion,
-  currentUsername, currentMonth, allData, updateTask, addToBacklog, addToTable, isDark,
+  currentUsername, currentMonth, allData, updateTask, addToBacklog, addToTable, isDark, isGuest,
 }: QuestionsViewProps) {
   const [answeringId, setAnsweringId] = useState<string | null>(null);
   const [answerDraft, setAnswerDraft] = useState("");
@@ -339,15 +340,17 @@ export function QuestionsView({
               )}
             </div>
 
-            <div className="flex items-center justify-between mt-2 pt-2 border-t" style={{ borderColor: "var(--tracker-border)" }}>
-              <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>Ctrl+Enter · отправить</span>
-              <Button size="sm" disabled={!newQuestionText.trim()}
-                className="h-7 gap-1.5 text-xs rounded-lg px-3"
-                style={{ background: "var(--tracker-accent)", color: "#fff" }}
-                onClick={handleAddQuestion}>
-                <Sparkles className="size-3" /> Задать вопрос
-              </Button>
-            </div>
+            {!isGuest && (
+              <div className="flex items-center justify-between mt-2 pt-2 border-t" style={{ borderColor: "var(--tracker-border)" }}>
+                <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>Ctrl+Enter · отправить</span>
+                <Button size="sm" disabled={!newQuestionText.trim()}
+                  className="h-7 gap-1.5 text-xs rounded-lg px-3"
+                  style={{ background: "var(--tracker-accent)", color: "#fff" }}
+                  onClick={handleAddQuestion}>
+                  <Sparkles className="size-3" /> Задать вопрос
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -407,7 +410,7 @@ export function QuestionsView({
                 answeringId={answeringId} setAnsweringId={setAnsweringId} answerDraft={answerDraft} setAnswerDraft={setAnswerDraft}
                 currentUsername={currentUsername} answerQuestion={answerQuestion} deleteAnswer={deleteAnswer}
                 removeQuestion={removeQuestion} archiveQuestion={archiveQuestion} openTaskDialog={openTaskDialog} isDark={isDark}
-                allData={allData} updateTask={updateTask} currentMonth={currentMonth} />
+                allData={allData} updateTask={updateTask} currentMonth={currentMonth} isGuest={isGuest} />
             ))}
           </div>
 
@@ -433,7 +436,7 @@ export function QuestionsView({
                 answeringId={answeringId} setAnsweringId={setAnsweringId} answerDraft={answerDraft} setAnswerDraft={setAnswerDraft}
                 currentUsername={currentUsername} answerQuestion={answerQuestion} deleteAnswer={deleteAnswer}
                 removeQuestion={removeQuestion} archiveQuestion={archiveQuestion} openTaskDialog={openTaskDialog} isDark={isDark}
-                allData={allData} updateTask={updateTask} currentMonth={currentMonth} />
+                allData={allData} updateTask={updateTask} currentMonth={currentMonth} isGuest={isGuest} />
             ))}
           </div>
 
@@ -459,7 +462,7 @@ export function QuestionsView({
                 answeringId={answeringId} setAnsweringId={setAnsweringId} answerDraft={answerDraft} setAnswerDraft={setAnswerDraft}
                 currentUsername={currentUsername} answerQuestion={answerQuestion} deleteAnswer={deleteAnswer}
                 removeQuestion={removeQuestion} archiveQuestion={archiveQuestion} openTaskDialog={openTaskDialog} isDark={isDark}
-                allData={allData} updateTask={updateTask} currentMonth={currentMonth} />
+                allData={allData} updateTask={updateTask} currentMonth={currentMonth} isGuest={isGuest} />
             ))}
           </div>
         </div>
@@ -534,7 +537,7 @@ export function QuestionsView({
 }
 
 // ── Question Card Component ──
-function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAnsweringId, answerDraft, setAnswerDraft, currentUsername, answerQuestion, deleteAnswer, removeQuestion, archiveQuestion, openTaskDialog, isDark, allData, updateTask, currentMonth }: {
+function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAnsweringId, answerDraft, setAnswerDraft, currentUsername, answerQuestion, deleteAnswer, removeQuestion, archiveQuestion, openTaskDialog, isDark, allData, updateTask, currentMonth, isGuest }: {
   q: Question;
   expandedId: string | null;
   setExpandedId: (id: string | null) => void;
@@ -552,6 +555,7 @@ function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAnsweringI
   allData: Record<number, Task[]>;
   updateTask: (month: number, taskId: string, key: keyof Task, value: unknown) => void;
   currentMonth: number;
+  isGuest?: boolean;
 }) {
   const answers = q.answers || [];
   const isAnswered = answers.length > 0;
@@ -623,18 +627,20 @@ function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAnsweringI
                   <DropdownMenuItem onClick={() => openTaskDialog(q, "table")} className="gap-2 text-xs"><ClipboardList className="size-3" />В таблицу</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              {isAnswered && (
+              {isAnswered && !isGuest && (
                 <button onClick={() => archiveQuestion(q.id)}
                   className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-all hover:shadow-sm"
                   style={{ borderColor: "rgba(139,92,246,0.3)", color: "#8b5cf6" }}>
                   <Archive className="size-2.5" />В архив
                 </button>
               )}
-              <button onClick={() => removeQuestion(q.id)}
-                className="text-[10px] px-1.5 py-1 rounded-md transition-colors hover:bg-red-50 hover:text-red-500 ml-auto"
-                style={{ color: "var(--tracker-text-muted)" }}>
-                <Trash2 className="size-2.5" />
-              </button>
+              {!isGuest && (
+                <button onClick={() => removeQuestion(q.id)}
+                  className="text-[10px] px-1.5 py-1 rounded-md transition-colors hover:bg-red-50 hover:text-red-500 ml-auto"
+                  style={{ color: "var(--tracker-text-muted)" }}>
+                  <Trash2 className="size-2.5" />
+                </button>
+              )}
             </div>
 
             {/* Linked task actions */}

@@ -8,9 +8,9 @@ export async function POST(req: NextRequest) {
   try {
     const { username, password } = await req.json();
 
-    if (!username || !password) {
+    if (!username) {
       return NextResponse.json(
-        { error: "Укажите имя пользователя и пароль" },
+        { error: "Укажите имя пользователя" },
         { status: 400 }
       );
     }
@@ -32,13 +32,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify password
-    const valid = await verifyPassword(password, user.passwordHash);
-    if (!valid) {
-      return NextResponse.json(
-        { error: "Неверное имя пользователя или пароль" },
-        { status: 401 }
-      );
+    // Verify password — если пароль пустой, проверяем что и в базе пустой
+    if (password) {
+      const valid = await verifyPassword(password, user.passwordHash);
+      if (!valid) {
+        return NextResponse.json(
+          { error: "Неверное имя пользователя или пароль" },
+          { status: 401 }
+        );
+      }
+    } else {
+      // Если пользователь ввёл пустой пароль — проверяем что в базе тоже пустой
+      const validEmpty = await verifyPassword("", user.passwordHash);
+      if (!validEmpty) {
+        return NextResponse.json(
+          { error: "Неверное имя пользователя или пароль" },
+          { status: 401 }
+        );
+      }
     }
 
     // Find or create default workspace

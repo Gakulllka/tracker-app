@@ -18,6 +18,8 @@ import { fixStatus, fixPriority, evalExpr, fmt2, R2 } from "./metrics";
 export interface ImportResult {
   allData: AllData;
   backlog: Task[];
+  questions: unknown[];
+  presBg: unknown;
   themeId: string;
   customColor: string;
   domains: Domain[];
@@ -32,15 +34,19 @@ export function exportJSON(
   domains: Domain[],
   activeDomainId: string,
   domainName?: string,
+  questions?: unknown[],
+  presBg?: unknown,
 ): void {
   const payload = {
     data: allData,
     backlog,
+    questions: questions || [],
+    presBg: presBg || null,
     themeId,
     customColor,
     domains,
     activeDomainId,
-    _version: "1.0.0",
+    _version: "1.1.0",
     _saved: new Date().toISOString(),
   };
 
@@ -78,7 +84,7 @@ export async function importJSON(file: File): Promise<ImportResult> {
       comment: String(t.comment || ""),
       commentLog: Array.isArray(t.commentLog) ? t.commentLog : [],
       _hidden: Boolean(t._hidden),
-    }));
+    })).filter((t) => (t.name && t.name !== "EMPTY") || (t.num && t.num !== "EMPTY"));
   }
 
   // Ensure all 12 months exist
@@ -97,7 +103,7 @@ export async function importJSON(file: File): Promise<ImportResult> {
         status: fixStatus(t.status),
         comment: String(t.comment || ""),
         commentLog: Array.isArray(t.commentLog) ? t.commentLog : [],
-      }))
+      })).filter((t) => (t.name && t.name !== "EMPTY") || (t.num && t.num !== "EMPTY"))
     : [];
 
   const domains: Domain[] = Array.isArray(raw.domains)
@@ -107,6 +113,8 @@ export async function importJSON(file: File): Promise<ImportResult> {
   return {
     allData,
     backlog,
+    questions: Array.isArray(raw.questions) ? raw.questions : [],
+    presBg: raw.presBg || null,
     themeId: String(raw.themeId || "#5B9BD5"),
     customColor: String(raw.customColor || ""),
     domains: domains.length > 0 ? domains : [{ id: "default", name: "По умолчанию" }],

@@ -65,6 +65,8 @@ export interface SlidesViewProps {
   /** Phase 3: текущий месяц/год для шапки слайдов. */
   currentMonth: number;
   currentYear: number;
+  /** Гость — только просмотр. */
+  isGuest?: boolean;
 }
 
 const AI_SECTION_LABELS: Record<string, string> = {
@@ -106,6 +108,7 @@ export function SlidesView({
   setPresSubTab,
   currentMonth,
   currentYear,
+  isGuest,
 }: SlidesViewProps) {
 
   /* Sub-tabs header — общий для всех трёх режимов */
@@ -275,19 +278,21 @@ export function SlidesView({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs"
-            onClick={() => onSetAiDraft({ achievements: [""], risks: [""], inProgress: [""], summary: [""] })}
-            disabled={!!aiDraft}>
-            ✏️ Заполнить вручную
-          </Button>
-          <Button size="sm" className="h-8 gap-1.5 text-xs bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
-            onClick={onAiAnalysis} disabled={aiAnalysisBusy || !!aiDraft}>
-            {aiAnalysisBusy
-              ? <><Loader2 className="size-3.5 animate-spin" />Анализирую...</>
-              : <><Sparkles className="size-3.5" />Сгенерировать</>}
-          </Button>
-        </div>
+        {!isGuest && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs"
+              onClick={() => onSetAiDraft({ achievements: [""], risks: [""], inProgress: [""], summary: [""] })}
+              disabled={!!aiDraft}>
+              ✏️ Заполнить вручную
+            </Button>
+            <Button size="sm" className="h-8 gap-1.5 text-xs bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
+              onClick={onAiAnalysis} disabled={aiAnalysisBusy || !!aiDraft}>
+              {aiAnalysisBusy
+                ? <><Loader2 className="size-3.5 animate-spin" />Анализирую...</>
+                : <><Sparkles className="size-3.5" />Сгенерировать</>}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Phase 7.3: красный баннер ошибки — отображается до следующей попытки */}
@@ -333,7 +338,7 @@ export function SlidesView({
       </div>
 
       {/* Draft editor */}
-      {aiDraft && (
+      {aiDraft && !isGuest && (
         <div className="rounded-2xl border-2 p-5 space-y-4"
           style={{ borderColor: "var(--tracker-accent)", background: "var(--tracker-accent-bg)" }}>
           <div className="flex items-center justify-between flex-wrap gap-2">

@@ -94,6 +94,9 @@ import {
   HelpCircle,
   BarChart3,
   Palette,
+  Share2,
+  Users,
+  Check,
 } from "lucide-react";
 import AuthScreen from "@/components/auth-screen";
 import { TaskDetailDialog } from "@/components/dialogs/task-detail-dialog";
@@ -111,6 +114,7 @@ import { TransferDialog } from "@/components/dialogs/transfer-dialog";
 import { ImportConfirmDialog } from "@/components/dialogs/import-confirm-dialog";
 import { NewTaskDialog } from "@/components/dialogs/new-task-dialog";
 import { SettingsDialog } from "@/components/dialogs/settings-dialog";
+import { ShareDialog } from "@/components/dialogs/share-dialog";
 import { calcMonthBudgetUsed } from "@/lib/metrics";
 import { computeFirstToCut } from "@/lib/cut-algorithm";
 
@@ -128,7 +132,7 @@ export default function TaskTrackerPage() {
 }
 
 function AppWithAuth() {
-  const { authData, authChecking, handleAuth, handleLogout } = useAuth();
+  const { authData, authChecking, handleAuth, handleLogout, switchWorkspace } = useAuth();
 
   if (authChecking) {
     return (
@@ -144,19 +148,37 @@ function AppWithAuth() {
   }
 
   if (!authData) return <AuthScreen onAuth={handleAuth} />;
-  return <TaskTrackerInner authData={authData} onLogout={handleLogout} />;
+  return <TaskTrackerInner authData={authData} onLogout={handleLogout} switchWorkspace={switchWorkspace} />;
 }
 
 //  DesignView — theme picker with named themes and live preview
 // ──────────────────────────────────────────────────────────────────
 
-function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout: () => void }) {
+function TaskTrackerInner({ authData, onLogout, switchWorkspace }: { authData: AuthData; onLogout: () => void; switchWorkspace: (id: string) => void }) {
   /* ---- Auth-provided workspace ---- */
   const workspaceId = authData.workspaceId;
   const [isOnline, setIsOnline] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const isSyncingRef = useRef(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  /* ---- Legacy key cleanup ----
+   * With workspace-scoped localStorage, the old shared key `task-tracker-store`
+   * may still exist from a previous version. Clean it up once per session. */
+  useEffect(() => {
+    if (!workspaceId) return;
+    try {
+      const legacy = localStorage.getItem("task-tracker-store");
+      if (legacy) {
+        // Legacy key exists — the workspace-scoped storage adapter handles
+        // migration (copies legacy data to the workspace-specific key on read).
+        // Remove the legacy key after a short delay to allow the migration.
+        setTimeout(() => {
+          try { localStorage.removeItem("task-tracker-store"); } catch { /* ignore */ }
+        }, 2000);
+      }
+    } catch { /* ignore */ }
+  }, [workspaceId]);
 
   /* ---- Store selectors ---- */
   const allData = useTaskStore((s) => s.allData);
@@ -400,6 +422,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   // Settings dialog
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // Share dialog
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+
 
   // Sync tracker color theme → presentation preset (emojis, pattern, animation)
   useEffect(() => {
@@ -472,12 +497,18 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
   );
 
   /* ---- Permissions (вынесено в хук) ---- */
+  // Find the current share record if user is accessing a shared workspace
+  const currentShare = useMemo(() => {
+    if (!authData.accessibleWorkspaces) return undefined;
+    return authData.accessibleWorkspaces.find(ws => ws.workspaceId === workspaceId && ws.role !== "editor" && ws.role !== "viewer");
+  }, [authData.accessibleWorkspaces, workspaceId]);
+
   const {
-    isAdmin, canEdit,
+    isAdmin, isGuest, canEdit, canComment, canSetFlags, isExecutive,
     canDeleteTasks, canEditBacklog, canDeleteBacklog,
     canCreatePresentations, canUseAI,
     allowedTabs, visibleDomains, canSeeQuestions,
-  } = usePermissions({ authData, domains, activeDomainId, storeSetActiveDomain: storeSetActiveDomain });
+  } = usePermissions({ authData, domains, activeDomainId, storeSetActiveDomain: storeSetActiveDomain, currentShare });
   void canDeleteTasks; void canEditBacklog; void canDeleteBacklog; void canCreatePresentations; void canUseAI;
 
   const totalFactMap = useMemo(
@@ -786,9 +817,12 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
     allData, backlog, currentMonth, totalFactMap, accentHex,
     themeId, customColor, domains, activeDomainId,
     activeDomainName: activeDomain?.name,
+    questions, presBg,
     storeSetAllData, storeSetBacklog, storeSetDomains,
     storeSetActiveDomainId, storeSetThemeId,
     storeSetCustomColor: (c, d) => storeSetCustomColor(c, d),
+    storeSetPresBg: (bg) => storeSetPresBg(bg as Record<string, unknown>),
+    setQuestions: setQuestions as (q: unknown[]) => void,
     toast,
   });
 
@@ -981,25 +1015,30 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
                     { key: "table", icon: LayoutGrid, label: "Задачи" },
                     { key: "backlog", icon: Package, label: "Беклог" },
                     ...(canSeeQuestions ? [{ key: "questions" as const, icon: HelpCircle, label: "Вопросы" }] : []),
-                    { key: "dashboard", icon: BarChart3, label: "Дашборд" },
                     { key: "design", icon: Palette, label: "Оформление" },
-                    { key: "chat", icon: MessageSquare, label: "Чат" },
                     { key: "slides", icon: Presentation, label: "Презентация" },
+                    { key: "dashboard", icon: BarChart3, label: "Дашборд", disabled: true },
+                    { key: "chat", icon: MessageSquare, label: "Чат", disabled: true },
                   ] as const
                 )
                   .filter((tab) => !allowedTabs || allowedTabs.has(tab.key))
                   .map((tab) => {
                     const Icon = tab.icon;
+                    const isDisabled = 'disabled' in tab && tab.disabled;
                     return (
                       <SidebarMenuItem key={tab.key}>
                         <SidebarMenuButton
                           isActive={view === tab.key}
-                          onClick={() => setView(tab.key)}
-                          tooltip={tab.label}
-                          className="h-10"
+                          onClick={isDisabled ? undefined : () => setView(tab.key)}
+                          tooltip={isDisabled ? `${tab.label} — в разработке` : tab.label}
+                          className={`h-10 ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                          disabled={isDisabled}
                         >
                           <Icon className="size-4" />
                           <span>{tab.label}</span>
+                          {isDisabled && (
+                            <span className="ml-auto text-[9px] text-[var(--tracker-text-muted)] opacity-70"> Скоро</span>
+                          )}
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     );
@@ -1066,6 +1105,55 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
                       </PopoverContent>
                     </Popover>
                     <button onClick={() => setCurrentYearStore(currentYear + 1)} className="size-6 rounded text-xs font-medium text-[var(--tracker-text-muted)] hover:bg-[var(--tracker-accent-bg)] hover:text-[var(--tracker-text-main)] transition-colors flex items-center justify-center">›</button>
+                  </div>
+                </div>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+
+          {/* ---- Workspace Switcher ---- */}
+          {authData.accessibleWorkspaces.length > 0 && (
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <div className="px-2 space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider px-2 text-[var(--tracker-text-muted)] group-data-[collapsible=icon]:hidden">Пространства</p>
+                  <div className="space-y-0.5 group-data-[collapsible=icon]:hidden">
+                    {/* Own workspace */}
+                    <button
+                      onClick={() => switchWorkspace(authData.workspaceId)}
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                        true // own workspace is always "active" when not switched
+                          ? "bg-[var(--tracker-accent-bg)] text-[var(--tracker-text-main)] font-medium"
+                          : "text-[var(--tracker-text-muted)] hover:bg-[var(--tracker-accent-bg)]"
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: "var(--tracker-accent)", color: "#fff" }}>
+                        <span className="text-[9px] font-bold">{(authData.user.displayName || authData.user.username).charAt(0).toUpperCase()}</span>
+                      </div>
+                      <span className="truncate">Моё пространство</span>
+                      <Check className="size-3 ml-auto shrink-0" style={{ color: "var(--tracker-accent)" }} />
+                    </button>
+
+                    {/* Shared workspaces */}
+                    {authData.accessibleWorkspaces.map(ws => (
+                      <button
+                        key={ws.workspaceId}
+                        onClick={() => switchWorkspace(ws.workspaceId)}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                          workspaceId === ws.workspaceId
+                            ? "bg-[var(--tracker-accent-bg)] text-[var(--tracker-text-main)] font-medium"
+                            : "text-[var(--tracker-text-muted)] hover:bg-[var(--tracker-accent-bg)]"
+                        }`}
+                      >
+                        <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: "var(--tracker-accent-bg, rgba(155,114,207,0.15))", color: "var(--tracker-accent)" }}>
+                          <Users className="size-3" />
+                        </div>
+                        <span className="truncate flex-1 text-left">{ws.name}</span>
+                        <span className={`text-[9px] px-1 py-0.5 rounded shrink-0 ${ws.role === "editor" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
+                          {ws.role === "editor" ? "ред." : "просм."}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </SidebarGroupContent>
@@ -1165,14 +1253,22 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
 
             <div className="flex-1 min-w-4" />
 
-            {/* Right: dark + settings + user + logout + sync */}
+            {/* Right: dark + share + settings + user + logout + sync */}
             <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => storeSetCustomDark(!customDark)} title={customDark ? "Светлая тема" : "Тёмная тема"}>
               {customDark ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
             </Button>
 
-            <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => setSettingsOpen(true)} title="Настройки">
-              <Settings className="size-3.5" />
-            </Button>
+            {!isGuest && (
+              <>
+                <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => setShareDialogOpen(true)} title="Поделиться пространством">
+                  <Share2 className="size-3.5" />
+                </Button>
+
+                <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => setSettingsOpen(true)} title="Настройки">
+                  <Settings className="size-3.5" />
+                </Button>
+              </>
+            )}
 
             <div className="flex items-center gap-2 px-2 py-1 rounded-xl bg-[var(--tracker-accent-bg)] shrink-0">
               <div className="w-6 h-6 rounded-full bg-[var(--tracker-accent)]/20 flex items-center justify-center shrink-0">
@@ -1181,6 +1277,9 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
               <span className="text-xs font-medium text-[var(--tracker-text-main)] max-w-[100px] truncate hidden md:inline">{authData.user.displayName || authData.user.username}</span>
               {isAdmin && (
                 <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold hidden md:inline" style={{ background: "var(--tracker-accent)", color: "#fff" }}>ADMIN</span>
+              )}
+              {isGuest && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold hidden md:inline" style={{ background: "rgba(107,114,128,0.2)", color: "#6b7280" }}>Только просмотр</span>
               )}
             </div>
 
@@ -1315,6 +1414,8 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             clearSelection={clearSelection}
             bulkUpdateTasks={bulkUpdateTasks}
             duplicateTask={duplicateTask}
+            isExecutive={isExecutive}
+            isGuest={isGuest}
           />
         )}
 
@@ -1327,6 +1428,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             reorderBacklog={reorderBacklog}
             setCommentArchiveDialog={setCommentArchiveDialog}
             isDark={customDark}
+            isGuest={isGuest}
           />
         )}
 
@@ -1375,6 +1477,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
               state.setAllData({ ...state.allData, [month]: isEmpty ? [task] : [...existing, task] });
             }}
             isDark={customDark}
+            isGuest={isGuest}
           />
         )}
 
@@ -1445,6 +1548,7 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
             setPresSubTab={setPresSubTab}
             currentMonth={currentMonth}
             currentYear={currentYear}
+            isGuest={isGuest}
           />
         )}
       </main>
@@ -1458,24 +1562,31 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
               { key: "table",     emoji: "📋", label: "Задачи" },
               { key: "backlog",   emoji: "📦", label: "Беклог" },
               ...(canSeeQuestions ? [{ key: "questions" as const, emoji: "❓", label: "Вопросы" }] : []),
-              { key: "dashboard", emoji: "📊", label: "Дашборд" },
-              { key: "chat",      emoji: "💬", label: "Чат" },
+              { key: "dashboard", emoji: "📊", label: "Дашборд", disabled: true },
+              { key: "chat",      emoji: "💬", label: "Чат", disabled: true },
             ] as const
           )
             .filter((tab) => !allowedTabs || allowedTabs.has(tab.key))
-            .map((tab) => (
-            <button
-              key={tab.key}
-              role="tab"
-              aria-selected={view === tab.key}
-              aria-label={tab.label}
-              onClick={() => setView(tab.key)}
-              className={`mobile-bottom-nav-item ${view === tab.key ? "active" : ""}`}
-            >
-              <span className="mobile-bottom-nav-icon">{tab.emoji}</span>
-              <span className="mobile-bottom-nav-label">{tab.label}</span>
-            </button>
-          ))}
+            .map((tab) => {
+            const isDisabled = 'disabled' in tab && tab.disabled;
+            return (
+              <button
+                key={tab.key}
+                role="tab"
+                aria-selected={view === tab.key}
+                aria-label={isDisabled ? `${tab.label} — в разработке` : tab.label}
+                onClick={isDisabled ? undefined : () => setView(tab.key)}
+                className={`mobile-bottom-nav-item ${view === tab.key ? "active" : ""} ${isDisabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                disabled={isDisabled}
+              >
+                <span className="mobile-bottom-nav-icon">{tab.emoji}</span>
+                <span className="mobile-bottom-nav-label">{tab.label}</span>
+                {isDisabled && (
+                  <span className="text-[8px] text-[var(--tracker-text-muted)] opacity-70"> Скоро</span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </nav>
 
@@ -1576,6 +1687,17 @@ function TaskTrackerInner({ authData, onLogout }: { authData: AuthData; onLogout
         onRenameDomain={storeRenameDomain}
         onDeleteDomain={storeDeleteDomain}
         onSetActiveDomain={storeSetActiveDomain}
+        toast={toast}
+      />
+
+      {/* ---- SHARE DIALOG ---- */}
+      <ShareDialog
+        open={shareDialogOpen}
+        onClose={() => setShareDialogOpen(false)}
+        workspaceId={workspaceId}
+        workspaceName={activeDomain?.name || "Моё пространство"}
+        token={authData.token}
+        domains={domains}
         toast={toast}
       />
 

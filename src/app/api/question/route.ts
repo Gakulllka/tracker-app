@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Auth helper
+async function resolveUserFromToken(token: string | undefined) {
+  if (!token) return null;
+  const session = await prisma.session.findUnique({
+    where: { token },
+    include: { user: { select: { id: true, username: true } } },
+  });
+  if (!session || session.expiresAt < new Date()) return null;
+  return { sessionId: session.id, user: session.user };
+}
+
 // GET /api/question
-// Returns all questions (shared across all users)
-export async function GET() {
+// Returns questions, optionally filtered by workspaceId
+export async function GET(req: NextRequest) {
   try {
+    const workspaceId = req.nextUrl.searchParams.get("workspaceId");
+
+    const where = workspaceId ? { workspaceId } : {};
+
     const questions = await prisma.question.findMany({
+      where,
       orderBy: { createdAt: "asc" },
     });
     return NextResponse.json({
@@ -32,6 +48,7 @@ export async function GET() {
           status: q.status || "open",
           questionDate: q.questionDate.toISOString(),
           answerDate: q.answerDate?.toISOString() || null,
+          workspaceId: q.workspaceId,
         };
       }),
     });
@@ -42,11 +59,19 @@ export async function GET() {
 }
 
 // POST /api/question
-// Body: { question: string, author?: string }
-// Creates a new shared question
+// Body: { question: string, author?: string, workspaceId?: string }
+// Creates a new question, optionally linked to a workspace
 export async function POST(req: NextRequest) {
   try {
-    const { question, author } = await req.json();
+    const token = req.nextUrl.searchParams.get("token") || undefined;
+    const auth = token ? await resolveUserFromToken(token) : null;
+
+    // Гость не может создавать вопросы
+    if (auth?.user.username === "guest") {
+      return NextResponse.json({ error: "Гость не может создавать вопросы" }, { status: 403 });
+    }
+
+    const { question, author, workspaceId } = await req.json();
     if (!question) {
       return NextResponse.json({ error: "Missing question text" }, { status: 400 });
     }
@@ -55,6 +80,7 @@ export async function POST(req: NextRequest) {
       data: {
         text: question,
         author: author || "Аноним",
+        workspaceId: workspaceId || null,
       },
     });
 
@@ -68,6 +94,7 @@ export async function POST(req: NextRequest) {
         status: q.status || "open",
         questionDate: q.questionDate.toISOString(),
         answerDate: null,
+        workspaceId: q.workspaceId,
       },
     });
   } catch (error: unknown) {
@@ -80,6 +107,14 @@ export async function POST(req: NextRequest) {
 // Body: { id, status }
 export async function PUT(req: NextRequest) {
   try {
+    const token = req.nextUrl.searchParams.get("token") || undefined;
+    const auth = token ? await resolveUserFromToken(token) : null;
+
+    // Гость не может изменять вопросы
+    if (auth?.user.username === "guest") {
+      return NextResponse.json({ error: "Гость не может изменять вопросы" }, { status: 403 });
+    }
+
     const { id, status } = await req.json();
     if (!id || !status) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
@@ -99,6 +134,14 @@ export async function PUT(req: NextRequest) {
 // Deletes a question (any user can delete)
 export async function DELETE(req: NextRequest) {
   try {
+    const token = req.nextUrl.searchParams.get("token") || undefined;
+    const auth = token ? await resolveUserFromToken(token) : null;
+
+    // Гость не может удалять вопросы
+    if (auth?.user.username === "guest") {
+      return NextResponse.json({ error: "Гость не может удалять вопросы" }, { status: 403 });
+    }
+
     const id = req.nextUrl.searchParams.get("id");
     if (!id) {
       return NextResponse.json({ error: "Missing question id" }, { status: 400 });

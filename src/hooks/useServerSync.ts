@@ -70,12 +70,18 @@ export function useServerSync({
           monthlyPlanByYearMonth: activeDom?.monthlyPlanByYearMonth ?? {},
         },
       };
+      // Маппинг domainId → domainName для сохранения имён в Supabase
+      const domainNames: Record<string, string> = {};
+      for (const d of s.domains) {
+        domainNames[d.id] = d.name;
+      }
       const res = await fetch("/api/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: workspaceId,
           domainData,
+          domainNames,
           clientUpdatedAt: serverUpdatedAtRef.current || new Date().toISOString(),
           token,
         }),
@@ -87,10 +93,13 @@ export function useServerSync({
         setIsOnline(true);
         setSyncStatus("synced");
       } else {
+        const errBody = await res.json().catch(() => ({ error: "Неизвестная ошибка" }));
+        console.error("[sync] push failed:", res.status, errBody.error);
         setIsOnline(false);
         setSyncStatus("offline");
       }
-    } catch {
+    } catch (err) {
+      console.error("[sync] push exception:", err);
       setIsOnline(false);
       setSyncStatus("offline");
     } finally {
@@ -105,12 +114,30 @@ export function useServerSync({
       const url = `/api/sync?id=${encodeURIComponent(workspaceId)}&token=${encodeURIComponent(token)}`;
       const res = await fetch(url);
       if (!res.ok) {
+        const errBody = await res.json().catch(() => ({ error: "Неизвестная ошибка" }));
+        console.error("[sync] pull failed:", res.status, errBody.error);
         setSyncStatus("offline");
         return;
       }
       const data = await res.json();
       if (data.updatedAt) serverUpdatedAtRef.current = data.updatedAt;
       if (data.domainData && Object.keys(data.domainData).length > 0) {
+        // Фильтруем пустые задачи (без name и num) при загрузке с сервера
+        for (const [, domain] of Object.entries(data.domainData)) {
+          const d = domain as { allData?: Record<string, unknown[]>; backlog?: unknown[] };
+          if (d.allData) {
+            for (const [month, tasks] of Object.entries(d.allData)) {
+              d.allData[month] = (tasks as Array<{ name?: string; num?: string }>).filter(
+                (t) => (t.name && t.name !== "EMPTY") || (t.num && t.num !== "EMPTY")
+              );
+            }
+          }
+          if (d.backlog) {
+            d.backlog = (d.backlog as Array<{ name?: string; num?: string }>).filter(
+              (t) => (t.name && t.name !== "EMPTY") || (t.num && t.num !== "EMPTY")
+            );
+          }
+        }
         suppressNextPushRef.current = true;
         useTaskStore.getState().setDomainData(data.domainData);
       }

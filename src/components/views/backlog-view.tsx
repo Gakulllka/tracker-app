@@ -30,6 +30,7 @@ export interface BacklogViewProps {
   reorderBacklog: (fromId: string, toId: string) => void;
   setCommentArchiveDialog: (v: { taskId: string; taskName: string; logs: Array<{ date: string; week: string; text: string; planH: string; factH: string; status: string }>; open: boolean }) => void;
   isDark: boolean;
+  isGuest?: boolean;
 }
 
 interface BacklogDialogState {
@@ -52,6 +53,7 @@ export function BacklogView({
   reorderBacklog,
   setCommentArchiveDialog,
   isDark,
+  isGuest,
 }: BacklogViewProps) {
   const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -283,14 +285,16 @@ export function BacklogView({
                     </div>
                   </div>
                   {/* Actions */}
-                  <div className="flex flex-col items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openReturnDialog(task)} title="Вернуть в таблицу">
-                      <ClipboardList className="size-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => deleteBacklogTask(task.id)} title="Удалить">
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                   </div>
+                  {!isGuest && (
+                    <div className="flex flex-col items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openReturnDialog(task)} title="Вернуть в таблицу">
+                        <ClipboardList className="size-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => deleteBacklogTask(task.id)} title="Удалить">
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -298,15 +302,17 @@ export function BacklogView({
         </div>
       )}
 
-      <Button
-        size="sm"
-        className="gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)] shadow-md"
-        style={{ boxShadow: "0 2px 12px color-mix(in srgb, var(--tracker-accent, #9B72CF) 35%, transparent)" }}
-        onClick={handleAdd}
-      >
-        <Plus className="size-3.5" />
-        Создать задачу
-      </Button>
+      {!isGuest && (
+        <Button
+          size="sm"
+          className="gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)] shadow-md"
+          style={{ boxShadow: "0 2px 12px color-mix(in srgb, var(--tracker-accent, #9B72CF) 35%, transparent)" }}
+          onClick={handleAdd}
+        >
+          <Plus className="size-3.5" />
+          Создать задачу
+        </Button>
+      )}
 
       {/* ---- RETURN FROM BACKLOG DIALOG ---- */}
       <Dialog open={dialog.open} onOpenChange={(open) => { if (!open) closeDialog(); }}>

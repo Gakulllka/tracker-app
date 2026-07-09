@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import type { StateStorage } from "zustand/middleware";
 import { Task, Domain, AllData, Status, Priority, PRIORITIES, STATUSES, MONTHS, PRIO_START, STATUS_ORDER, type CommentEntry } from "./types";
 import { createNewTask } from "./metrics";
 import { createUndoHelpers } from "./undo";
@@ -214,12 +215,7 @@ function buildAllDataForYear(
     const key = monthKey(year, m);
     out[m] = dataByYearMonth[key] || [];
   }
-  // Если ровно ничего не было за этот год — обеспечим хотя бы пустой
-  // первый месяц с одной чистой задачей (как initAllData).
-  const isEmpty = Object.values(out).every((arr) => arr.length === 0);
-  if (isEmpty) {
-    out[0] = [createNewTask()];
-  }
+  // Если ровно ничего не было за этот год — оставляем пустым
   return out;
 }
 
@@ -304,6 +300,7 @@ interface AppState {
   updateTask: (month: number, taskId: string, key: keyof Task, value: unknown) => void;
   archiveComment: (month: number, taskId: string) => void;
   deleteTask: (month: number, taskId: string) => void;
+  setTaskVisibility: (month: number, taskId: string, userIds: string[]) => void;
   moveTasks: (taskId: string, fromMonth: number, toMonth: number) => void;
   reorderTask: (month: number, fromId: string, toId: string) => void;
   sortMonthTasks: (month: number, key: "priority" | "status") => void;
@@ -376,7 +373,7 @@ const DEFAULT_DOMAIN: Domain = { id: "default", name: "По умолчанию" 
 
 const initAllData = (): AllData => {
   const data: AllData = {};
-  for (let i = 0; i < 12; i++) data[i] = [createNewTask()];
+  for (let i = 0; i < 12; i++) data[i] = [];
   return data;
 };
 
@@ -440,6 +437,52 @@ function saveCurrentDomainData(
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+//  Workspace-scoped localStorage adapter
+//  Each workspace (user) gets its own localStorage entry so that logging in
+//  as a different user doesn't overwrite the previous user's local state.
+//  Key format: `task-tracker-store-ws-<workspaceId>`
+//  Falls back to the legacy shared key `task-tracker-store` for migration.
+// ---------------------------------------------------------------------------
+
+const WS_STORAGE_BASE = "task-tracker-store";
+
+function getWorkspaceStorageKey(name: string): string {
+  if (typeof window === "undefined") return name;
+  const wsId = localStorage.getItem("auth_workspace");
+  return wsId ? `${name}-ws-${wsId}` : name;
+}
+
+const workspaceStorage: StateStorage = {
+  getItem: (name: string): string | null => {
+    const key = getWorkspaceStorageKey(name);
+    const value = localStorage.getItem(key);
+
+    // Migration: if workspace-scoped key is empty but the legacy shared key
+    // has data, copy it to the new workspace-scoped key. This handles the
+    // transition from the old shared-key format.
+    if (!value && key !== name) {
+      const legacy = localStorage.getItem(name);
+      if (legacy) {
+        try {
+          localStorage.setItem(key, legacy);
+          return legacy;
+        } catch { /* quota exceeded — fall through */ }
+      }
+    }
+
+    return value;
+  },
+  setItem: (name: string, value: string): void => {
+    const key = getWorkspaceStorageKey(name);
+    localStorage.setItem(key, value);
+  },
+  removeItem: (name: string): void => {
+    const key = getWorkspaceStorageKey(name);
+    localStorage.removeItem(key);
+  },
+};
 
 export const useTaskStore = create<AppState>()(
   persist(
@@ -658,6 +701,18 @@ export const useTaskStore = create<AppState>()(
           return withDomainSync(state, { allData: newAllData });
         });
       },
+
+      setTaskVisibility: (month, taskId, userIds) => set(state => {
+        const rows = state.allData[month] || [];
+        const newAllData = {
+          ...state.allData,
+          [month]: rows.map(r => {
+            if (r.id !== taskId) return r;
+            return { ...r, visibleTo: JSON.stringify(userIds), _ts: Date.now() };
+          }),
+        };
+        return withDomainSync(state, { allData: newAllData });
+      }),
 
       moveTasks: (taskId, fromMonth, toMonth) => {
         undoHelpers.snapshot(getStateSnapshot);
@@ -1046,7 +1101,7 @@ export const useTaskStore = create<AppState>()(
           if (fromRows.length === 0) return state; // no-op
           const newAllData = {
             ...state.allData,
-            [fromMonth]: [createNewTask()],
+            [fromMonth]: [],
             [toMonth]: [...toRows, ...fromRows],
           };
           return withDomainSync(state, { allData: newAllData });
@@ -1058,7 +1113,7 @@ export const useTaskStore = create<AppState>()(
         set(state => {
           const newAllData = {
             ...state.allData,
-            [month]: [createNewTask()],
+            [month]: [],
           };
           return withDomainSync(state, { allData: newAllData });
         });
@@ -1145,7 +1200,8 @@ export const useTaskStore = create<AppState>()(
       },
     }),
     {
-      name: "task-tracker-store",
+      name: WS_STORAGE_BASE,
+      storage: createJSONStorage(() => workspaceStorage),
       partialize: (state) => ({
         domainData: state.domainData,
         domains: state.domains,

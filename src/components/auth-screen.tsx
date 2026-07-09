@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, User, Eye, EyeOff, ArrowRight, UserCheck } from "lucide-react";
+import { Loader2, ArrowRight, Plus, Trash2, Check } from "lucide-react";
 
 interface AuthScreenProps {
   onAuth: (data: {
@@ -15,32 +15,55 @@ interface AuthScreenProps {
   }) => void;
 }
 
+interface Domain {
+  id: string;
+  name: string;
+}
+
 export default function AuthScreen({ onAuth }: AuthScreenProps) {
+  const [step, setStep] = useState<"auth" | "domains">("auth");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Domain selection
+  const [domains, setDomains] = useState<Domain[]>([]);
+  const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set());
+  const [newDomainName, setNewDomainName] = useState("");
+  const [creatingDomain, setCreatingDomain] = useState(false);
+
+  const [authData, setAuthData] = useState<{
+    token: string;
+    workspaceId: string;
+    user: { id: string; username: string; displayName: string; role: string };
+  } | null>(null);
+
+  // Default theme — мята
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("task-tracker-storage");
+      if (!raw) {
+        localStorage.setItem("task-tracker-storage", JSON.stringify({
+          state: { themeId: "spring", customDark: false },
+          version: 0,
+        }));
+      }
+    } catch { /* silent */ }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
-    if (!username.trim() || !password.trim()) {
-      setError("Заполните все поля");
-      return;
-    }
-
     setLoading(true);
 
     try {
       const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
-      const body: Record<string, string> = { username: username.trim(), password };
-      if (mode === "register" && displayName.trim()) {
-        body.displayName = displayName.trim();
-      }
+      const body: Record<string, string> = { username: username.trim() };
+      if (password) body.password = password;
+      if (mode === "register" && displayName.trim()) body.displayName = displayName.trim();
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -49,39 +72,11 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
       });
 
       const data = await res.json();
+      if (!res.ok) { setError(data.error || "Ошибка"); return; }
 
-      if (!res.ok) {
-        setError(data.error || "Произошла ошибка");
-        return;
-      }
-
-      localStorage.setItem("auth_token", data.token);
-      localStorage.setItem("auth_user", JSON.stringify(data.user));
-      localStorage.setItem("auth_workspace", data.workspaceId);
-      document.cookie = `auth_token=${encodeURIComponent(data.token)}; path=/; max-age=2592000; SameSite=Lax`;
-
-      let permissions: unknown = null;
-      let rolePermissions: unknown = null;
-      try {
-        const meRes = await fetch(`/api/auth/me?token=${encodeURIComponent(data.token)}`);
-        if (meRes.ok) {
-          const meData = await meRes.json();
-          if (meData.success) {
-            permissions = meData.permissions ?? null;
-            rolePermissions = meData.rolePermissions ?? null;
-            localStorage.setItem("auth_permissions", JSON.stringify(permissions));
-            localStorage.setItem("auth_role_permissions", JSON.stringify(rolePermissions));
-          }
-        }
-      } catch { /* ignore */ }
-
-      onAuth({
-        token: data.token,
-        workspaceId: data.workspaceId,
-        user: data.user,
-        permissions,
-        rolePermissions,
-      });
+      setAuthData({ token: data.token, workspaceId: data.workspaceId, user: data.user });
+      await loadDomains();
+      setStep("domains");
     } catch {
       setError("Ошибка подключения к серверу");
     } finally {
@@ -89,332 +84,295 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
     }
   };
 
-  const handleGuestLogin = async () => {
-    setError("");
+  const loadDomains = async () => {
+    try {
+      const res = await fetch("/api/domains");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.domains) {
+          setDomains(data.domains);
+          // Автоматически выбрать все домены
+          setSelectedDomains(new Set(data.domains.map((d: Domain) => d.id)));
+        }
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleCreateDomain = async () => {
+    if (!newDomainName.trim() || !authData) return;
+    setCreatingDomain(true);
+    try {
+      const res = await fetch("/api/domains", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: authData.token, name: newDomainName.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const newDomain = { id: data.domain.id, name: data.domain.name };
+        setDomains([...domains, newDomain]);
+        setSelectedDomains(new Set([...selectedDomains, newDomain.id]));
+        setNewDomainName("");
+      }
+    } catch { /* ignore */ }
+    setCreatingDomain(false);
+  };
+
+  const handleDeleteDomain = async (domainId: string) => {
+    if (!authData) return;
+    try {
+      await fetch("/api/domains", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: authData.token, domainId }),
+      });
+      setDomains(domains.filter(d => d.id !== domainId));
+      const newSelected = new Set(selectedDomains);
+      newSelected.delete(domainId);
+      setSelectedDomains(newSelected);
+    } catch { /* ignore */ }
+  };
+
+  const toggleDomain = (id: string) => {
+    const next = new Set(selectedDomains);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedDomains(next);
+  };
+
+  const handleContinue = async () => {
+    if (!authData) return;
     setLoading(true);
+
+    // Сохраняем выбранные домены
     try {
-      const res = await fetch("/api/auth/guest", { method: "POST" });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Ошибка гостевого входа");
-        return;
-      }
-
-      localStorage.setItem("auth_token", data.token);
-      localStorage.setItem("auth_user", JSON.stringify(data.user));
-      localStorage.setItem("auth_workspace", data.workspaceId);
-      document.cookie = `auth_token=${encodeURIComponent(data.token)}; path=/; max-age=86400; SameSite=Lax`;
-
-      let permissions: unknown = null;
-      let rolePermissions: unknown = null;
-      try {
-        const meRes = await fetch(`/api/auth/me?token=${encodeURIComponent(data.token)}`);
-        if (meRes.ok) {
-          const meData = await meRes.json();
-          if (meData.success) {
-            permissions = meData.permissions ?? null;
-            rolePermissions = meData.rolePermissions ?? null;
-            localStorage.setItem("auth_permissions", JSON.stringify(permissions));
-            localStorage.setItem("auth_role_permissions", JSON.stringify(rolePermissions));
-          }
-        }
-      } catch { /* ignore */ }
-
-      onAuth({
-        token: data.token,
-        workspaceId: data.workspaceId,
-        user: data.user,
-        permissions,
-        rolePermissions,
+      await fetch("/api/domains/select", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: authData.token,
+          domainIds: Array.from(selectedDomains),
+        }),
       });
-    } catch {
-      setError("Ошибка подключения к серверу");
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* ignore */ }
+
+    localStorage.setItem("auth_token", authData.token);
+    localStorage.setItem("auth_user", JSON.stringify(authData.user));
+    localStorage.setItem("auth_workspace", authData.workspaceId);
+    document.cookie = `auth_token=${encodeURIComponent(authData.token)}; path=/; max-age=2592000; SameSite=Lax`;
+
+    let permissions: unknown = null;
+    let rolePermissions: unknown = null;
+    try {
+      const meRes = await fetch(`/api/auth/me?token=${encodeURIComponent(authData.token)}`);
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        if (meData.success) {
+          permissions = meData.permissions ?? null;
+          rolePermissions = meData.rolePermissions ?? null;
+          localStorage.setItem("auth_permissions", JSON.stringify(permissions));
+          localStorage.setItem("auth_role_permissions", JSON.stringify(rolePermissions));
+        }
+      }
+    } catch { /* ignore */ }
+
+    onAuth({
+      token: authData.token,
+      workspaceId: authData.workspaceId,
+      user: authData.user,
+      permissions,
+      rolePermissions,
+    });
   };
 
-  const [isDark] = React.useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem("task-tracker-storage");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return parsed?.state?.customDark === true;
-      }
-    } catch { /* silent */ }
-    return false;
-  });
-
-  const [accentColor] = React.useState<string>(() => {
-    try {
-      const raw = localStorage.getItem("task-tracker-storage");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return parsed?.state?.themeId || parsed?.state?.customColor || "#9B72CF";
-      }
-    } catch { /* silent */ }
-    return "#9B72CF";
-  });
+  // Мятные цвета
+  const mint = {
+    bg: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #ecfdf5 100%)",
+    card: "#ffffff",
+    cardBorder: "#bbf7d0",
+    cardShadow: "0 8px 40px rgba(34,197,94,0.08), 0 2px 8px rgba(34,197,94,0.04)",
+    accent: "#16a34a",
+    accentHover: "#15803d",
+    accentLight: "#dcfce7",
+    text: "#14532d",
+    textMuted: "#6b7280",
+    inputBg: "#f0fdf4",
+    inputBorder: "#bbf7d0",
+    blob1: "rgba(34,197,94,0.08)",
+    blob2: "rgba(74,222,128,0.06)",
+  };
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden"
-      style={{
-        background: isDark
-          ? "linear-gradient(135deg, #0d0d1a 0%, #12091f 50%, #0a0f1e 100%)"
-          : "linear-gradient(135deg, #f3f0ff 0%, #fce4f4 40%, #e8f4fd 100%)",
-      }}
+    <div className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden"
+      style={{ background: mint.bg }}
     >
-      {/* Decorative blobs — softened */}
-      <div
-        className="absolute pointer-events-none"
-        style={{
-          top: "-150px",
-          left: "-120px",
-          width: "500px",
-          height: "500px",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(167,139,250,0.12) 0%, transparent 70%)",
-          filter: "blur(60px)",
-        }}
-      />
-      <div
-        className="absolute pointer-events-none"
-        style={{
-          bottom: "-120px",
-          right: "-100px",
-          width: "450px",
-          height: "450px",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(236,153,210,0.10) 0%, transparent 70%)",
-          filter: "blur(60px)",
-        }}
-      />
+      <div className="absolute pointer-events-none" style={{
+        top: "-150px", left: "-120px", width: "500px", height: "500px",
+        borderRadius: "50%", background: `radial-gradient(circle, ${mint.blob1} 0%, transparent 70%)`,
+        filter: "blur(60px)",
+      }} />
+      <div className="absolute pointer-events-none" style={{
+        bottom: "-120px", right: "-100px", width: "450px", height: "450px",
+        borderRadius: "50%", background: `radial-gradient(circle, ${mint.blob2} 0%, transparent 70%)`,
+        filter: "blur(60px)",
+      }} />
 
-      <div className="relative z-10 w-full max-w-[420px] mx-4 animate-fade-in-up">
-        {/* Logo & Title */}
+      <div className="relative z-10 w-full max-w-[400px] mx-4 animate-fade-in-up">
+        {/* Логотип — ЧБ */}
         <div className="flex flex-col items-center mb-8">
-          <div
-            className="w-[68px] h-[68px] flex items-center justify-center rounded-2xl mb-5 relative"
-            style={{
-              background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}cc 100%)`,
-              boxShadow: `0 12px 32px ${accentColor}40, 0 4px 12px ${accentColor}20`,
-            }}
-          >
-            <svg width="34" height="34" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <div className="w-16 h-16 flex items-center justify-center rounded-2xl mb-4 bg-gray-900 shadow-lg">
+            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
               <polygon points="16,3 30.5,29 1.5,29" fill="white" opacity="0.95"/>
-              <polygon points="16,11.5 25,27.5 7,27.5" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.8"/>
+              <polygon points="16,11.5 25,27.5 7,27.5" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5"/>
             </svg>
           </div>
-          <h1
-            className="text-3xl font-bold tracking-tight"
-            style={{ color: isDark ? "#ede9fe" : "#2d1b69" }}
-          >
-            {mode === "login" ? "Добро пожаловать" : "Создание аккаунта"}
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: mint.text }}>
+            {step === "auth"
+              ? (mode === "login" ? "Вход в систему" : "Регистрация")
+              : "Выберите домены"
+            }
           </h1>
-          <p
-            className="mt-2 text-base"
-            style={{ color: isDark ? "rgba(196,181,253,0.7)" : "#6b5b95" }}
-          >
-            {mode === "login" ? "Войдите, чтобы продолжить работу" : "Зарегистрируйте новый аккаунт"}
+          <p className="mt-1.5 text-sm" style={{ color: mint.textMuted }}>
+            {step === "auth"
+              ? (mode === "login" ? "Введите данные для входа" : "Создайте новый аккаунт")
+              : "Выберите домены для работы или пропустите"
+            }
           </p>
         </div>
 
-        {/* Form Card */}
-        <div
-          className="rounded-2xl p-7 border"
-          style={{
-            background: isDark ? "rgba(18, 12, 30, 0.9)" : "rgba(255, 255, 255, 0.92)",
-            borderColor: isDark ? "rgba(167,139,250,0.15)" : "rgba(167,139,250,0.2)",
-            boxShadow: isDark
-              ? "0 8px 40px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)"
-              : "0 8px 40px rgba(167,139,250,0.10), 0 2px 8px rgba(167,139,250,0.06)",
-          }}
-        >
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            {/* Username */}
-            <div className="flex flex-col gap-2">
-              <label
-                className="text-sm font-semibold"
-                style={{ color: isDark ? "#c4b5fd" : "#3d2264" }}
-              >
-                Имя пользователя
-              </label>
-              <div className="relative">
-                <User
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4"
-                  style={{ color: isDark ? "rgba(167,139,250,0.6)" : accentColor }}
-                />
-                <Input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="username"
-                  className="pl-10 h-11 rounded-xl text-sm"
-                  style={{
-                    borderColor: isDark ? "rgba(167,139,250,0.25)" : "rgba(167,139,250,0.3)",
-                    background: isDark ? "rgba(30,20,50,0.8)" : "rgba(248,246,255,0.8)",
-                    color: isDark ? "#ede9fe" : "#1a1a2e",
-                  }}
-                  autoComplete="username"
-                  disabled={loading}
-                />
+        {/* Auth Form */}
+        {step === "auth" && (
+          <div className="rounded-2xl p-6" style={{
+            background: mint.card,
+            border: `1px solid ${mint.cardBorder}`,
+            boxShadow: mint.cardShadow,
+          }}>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: mint.textMuted }}>Логин</label>
+                <Input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Введите логин" className="h-11 rounded-xl text-sm"
+                  style={{ borderColor: mint.inputBorder, background: mint.inputBg, color: mint.text }}
+                  autoComplete="username" disabled={loading} />
               </div>
-            </div>
 
-            {/* Display Name (register only) */}
-            {mode === "register" && (
-              <div className="flex flex-col gap-2">
-                <label
-                  className="text-sm font-semibold"
-                  style={{ color: isDark ? "#c4b5fd" : "#3d2264" }}
-                >
-                  Отображаемое имя{" "}
-                  <span
-                    className="text-xs font-normal"
-                    style={{ color: isDark ? "rgba(196,181,253,0.5)" : "#9d8fc4" }}
-                  >
-                    (необязательно)
-                  </span>
-                </label>
-                <Input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Иван Иванов"
-                  className="h-11 rounded-xl text-sm"
-                  style={{
-                    borderColor: isDark ? "rgba(167,139,250,0.25)" : "rgba(167,139,250,0.3)",
-                    background: isDark ? "rgba(30,20,50,0.8)" : "rgba(248,246,255,0.8)",
-                    color: isDark ? "#ede9fe" : "#1a1a2e",
-                  }}
-                  autoComplete="name"
-                  disabled={loading}
-                />
-              </div>
-            )}
-
-            {/* Password */}
-            <div className="flex flex-col gap-2">
-              <label
-                className="text-sm font-semibold"
-                style={{ color: isDark ? "#c4b5fd" : "#3d2264" }}
-              >
-                Пароль
-              </label>
-              <div className="relative">
-                <div
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-4 h-4"
-                  style={{ color: isDark ? "rgba(167,139,250,0.6)" : accentColor }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
+              {mode === "register" && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: mint.textMuted }}>
+                    Имя <span className="font-normal opacity-60">(необязательно)</span>
+                  </label>
+                  <Input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Как вас зовут?" className="h-11 rounded-xl text-sm"
+                    style={{ borderColor: mint.inputBorder, background: mint.inputBg, color: mint.text }}
+                    autoComplete="name" disabled={loading} />
                 </div>
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === "login" ? "Введите пароль" : "Минимум 4 символа"}
-                  className="pl-10 pr-10 h-11 rounded-xl text-sm"
-                  style={{
-                    borderColor: isDark ? "rgba(167,139,250,0.25)" : "rgba(167,139,250,0.3)",
-                    background: isDark ? "rgba(30,20,50,0.8)" : "rgba(248,246,255,0.8)",
-                    color: isDark ? "#ede9fe" : "#1a1a2e",
-                  }}
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: mint.textMuted }}>
+                  Пароль <span className="font-normal opacity-60">(необязательно)</span>
+                </label>
+                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                  placeholder={mode === "login" ? "Введите пароль" : "Можно оставить пустым"}
+                  className="h-11 rounded-xl text-sm"
+                  style={{ borderColor: mint.inputBorder, background: mint.inputBg, color: mint.text }}
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                  style={{ color: isDark ? "rgba(167,139,250,0.6)" : accentColor }}
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+                  disabled={loading} />
+              </div>
+
+              {error && (
+                <div className="text-sm px-4 py-2.5 rounded-xl bg-red-50 text-red-600 border border-red-200">{error}</div>
+              )}
+
+              <Button type="submit" disabled={loading || !username.trim()}
+                className="w-full h-11 gap-2 rounded-xl text-sm font-semibold text-white transition-all shadow-lg"
+                style={{ background: mint.accent, boxShadow: `0 4px 20px ${mint.accent}35` }}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                  <>{mode === "login" ? "Войти" : "Создать аккаунт"} <ArrowRight className="h-4 w-4" /></>
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-4 pt-4 text-center" style={{ borderTop: `1px solid ${mint.cardBorder}` }}>
+              <button onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
+                className="text-sm transition-colors hover:underline" style={{ color: mint.accent }}>
+                {mode === "login" ? "Нет аккаунта? Зарегистрироваться" : "Уже есть аккаунт? Войти"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Domain Selector */}
+        {step === "domains" && (
+          <div className="rounded-2xl p-6" style={{
+            background: mint.card,
+            border: `1px solid ${mint.cardBorder}`,
+            boxShadow: mint.cardShadow,
+          }}>
+            <div className="flex flex-col gap-3">
+              {domains.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: mint.textMuted }}>Ваши домены</p>
+                  {domains.map((d) => {
+                    const selected = selectedDomains.has(d.id);
+                    return (
+                      <div key={d.id} className="flex items-center gap-2">
+                        <button
+                          onClick={() => toggleDomain(d.id)}
+                          className="flex-1 flex items-center gap-3 p-3 rounded-xl border transition-all"
+                          style={{
+                            borderColor: selected ? mint.accent : mint.cardBorder,
+                            background: selected ? mint.accentLight : "transparent",
+                          }}
+                        >
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ background: selected ? mint.accent : "#e5e7eb" }}>
+                            {selected && <Check className="w-4 h-4 text-white" />}
+                          </div>
+                          <span className="text-sm font-medium" style={{ color: mint.text }}>{d.name}</span>
+                        </button>
+                        <button onClick={() => handleDeleteDomain(d.id)}
+                          className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                          title="Удалить домен">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="pt-2" style={{ borderTop: `1px solid ${mint.cardBorder}` }}>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: mint.textMuted }}>Новый домен</p>
+                <div className="flex gap-2">
+                  <Input type="text" value={newDomainName} onChange={(e) => setNewDomainName(e.target.value)}
+                    placeholder="Название домена" className="h-10 rounded-xl text-sm flex-1"
+                    style={{ borderColor: mint.inputBorder, background: mint.inputBg, color: mint.text }}
+                    disabled={creatingDomain} onKeyDown={(e) => e.key === "Enter" && handleCreateDomain()} />
+                  <Button type="button" size="sm" onClick={handleCreateDomain}
+                    disabled={creatingDomain || !newDomainName.trim()}
+                    className="h-10 px-4 rounded-xl text-white"
+                    style={{ background: mint.accent }}>
+                    {creatingDomain ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setStep("auth")}
+                  className="flex-1 h-11 rounded-xl text-sm"
+                  style={{ borderColor: mint.cardBorder, color: mint.textMuted }}>
+                  Назад
+                </Button>
+                <Button type="button" onClick={handleContinue} disabled={loading}
+                  className="flex-1 h-11 rounded-xl text-sm font-semibold text-white shadow-lg"
+                  style={{ background: mint.accent, boxShadow: `0 4px 20px ${mint.accent}35` }}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Продолжить"}
+                </Button>
               </div>
             </div>
-
-            {/* Error */}
-            {error && (
-              <div
-                className="text-sm px-4 py-3 rounded-xl"
-                style={{
-                  background: isDark ? "rgba(226,75,74,0.12)" : "rgba(251,191,208,0.25)",
-                  color: isDark ? "#fca5a5" : "#c0435a",
-                  border: `1px solid ${isDark ? "rgba(226,75,74,0.25)" : "rgba(251,191,208,0.5)"}`,
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            {/* Submit */}
-            <Button
-              type="submit"
-              disabled={loading || !username.trim() || !password.trim()}
-              className="w-full h-12 gap-2 rounded-xl text-sm font-semibold transition-all hover:shadow-lg active:scale-[0.98]"
-              style={{
-                background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}dd 100%)`,
-                color: "#fff",
-                boxShadow: `0 4px 20px ${accentColor}35`,
-                border: "none",
-              }}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {mode === "login" ? "Вход..." : "Создание..."}
-                </>
-              ) : (
-                <>
-                  {mode === "login" ? "Войти" : "Создать аккаунт"}
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </form>
-
-          {/* Divider + Guest Login */}
-          <div className="mt-6 pt-5 border-t" style={{ borderColor: isDark ? "rgba(167,139,250,0.12)" : "rgba(167,139,250,0.15)" }}>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleGuestLogin}
-              disabled={loading}
-              className="w-full h-11 gap-2 rounded-xl text-sm font-medium transition-all hover:shadow-md active:scale-[0.98]"
-              style={{
-                borderColor: isDark ? "rgba(167,139,250,0.25)" : "rgba(167,139,250,0.3)",
-                color: isDark ? "#c4b5fd" : "#6b5b95",
-                background: "transparent",
-              }}
-            >
-              <UserCheck className="h-4 w-4" />
-              Войти как гость (тест)
-            </Button>
-            <p
-              className="text-center text-xs mt-2.5"
-              style={{ color: isDark ? "rgba(196,181,253,0.4)" : "#9d8fc4" }}
-            >
-              Полный доступ для тестирования
-            </p>
           </div>
-        </div>
-
-        {/* Toggle mode */}
-        <div className="text-center mt-6">
-          <button
-            onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
-            className="text-sm font-medium transition-colors hover:underline"
-            style={{ color: isDark ? "#c4b5fd" : "#8b6fd4" }}
-          >
-            {mode === "login" ? "Нет аккаунта? Зарегистрироваться" : "Уже есть аккаунт? Войти"}
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );

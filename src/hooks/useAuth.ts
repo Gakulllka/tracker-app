@@ -28,6 +28,14 @@ export interface RolePermissions {
   visibleDomains?: string;
 }
 
+export interface AccessibleWorkspace {
+  workspaceId: string;
+  name: string;
+  role: "editor" | "viewer" | "executive";
+  ownerName: string;
+  domainIds: string[];
+}
+
 export interface AuthData {
   token: string;
   workspaceId: string;
@@ -40,6 +48,7 @@ export interface AuthData {
   };
   permissions: UserPermissions | null;
   rolePermissions: RolePermissions | null;
+  accessibleWorkspaces: AccessibleWorkspace[];
 }
 
 export function useAuth() {
@@ -59,7 +68,7 @@ export function useAuth() {
             localStorage.setItem("auth_user", JSON.stringify(data.user));
             localStorage.setItem("auth_permissions", JSON.stringify(data.permissions || null));
             localStorage.setItem("auth_role_permissions", JSON.stringify(data.rolePermissions || null));
-            setAuthData({ token, workspaceId: data.workspaceId, user: data.user, permissions: data.permissions, rolePermissions: data.rolePermissions ?? null });
+            setAuthData({ token, workspaceId: data.workspaceId, user: data.user, permissions: data.permissions, rolePermissions: data.rolePermissions ?? null, accessibleWorkspaces: data.accessibleWorkspaces ?? [] });
           } else {
             ["auth_token","auth_user","auth_workspace","auth_permissions","auth_role_permissions"].forEach(k => localStorage.removeItem(k));
           }
@@ -74,7 +83,7 @@ export function useAuth() {
         if (t && u && w) {
           const p = localStorage.getItem("auth_permissions");
           const rp = localStorage.getItem("auth_role_permissions");
-          setAuthData({ token: t, workspaceId: w, user: JSON.parse(u), permissions: p ? JSON.parse(p) : null, rolePermissions: rp ? JSON.parse(rp) : null });
+          setAuthData({ token: t, workspaceId: w, user: JSON.parse(u), permissions: p ? JSON.parse(p) : null, rolePermissions: rp ? JSON.parse(rp) : null, accessibleWorkspaces: [] });
         }
       } finally {
         setAuthChecking(false);
@@ -86,8 +95,9 @@ export function useAuth() {
   const handleAuth = useCallback((data: {
     token: string; workspaceId: string; user: AuthData["user"];
     permissions?: unknown; rolePermissions?: unknown;
+    accessibleWorkspaces?: AccessibleWorkspace[];
   }) => {
-    setAuthData({ token: data.token, workspaceId: data.workspaceId, user: data.user, permissions: (data.permissions as UserPermissions | null) ?? null, rolePermissions: (data.rolePermissions as RolePermissions | null) ?? null });
+    setAuthData({ token: data.token, workspaceId: data.workspaceId, user: data.user, permissions: (data.permissions as UserPermissions | null) ?? null, rolePermissions: (data.rolePermissions as RolePermissions | null) ?? null, accessibleWorkspaces: data.accessibleWorkspaces ?? [] });
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -101,5 +111,11 @@ export function useAuth() {
     setAuthData(null);
   }, [authData]);
 
-  return { authData, authChecking, handleAuth, handleLogout };
+  const switchWorkspace = useCallback((newWorkspaceId: string) => {
+    if (!authData) return;
+    localStorage.setItem("auth_workspace", newWorkspaceId);
+    setAuthData({ ...authData, workspaceId: newWorkspaceId });
+  }, [authData]);
+
+  return { authData, authChecking, handleAuth, handleLogout, switchWorkspace };
 }

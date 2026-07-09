@@ -18,20 +18,23 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  username     String    @unique
-  passwordHash String
-  displayName  String    @default("")
-  status       String    @default("ACTIVE")
-  roleId       String
-  role         Role      @relation(fields: [roleId], references: [id])
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id               String   @id @default(cuid())
+  username         String   @unique
+  passwordHash     String
+  displayName      String   @default("")
+  status           String   @default("ACTIVE")
+  roleId           String
+  role             Role     @relation(fields: [roleId], references: [id])
+  selectedDomains  String   @default("[]") // JSON array of domain IDs — какие домены видит пользователь
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  workspaces  Workspace[]
-  sessions    Session[]
-  permissions UserPermission[]
-  aiInsights  AiInsight[]
+  workspaces       Workspace[]
+  sessions         Session[]
+  permissions      UserPermission[]
+  aiInsights       AiInsight[]
+  sharedWorkspaces WorkspaceShare[]
+  accessRequests   WorkspaceAccessRequest[]
 }
 
 model Role {
@@ -57,6 +60,11 @@ model Workspace {
 
   userId String
   user   User   @relation(fields: [userId], references: [id])
+
+  shares         WorkspaceShare[]
+  tasks          Task[]
+  questionList   Question[]
+  accessRequests WorkspaceAccessRequest[]
 }
 
 model Session {
@@ -78,7 +86,7 @@ model UserPermission {
   visibleTabs      String   @default("")
   visibleDomainIds String   @default("[]")
   canEdit          Boolean  @default(true)
-  canSeeQuestions   Boolean  @default(true)
+  canSeeQuestions  Boolean  @default(true)
   updatedAt        DateTime @updatedAt
   createdAt        DateTime @default(now())
 }
@@ -92,6 +100,11 @@ model Question {
   questionDate DateTime  @default(now())
   answerDate   DateTime?
   createdAt    DateTime  @default(now())
+
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
 }
 
 model ActivityLog {
@@ -110,23 +123,103 @@ model ActivityLog {
 // Phase 4: AI-инсайты привязаны к (пользователь, домен, месяц).
 // На каждую комбинацию ровно один инсайт; повторное сохранение перезаписывает.
 model AiInsight {
-  id           String   @id @default(cuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  domainId     String
-  monthKey     String   // "YYYY-MM"
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  domainId String
+  monthKey String // "YYYY-MM"
 
-  achievements String   @default("[]") // JSON array
-  risks        String   @default("[]") // JSON array
-  inProgress   String   @default("[]") // JSON array
-  nextSteps    String   @default("[]") // JSON array
+  achievements String @default("[]") // JSON array
+  risks        String @default("[]") // JSON array
+  inProgress   String @default("[]") // JSON array
+  nextSteps    String @default("[]") // JSON array
 
-  dataHash     String   @default("") // hash задач на момент генерации
-  source       String   @default("manual") // "ai" | "manual" | "edited"
+  dataHash String @default("") // hash задач на момент генерации
+  source   String @default("manual") // "ai" | "manual" | "edited"
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, domainId, monthKey])
   @@index([userId, domainId])
+}
+
+model WorkspaceShare {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String    @default("editor") // "editor" | "viewer" | "executive"
+  domainIds   String    @default("[]") // JSON array of domain IDs — для executive: какие домены видит
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Domain {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  createdAt   DateTime @default(now())
+}
+
+model BacklogItem {
+  id          String   @id @default(cuid())
+  domainId    String
+  num         String   @default("")
+  name        String   @default("")
+  planH       String   @default("0")
+  factH       String   @default("0")
+  priority    String   @default("Средний")
+  status      String   @default("Идея")
+  comment     String   @default("")
+  commentLog  String   @default("[]")
+  ts          DateTime @default(now())
+  deleted     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([domainId])
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  domainId    String    @default("default")
+  monthKey    String // "YYYY-MM" или "backlog"
+  num         String    @default("")
+  name        String    @default("")
+  planH       String    @default("0")
+  factH       String    @default("0")
+  priority    String    @default("QUEUE")
+  status      String    @default("IDEA")
+  comment     String    @default("")
+  commentLog  String    @default("[]") // JSON array
+  visibleTo   String    @default("[]") // JSON array user IDs — кто видит задачу
+  ts          DateTime  @default(now()) // Last-modified timestamp
+  deleted     Boolean   @default(false) // Soft-delete tombstone
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId])
+  @@index([workspaceId, domainId])
+  @@index([workspaceId, domainId, monthKey])
+}
+
+model WorkspaceAccessRequest {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      String    @default("pending") // pending | approved | rejected
+  message     String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
 }

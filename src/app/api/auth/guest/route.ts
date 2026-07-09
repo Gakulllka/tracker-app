@@ -3,57 +3,70 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword, generateSessionToken } from "@/lib/password";
 
 // POST /api/auth/guest
-// Создаёт временного гостевого пользователя с admin-правами для тестирования
+// Гость — один общий пользователь, который видит все задачи без исключения,
+// но не может их редактировать (read-only).
 export async function POST(req: NextRequest) {
   try {
-    // Ищем роль admin
-    const adminRole = await prisma.role.findFirst({
-      where: { name: { in: ["admin", "Admin", "ADMIN"] } },
+    // Ищем или создаём роль "guest"
+    let guestRole = await prisma.role.findFirst({
+      where: { name: { in: ["guest", "Guest", "GUEST"] } },
     });
 
-    if (!adminRole) {
-      return NextResponse.json(
-        { error: "Роль admin не найдена. Создайте роль в админ-панели." },
-        { status: 500 }
-      );
+    if (!guestRole) {
+      // Создаём роль guest с read-only правами
+      guestRole = await prisma.role.create({
+        data: {
+          name: "guest",
+          description: "Гость — просмотр всех задач без возможности редактирования",
+          permissions: JSON.stringify({
+            canViewTasks: true,
+            canEditTasks: false,
+            canDeleteTasks: false,
+            canViewBacklog: true,
+            canEditBacklog: false,
+            canDeleteBacklog: false,
+            canViewQuestions: true,
+            canEditQuestions: false,
+            canDeleteQuestions: false,
+            canViewPresentations: true,
+            canCreatePresentations: false,
+            canUseAI: false,
+          }),
+          isSystem: true,
+        },
+      });
     }
 
-    // Ищем или создаём гостевого пользователя
+    // Ищем или создаём пользователя "guest" (один на всех)
     let guestUser = await prisma.user.findUnique({
       where: { username: "guest" },
     });
 
     if (!guestUser) {
-      const passwordHash = await hashPassword("guest_temp_2024");
+      const passwordHash = await hashPassword("guest");
       guestUser = await prisma.user.create({
         data: {
           username: "guest",
           passwordHash,
-          displayName: "Гость (тест)",
-          roleId: adminRole.id,
+          displayName: "Гость",
+          roleId: guestRole.id,
           status: "ACTIVE",
-        },
-      });
-
-      // Создаём workspace для гостя
-      await prisma.workspace.create({
-        data: {
-          name: "Тестовое пространство",
-          userId: guestUser.id,
         },
       });
     }
 
-    // Находим workspace гостя
-    const workspace = await prisma.workspace.findFirst({
+    // Ищем workspace гостя
+    let workspace = await prisma.workspace.findFirst({
       where: { userId: guestUser.id },
     });
 
     if (!workspace) {
-      return NextResponse.json(
-        { error: "Workspace не найден" },
-        { status: 500 }
-      );
+      workspace = await prisma.workspace.create({
+        data: {
+          name: "Моё пространство",
+          userId: guestUser.id,
+        },
+      });
     }
 
     // Создаём сессию
@@ -74,7 +87,7 @@ export async function POST(req: NextRequest) {
       await prisma.activityLog.create({
         data: {
           userId: guestUser.id,
-          username: "guest",
+          username: guestUser.username,
           action: "guest_login",
           entityType: "user",
           entityId: guestUser.id,
@@ -88,7 +101,7 @@ export async function POST(req: NextRequest) {
         id: guestUser.id,
         username: guestUser.username,
         displayName: guestUser.displayName,
-        role: "admin",
+        role: "guest",
       },
       token,
       workspaceId: workspace.id,
