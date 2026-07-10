@@ -29,12 +29,7 @@ model User {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  workspaces       Workspace[]
-  sessions         Session[]
-  permissions      UserPermission[]
-  aiInsights       AiInsight[]
-  sharedWorkspaces WorkspaceShare[]
-  accessRequests   WorkspaceAccessRequest[]
+  aiInsights  AiInsight[]
 }
 
 model Role {
@@ -45,50 +40,6 @@ model Role {
   isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  users User[]
-}
-
-model Workspace {
-  id        String   @id @default(cuid())
-  name      String   @default("Моё пространство")
-  allData   String   @default("{}")
-  backlog   String   @default("[]")
-  questions String   @default("[]")
-  updatedAt DateTime @updatedAt
-  createdAt DateTime @default(now())
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  shares         WorkspaceShare[]
-  tasks          Task[]
-  questionList   Question[]
-  accessRequests WorkspaceAccessRequest[]
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  token        String   @unique
-  userId       String
-  user         User     @relation(fields: [userId], references: [id])
-  ipAddress    String   @default("")
-  lastActivity DateTime @default(now())
-  currentPage  String   @default("")
-  createdAt    DateTime @default(now())
-  expiresAt    DateTime
-}
-
-model UserPermission {
-  id               String   @id @default(cuid())
-  userId           String   @unique
-  user             User     @relation(fields: [userId], references: [id])
-  visibleTabs      String   @default("")
-  visibleDomainIds String   @default("[]")
-  canEdit          Boolean  @default(true)
-  canSeeQuestions  Boolean  @default(true)
-  updatedAt        DateTime @updatedAt
-  createdAt        DateTime @default(now())
 }
 
 model Question {
@@ -100,24 +51,6 @@ model Question {
   questionDate DateTime  @default(now())
   answerDate   DateTime?
   createdAt    DateTime  @default(now())
-
-  workspaceId String?
-  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@index([workspaceId])
-}
-
-model ActivityLog {
-  id         String   @id @default(cuid())
-  userId     String   @default("")
-  username   String   @default("")
-  action     String
-  entityType String   @default("")
-  entityId   String   @default("")
-  oldValue   String   @default("")
-  newValue   String   @default("")
-  ipAddress  String   @default("")
-  createdAt  DateTime @default(now())
 }
 
 // Phase 4: AI-инсайты привязаны к (пользователь, домен, месяц).
@@ -144,20 +77,6 @@ model AiInsight {
   @@index([userId, domainId])
 }
 
-model WorkspaceShare {
-  id          String    @id @default(cuid())
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role        String    @default("editor") // "editor" | "viewer" | "executive"
-  domainIds   String    @default("[]") // JSON array of domain IDs — для executive: какие домены видит
-  createdAt   DateTime  @default(now())
-
-  @@unique([workspaceId, userId])
-  @@index([userId])
-}
-
 model Domain {
   id          String   @id @default(cuid())
   name        String   @unique
@@ -181,45 +100,4 @@ model BacklogItem {
   updatedAt   DateTime @updatedAt
 
   @@index([domainId])
-}
-
-model Task {
-  id          String    @id @default(cuid())
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  domainId    String    @default("default")
-  monthKey    String // "YYYY-MM" или "backlog"
-  num         String    @default("")
-  name        String    @default("")
-  planH       String    @default("0")
-  factH       String    @default("0")
-  priority    String    @default("QUEUE")
-  status      String    @default("IDEA")
-  comment     String    @default("")
-  commentLog  String    @default("[]") // JSON array
-  visibleTo   String    @default("[]") // JSON array user IDs — кто видит задачу
-  ts          DateTime  @default(now()) // Last-modified timestamp
-  deleted     Boolean   @default(false) // Soft-delete tombstone
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@index([workspaceId])
-  @@index([workspaceId, domainId])
-  @@index([workspaceId, domainId, monthKey])
-}
-
-model WorkspaceAccessRequest {
-  id          String    @id @default(cuid())
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status      String    @default("pending") // pending | approved | rejected
-  message     String    @default("")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@unique([workspaceId, userId])
-  @@index([workspaceId])
-  @@index([userId])
 }
