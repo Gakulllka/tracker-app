@@ -59,23 +59,54 @@ export function hsl2hex(h: number, s: number, l: number): string {
   return `#${f(r)}${f(g)}${f(b)}`;
 }
 
+/**
+ * Генерация палитры из акцента — фирменная черта продукта: весь интерфейс
+ * мягко окрашивается выбранным цветом.
+ *
+ * Редизайн (Notion-характер): акцент живее (насыщенность до 66 вместо 56,
+ * светлота 52 — белый текст на нём читается), поверхности тёплые с лёгкой
+ * подкраской, muted-текст контрастнее (WCAG-дружелюбно), в тёмной теме
+ * границы заметнее, а приглушённый текст не проваливается.
+ */
+/**
+ * Тема зафиксирована: «Графит и бумага» — язык фирменной двери продукта.
+ *
+ * Выбор акцентного цвета отключён (вкладка «Оформление» скрыта): у продукта
+ * один характер в двух режимах. Светлый — тёплая бумага и графитовые чернила;
+ * тёмный — графит и бумажный текст. Акцент = чернила: активные элементы,
+ * кнопки и метки монохромны, цвет остаётся только у семантики (статусы,
+ * прогресс, опасность).
+ *
+ * baseHex сознательно игнорируется — сохранён в сигнатуре для совместимости
+ * с сохранёнными настройками пользователей.
+ */
 export function createTheme(baseHex: string, isDark = false): ThemeColors {
-  const [h, s] = hex2hsl(baseHex);
-  const sat = Math.min(s, 48);
-  const acSat = isDark ? Math.min(s, 65) : Math.min(s, 56);
-  const hx = (sm: number, l: number) => hsl2hex(h, sat * sm, l);
-  const ac = hsl2hex(h, acSat, isDark ? 68 : 58);
+  void baseHex; // тема фиксированная
+  if (isDark) {
+    return {
+      accent: "#F5F5F2",            // белый акцент: кнопки и активное — светлые
+      accentSoft: "rgba(250,250,248,0.10)",
+      accentBg: "#26282E",
+      accentFgDark: "#F2F2EF",
+      bgMain: "#131418",
+      bgCard: "#1A1B20",
+      textMain: "#F5F5F2",
+      textMuted: "#ABABA5",
+      border: "#34353C",
+      danger: "#E0706A",
+    };
+  }
   return {
-    accent: ac,
-    accentSoft: ac + "1c",
-    accentBg: hsl2hex(h, isDark ? 24 : 20, isDark ? 19 : 95.5),
-    accentFgDark: hsl2hex(h, isDark ? 38 : 46, isDark ? 82 : 32),
-    bgMain: hx(isDark ? 0.42 : 0.50, isDark ? 10 : 97),
-    bgCard: hx(isDark ? 0.28 : 0.30, isDark ? 15 : 99.5),
-    textMain: hx(isDark ? 0.15 : 0.32, isDark ? 90 : 12),
-    textMuted: hx(isDark ? 0.20 : 0.26, isDark ? 44 : 52),
-    border: hx(isDark ? 0.28 : 0.38, isDark ? 20 : 90),
-    danger: hsl2hex(350, isDark ? 50 : 52, isDark ? 68 : 52),
+    accent: "#17181C",              // чернила
+    accentSoft: "rgba(23,24,28,0.08)",
+    accentBg: "#EFEFEC",
+    accentFgDark: "#17181C",
+    bgMain: "#FAFAF8",              // бумага
+    bgCard: "#FFFFFF",
+    textMain: "#17181C",
+    textMuted: "#5D5D57",
+    border: "#DEDDD6",
+    danger: "#C6453F",
   };
 }
 
@@ -90,8 +121,15 @@ export function applyTheme(th: ThemeColors): void {
   s.setProperty("--tracker-text-muted", th.textMuted);
   s.setProperty("--tracker-border", th.border);
   s.setProperty("--tracker-danger", th.danger);
+  // Hover для сплошных акцентных кнопок: тёмный акцент чуть светлеет,
+  // светлый — чуть темнеет.
+  const [ah, asat, al] = hex2hsl(th.accent);
+  s.setProperty("--tracker-accent-hover", hsl2hex(ah, asat, al > 60 ? Math.max(0, al - 7) : Math.min(100, al + 8)));
+  // Цвет текста НА акценте: светлый акцент (тёмная тема) → чернила,
+  // тёмный акцент (светлая тема) → белый. Логика «в тёмной теме кнопки белые».
+  s.setProperty("--tracker-accent-contrast", al > 60 ? "#17181C" : "#FFFFFF");
   const [r, g, b] = hexToRgb(th.accent);
-  s.setProperty("--tracker-accent-hover", `rgba(${r}, ${g}, ${b}, 0.22)`);
+  s.setProperty("--tracker-accent-soft-hover", `rgba(${r}, ${g}, ${b}, 0.14)`);
   s.setProperty("--tracker-accent-fg", th.accent);
   s.setProperty("--tracker-accent-bg", th.accentBg);
   s.setProperty("--tracker-accent-fg-dark", th.accentFgDark);

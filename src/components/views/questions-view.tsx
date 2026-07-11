@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/empty-state";
 import {
   Plus, Trash2, ChevronUp, ChevronDown, MessageSquare, Send,
   ClipboardList, Package, Search, Pin, CheckCircle2, Clock,
-  CircleDot, Archive, BarChart3, Sparkles, Ruler,
+  CircleDot, Archive, BarChart3, Sparkles, Ruler, X,
 } from "lucide-react";
 import { STATUSES, PRIORITIES, MONTHS, PCOL, scolText, type Status, type Priority, type Task } from "@/lib/types";
 import { useTaskStore } from "@/lib/store";
@@ -36,6 +36,9 @@ export interface QuestionsViewProps {
   addToTable: (month: number, task: Task) => void;
   isDark: boolean;
   isGuest?: boolean;
+  /** Активный домен — для фильтра «текущий домен / все». */
+  activeDomainId?: string;
+  activeDomainName?: string;
 }
 
 interface QuestionToTaskDialog {
@@ -72,7 +75,14 @@ export function QuestionsView({
   questions, newQuestionText, setNewQuestionText, addQuestion, addLinkedQuestion,
   removeQuestion, answerQuestion, deleteAnswer, archiveQuestion, restoreQuestion,
   currentUsername, currentMonth, allData, updateTask, addToBacklog, addToTable, isDark, isGuest,
+  activeDomainId, activeDomainName,
 }: QuestionsViewProps) {
+  /** Фильтр по домену: по умолчанию — вопросы текущего домена и общие. */
+  const [domainScope, setDomainScope] = useState<"current" | "all">("current");
+  const scopedQuestions = useMemo(() => {
+    if (domainScope === "all" || !activeDomainId) return questions;
+    return questions.filter(q => !q.domainId || q.domainId === activeDomainId);
+  }, [questions, domainScope, activeDomainId]);
   const [answeringId, setAnsweringId] = useState<string | null>(null);
   const [answerDraft, setAnswerDraft] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -144,12 +154,13 @@ export function QuestionsView({
       commentLog: [{ date: new Date().toLocaleDateString("ru-RU"), week: "0", text: `Создано из вопроса: "${taskDialog.questionText}"`, planH: "0", factH: "0", status: taskDialog.status }],
       _ts: Date.now(),
     };
-    taskDialog.target === "backlog" ? addToBacklog(task) : addToTable(taskDialog.month, task);
+    if (taskDialog.target === "backlog") addToBacklog(task);
+    else addToTable(taskDialog.month, task);
     setTaskDialog(d => ({ ...d, open: false }));
   }, [taskDialog, addToBacklog, addToTable]);
 
   const filtered = useMemo(() => {
-    let result = questions.filter(q => q.status !== "archived");
+    let result = scopedQuestions.filter(q => q.status !== "archived");
     if (filter === "open") result = result.filter(q => q.status === "open");
     if (filter === "reopened") result = result.filter(q => q.status === "reopened");
     if (filter === "answered") result = result.filter(q => q.status === "answered");
@@ -162,7 +173,7 @@ export function QuestionsView({
       );
     }
     return result;
-  }, [questions, filter, search]);
+  }, [scopedQuestions, filter, search]);
 
   const groupedQuestions = useMemo(() => {
     const groups: Record<string, Question[]> = {};
@@ -174,11 +185,13 @@ export function QuestionsView({
     return DATE_GROUP_ORDER.filter(g => groups[g]?.length).map(g => ({ label: g, items: groups[g] }));
   }, [filtered]);
 
-  const totalQuestions = questions.filter(q => q.status !== "archived").length;
-  const answered = questions.filter(q => q.status === "answered");
-  const reopened = questions.filter(q => q.status === "reopened");
-  const unanswered = questions.filter(q => q.status === "open");
-  const archived = questions.filter(q => q.status === "archived");
+  const { totalQuestions, answered, reopened, unanswered, archived } = useMemo(() => ({
+    totalQuestions: scopedQuestions.filter(q => q.status !== "archived").length,
+    answered: scopedQuestions.filter(q => q.status === "answered"),
+    reopened: scopedQuestions.filter(q => q.status === "reopened"),
+    unanswered: scopedQuestions.filter(q => q.status === "open"),
+    archived: scopedQuestions.filter(q => q.status === "archived"),
+  }), [scopedQuestions]);
   const answeredCount = answered.length;
   const reopenedCount = reopened.length;
   const openCount = unanswered.length;
@@ -230,7 +243,7 @@ export function QuestionsView({
       )}
 
       {/* ── Create task dialog ── */}
-      <Dialog open={taskDialog.open} onValueChange={open => { if (!open) setTaskDialog(d => ({ ...d, open: false })); }}>
+      <Dialog open={taskDialog.open} onOpenChange={open => { if (!open) setTaskDialog(d => ({ ...d, open: false })); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -282,7 +295,7 @@ export function QuestionsView({
             )}
           </div>
           <DialogFooter className="gap-2 sm:flex-row sm:justify-stretch">
-            <Button disabled={!taskDialog.name.trim()} onClick={handleCreateTask} className="flex-1 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]">
+            <Button disabled={!taskDialog.name.trim()} onClick={handleCreateTask} className="flex-1 bg-[var(--tracker-accent)] text-[var(--tracker-accent-contrast)] hover:bg-[var(--tracker-accent-hover)]">
               {taskDialog.target === "backlog" ? "В беклог" : "В таблицу"}
             </Button>
             <Button variant="destructive" onClick={() => setTaskDialog(d => ({ ...d, open: false }))} className="flex-1">Отмена</Button>
@@ -345,7 +358,7 @@ export function QuestionsView({
                 <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>Ctrl+Enter · отправить</span>
                 <Button size="sm" disabled={!newQuestionText.trim()}
                   className="h-7 gap-1.5 text-xs rounded-lg px-3"
-                  style={{ background: "var(--tracker-accent)", color: "#fff" }}
+                  style={{ background: "var(--tracker-accent)", color: "var(--tracker-accent-contrast)" }}
                   onClick={handleAddQuestion}>
                   <Sparkles className="size-3" /> Задать вопрос
                 </Button>
@@ -354,6 +367,33 @@ export function QuestionsView({
           </div>
         </div>
       </div>
+
+      {/* ── Domain scope ── */}
+      {activeDomainId && (
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--tracker-bg-card, var(--background))", border: "1px solid var(--tracker-border)" }}>
+            <button onClick={() => setDomainScope("current")}
+              className={`text-xs font-medium px-3 py-1 rounded-lg transition-all ${domainScope === "current" ? "shadow-sm" : "hover:bg-muted/50"}`}
+              style={{
+                background: domainScope === "current" ? "var(--tracker-accent-bg)" : "transparent",
+                color: domainScope === "current" ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
+              }}>
+              <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-[4px]" style={{ background: "var(--tracker-accent)" }} />{activeDomainName || "Текущий домен"}</span>
+            </button>
+            <button onClick={() => setDomainScope("all")}
+              className={`text-xs font-medium px-3 py-1 rounded-lg transition-all ${domainScope === "all" ? "shadow-sm" : "hover:bg-muted/50"}`}
+              style={{
+                background: domainScope === "all" ? "var(--tracker-accent-bg)" : "transparent",
+                color: domainScope === "all" ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
+              }}>
+              Все домены
+            </button>
+          </div>
+          <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
+            {domainScope === "current" ? "вопросы текущего домена и общие" : "вопросы всех доменов"}
+          </span>
+        </div>
+      )}
 
       {/* ── Filter tabs + Search ── */}
       {totalQuestions > 0 && (
@@ -687,7 +727,7 @@ function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAnsweringI
                 <Textarea placeholder="Ваш ответ..." value={answerDraft}
                   onChange={e => setAnswerDraft(e.target.value)} className="min-h-[48px] resize-none text-xs rounded-lg" autoFocus />
                 <div className="flex gap-1.5">
-                  <Button size="sm" disabled={!answerDraft.trim()} className="h-6 gap-1 bg-[var(--tracker-accent)] text-white text-[10px] rounded-md px-2"
+                  <Button size="sm" disabled={!answerDraft.trim()} className="h-6 gap-1 bg-[var(--tracker-accent)] text-[var(--tracker-accent-contrast)] text-[10px] rounded-md px-2"
                     onClick={() => { answerQuestion(q.id, answerDraft, currentUsername); setAnsweringId(null); setAnswerDraft(""); setExpandedId(q.id); }}>
                     <Send className="size-2.5" />Отправить
                   </Button>

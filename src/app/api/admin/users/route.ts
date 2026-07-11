@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { validateAdminRequest } from "@/lib/admin-auth";
 
+const ROLE_META: Record<string, { name: string; description: string }> = {
+  admin:  { name: "admin",  description: "Полный доступ и админ-панель" },
+  editor: { name: "editor", description: "Редактирует все домены" },
+  viewer: { name: "viewer", description: "Только просмотр" },
+  member: { name: "member", description: "Редактирует свои домены" },
+  guest:  { name: "guest",  description: "Гость — только просмотр" },
+};
+
+function roleObject(role: string) {
+  const meta = ROLE_META[role] || { name: role, description: "" };
+  return { id: role, name: meta.name, description: meta.description };
+}
+
 // GET /api/admin/users?token=xxx
 export async function GET(req: NextRequest) {
   try {
@@ -18,9 +31,11 @@ export async function GET(req: NextRequest) {
         role: true,
         status: true,
         createdAt: true,
-        permissions: true,
+        domainRights: {
+          select: { domainId: true, domain: { select: { name: true } } },
+        },
         sessions: {
-          select: { createdAt: true, expiresAt: true },
+          select: { createdAt: true, expiresAt: true, lastActivity: true },
           orderBy: { createdAt: "desc" },
           take: 1,
         },
@@ -28,18 +43,30 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "asc" },
     });
 
-    return NextResponse.json({ success: true, users });
+    return NextResponse.json({
+      success: true,
+      users: users.map((u) => ({
+        id: u.id,
+        username: u.username,
+        displayName: u.displayName,
+        role: roleObject(u.role),
+        roleId: u.role,
+        status: u.status,
+        createdAt: u.createdAt,
+        sessions: u.sessions,
+        editableDomains: u.domainRights.map((r) => ({ id: r.domainId, name: r.domain.name })),
+      })),
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-// PUT /api/admin/users — toggle ACTIVE/BLOCKED status
+// PUT /api/admin/users — блокировка/разблокировка
 // Body: { token, userId, status }
 export async function PUT(req: NextRequest) {
   try {
-    // Parse body FIRST, then pass token to validateAdminRequest
     const body = await req.json();
     const { token, userId, status } = body;
 
@@ -55,10 +82,7 @@ export async function PUT(req: NextRequest) {
     const user = await prisma.user.update({
       where: { id: userId },
       data: { status },
-      select: {
-        id: true, username: true, displayName: true, status: true,
-        role: { select: { id: true, name: true, description: true } },
-      },
+      select: { id: true, username: true, displayName: true, status: true, role: true },
     });
 
     if (status === "BLOCKED") {
@@ -75,7 +99,10 @@ export async function PUT(req: NextRequest) {
       });
     } catch { /* ignore */ }
 
-    return NextResponse.json({ success: true, user });
+    return NextResponse.json({
+      success: true,
+      user: { ...user, role: roleObject(user.role) },
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

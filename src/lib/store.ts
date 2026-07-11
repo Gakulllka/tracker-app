@@ -7,6 +7,13 @@ import { createUndoHelpers } from "./undo";
 
 const undoHelpers = createUndoHelpers();
 
+/**
+ * Монотонная метка LWW: строго больше предыдущей, даже если две правки
+ * пришлись на одну миллисекунду. Без этого сервер считает вторую правку
+ * «той же версией» и молча пропускает её.
+ */
+const bumpTs = (prev?: number) => Math.max(Date.now(), (prev || 0) + 1);
+
 function getWeekNumber(d: Date): number {
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   const dayNum = date.getUTCDay() || 7;
@@ -524,7 +531,12 @@ export const useTaskStore = create<AppState>()(
 
         // Сначала нормализуем входящие домены: если allData содержит
         // ключи в формате YYYY-MM, переносим в dataByYearMonth.
-        for (const [id, dd] of Object.entries(newDomainData)) {
+        for (const [id, ddRaw] of Object.entries(newDomainData)) {
+          // План часов: сервер отдаёт его только непустым; если во входящих
+          // данных плана нет — сохраняем локальный, чтобы pull его не стёр.
+          const dd: DomainData = ddRaw.monthlyPlanByYearMonth
+            ? ddRaw
+            : { ...ddRaw, monthlyPlanByYearMonth: state.domainData[id]?.monthlyPlanByYearMonth };
           const keys = Object.keys(dd.allData ?? {});
           const hasMonthKey = keys.some(k => /^\d{4}-\d{2}$/.test(k));
 
@@ -629,14 +641,15 @@ export const useTaskStore = create<AppState>()(
         if (key === "status" && value === STATUSES.POSTPONED) {
           const task = rows.find(r => r.id === taskId);
           if (!task) return state; // no-op
+          // Tombstone в месяце: иначе серверная копия «воскресит» задачу
           const newAllData = {
             ...state.allData,
-            [month]: rows.filter(r => r.id !== taskId),
+            [month]: rows.map(r => r.id === taskId ? { ...r, _deleted: true, _ts: bumpTs(r._ts) } : r),
           };
           const backlogEntry = {
             ...task,
             status: STATUSES.POSTPONED,
-            _ts: Date.now(),
+            _ts: bumpTs(task._ts),
             commentLog: [...(task.commentLog || []), makeSystemLog("📦 Отложена → перемещена в беклог")],
           };
           return withDomainSync(state, { allData: newAllData, backlog: [...state.backlog, backlogEntry] });
@@ -645,7 +658,7 @@ export const useTaskStore = create<AppState>()(
           ...state.allData,
           [month]: rows.map(r => {
             if (r.id !== taskId) return r;
-            const patch: Partial<Task> = { [key]: value, _ts: Date.now() };
+            const patch: Partial<Task> = { [key]: value, _ts: bumpTs(r._ts) };
             // При смене статуса сбрасываем таймер daysInStatus
             if (key === "status" && value !== r.status) {
               patch.statusChangedAt = new Date().toISOString();
@@ -695,7 +708,7 @@ export const useTaskStore = create<AppState>()(
           const newAllData = {
             ...state.allData,
             [month]: (state.allData[month] || []).map(r =>
-              r.id === taskId ? { ...r, _deleted: true, _ts: now } : r
+              r.id === taskId ? { ...r, _deleted: true, _ts: bumpTs(r._ts) } : r
             ),
           };
           return withDomainSync(state, { allData: newAllData });
@@ -708,7 +721,7 @@ export const useTaskStore = create<AppState>()(
           ...state.allData,
           [month]: rows.map(r => {
             if (r.id !== taskId) return r;
-            return { ...r, visibleTo: JSON.stringify(userIds), _ts: Date.now() };
+            return { ...r, visibleTo: JSON.stringify(userIds), _ts: bumpTs(r._ts) };
           }),
         };
         return withDomainSync(state, { allData: newAllData });
@@ -739,7 +752,10 @@ export const useTaskStore = create<AppState>()(
           if (fi < 0 || ti < 0) return state; // no-op
           const [item] = rows.splice(fi, 1);
           rows.splice(ti, 0, item);
-          const newAllData = { ...state.allData, [month]: rows };
+          // Порядок хранится в sortOrder каждой строки — бампим все, иначе
+          // сервер проигнорирует перестановку как «ту же версию».
+          const stamped = rows.map(r => ({ ...r, _ts: bumpTs(r._ts) }));
+          const newAllData = { ...state.allData, [month]: stamped };
           return withDomainSync(state, { allData: newAllData });
         });
       },
@@ -753,7 +769,8 @@ export const useTaskStore = create<AppState>()(
           } else {
             rows.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
           }
-          const newAllData = { ...state.allData, [month]: rows };
+          const stamped = rows.map(r => ({ ...r, _ts: bumpTs(r._ts) }));
+          const newAllData = { ...state.allData, [month]: stamped };
           return withDomainSync(state, { allData: newAllData });
         });
       },
@@ -764,15 +781,16 @@ export const useTaskStore = create<AppState>()(
           const rows = state.allData[month] || [];
           const task = rows.find(r => r.id === taskId);
           if (!task) return state; // no-op
+          // Tombstone вместо удаления: серверная копия месяца не воскреснет
           const newAllData = {
             ...state.allData,
-            [month]: rows.filter(r => r.id !== taskId),
+            [month]: rows.map(r => r.id === taskId ? { ...r, _deleted: true, _ts: bumpTs(r._ts) } : r),
           };
           const backlogEntry = {
             ...task,
             priority: PRIORITIES.QUEUE,
             status: STATUSES.IDEA,
-            _ts: Date.now(),
+            _ts: bumpTs(task._ts),
             commentLog: [...(task.commentLog || []), makeSystemLog("📦 Задача добавлена в беклог")],
           };
           const newBacklog = [...state.backlog, backlogEntry];
@@ -795,6 +813,7 @@ export const useTaskStore = create<AppState>()(
             status: task.status,
             comment: task.comment,
             commentLog: [...(task.commentLog || []), makeSystemLog(`📋 Возвращена в таблицу (${MONTHS[targetMonth]})`)],
+            _ts: bumpTs(task._ts),
           };
           const existing = state.allData[targetMonth] || [];
           const isEmpty = existing.length === 1 && !existing[0].num && !existing[0].name;
@@ -802,7 +821,10 @@ export const useTaskStore = create<AppState>()(
             ...state.allData,
             [targetMonth]: isEmpty ? [clean] : [...existing, clean],
           };
-          const newBacklog = state.backlog.filter(t => t.id !== taskId);
+          // Tombstone в бэклоге: иначе серверная копия вернёт задачу обратно
+          const newBacklog = state.backlog.map(t =>
+            t.id === taskId ? { ...t, _deleted: true, _ts: bumpTs(t._ts) } : t
+          );
           return withDomainSync(state, { allData: newAllData, backlog: newBacklog });
         });
       },
@@ -822,6 +844,7 @@ export const useTaskStore = create<AppState>()(
             status: edits.status,
             comment: task.comment,
             commentLog: [...(task.commentLog || []), makeSystemLog(`📋 Возвращена в таблицу (${MONTHS[targetMonth]})`)],
+            _ts: bumpTs(task._ts),
           };
           const existing = state.allData[targetMonth] || [];
           const isEmpty = existing.length === 1 && !existing[0].num && !existing[0].name;
@@ -829,7 +852,10 @@ export const useTaskStore = create<AppState>()(
             ...state.allData,
             [targetMonth]: isEmpty ? [clean] : [...existing, clean],
           };
-          const newBacklog = state.backlog.filter(t => t.id !== taskId);
+          // Tombstone в бэклоге: иначе серверная копия вернёт задачу обратно
+          const newBacklog = state.backlog.map(t =>
+            t.id === taskId ? { ...t, _deleted: true, _ts: bumpTs(t._ts) } : t
+          );
           return withDomainSync(state, { allData: newAllData, backlog: newBacklog });
         });
       },
@@ -837,9 +863,8 @@ export const useTaskStore = create<AppState>()(
       deleteBacklogTask: (taskId) => {
         undoHelpers.snapshot(getStateSnapshot);
         set(state => {
-          const now = Date.now();
           const newBacklog = state.backlog.map(t =>
-            t.id === taskId ? { ...t, _deleted: true, _ts: now } : t
+            t.id === taskId ? { ...t, _deleted: true, _ts: bumpTs(t._ts) } : t
           );
           return withDomainSync(state, { backlog: newBacklog });
         });
@@ -851,9 +876,10 @@ export const useTaskStore = create<AppState>()(
           const fromIdx = state.backlog.findIndex(t => t.id === fromId);
           const toIdx = state.backlog.findIndex(t => t.id === toId);
           if (fromIdx === -1 || toIdx === -1) return state; // no-op
-          const newBacklog = [...state.backlog];
-          const [moved] = newBacklog.splice(fromIdx, 1);
-          newBacklog.splice(toIdx, 0, moved);
+          const reordered = [...state.backlog];
+          const [moved] = reordered.splice(fromIdx, 1);
+          reordered.splice(toIdx, 0, moved);
+          const newBacklog = reordered.map(t => ({ ...t, _ts: bumpTs(t._ts) }));
           return withDomainSync(state, { backlog: newBacklog });
         });
       },
@@ -862,7 +888,7 @@ export const useTaskStore = create<AppState>()(
         undoHelpers.snapshot(getStateSnapshot);
         set(state => {
           const newBacklog = state.backlog.map(t =>
-            t.id === taskId ? { ...t, [key]: value, _ts: Date.now() } : t
+            t.id === taskId ? { ...t, [key]: value, _ts: bumpTs(t._ts) } : t
           );
           return withDomainSync(state, { backlog: newBacklog });
         });
@@ -1126,7 +1152,7 @@ export const useTaskStore = create<AppState>()(
           const newAllData = {
             ...state.allData,
             [month]: (state.allData[month] || []).map(r =>
-              idSet.has(r.id) ? { ...r, [key]: value, _ts: Date.now() } : r
+              idSet.has(r.id) ? { ...r, [key]: value, _ts: bumpTs(r._ts) } : r
             ),
           };
           return withDomainSync(state, { allData: newAllData });
@@ -1272,4 +1298,6 @@ export const useTaskStore = create<AppState>()(
 export const undoStore = {
   canUndo: () => undoHelpers.canUndo(),
   canRedo: () => undoHelpers.canRedo(),
+  /** Сброс истории undo/redo (используется синком при чужих правках). */
+  clear: () => undoHelpers.clear(),
 };

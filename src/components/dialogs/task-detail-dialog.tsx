@@ -8,15 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 import { Task, TaskComment, STATUSES, PRIORITIES, MONTHS, PCOL, PHASE_COLORS, scolText, type Status, type Priority, type AllData } from "@/lib/types";
-import { calcRollover, R2, MONTH_CAPACITY, evalExpr, fmt2 } from "@/lib/metrics";
+import { calcRollover, R2, MONTH_CAPACITY, evalExpr, fmt2, getTaskMetrics, progColor } from "@/lib/metrics";
 import { useTaskStore } from "@/lib/store";
 import {
-  MessageSquare, Reply, Paperclip, Send, X, Package, Trash2, ExternalLink,
-} from "lucide-react";
+  MessageSquare, Reply, Paperclip, Send, X, Package, Trash2, ExternalLink, Wallet } from "lucide-react";
+
+/** Бюджетный функционал скрыт по решению владельца (код сохранён). */
+const SHOW_BUDGET = false;
 
 const FLAG_LABELS: Record<string, string> = {
-  escalate: "⚡ Эскалировать", pause: "⏸ Пауза",
-  cancel: "✖ Отмена", request_status: "❓ Статус",
+  escalate: "Эскалировать", pause: "Пауза",
+  cancel: "Отмена", request_status: "Статус",
 };
 const FLAG_COLORS: Record<string, string> = {
   escalate: "#E24B4A", pause: "#BA7517", cancel: "#6B7280", request_status: "#1D9E75",
@@ -235,14 +237,15 @@ export function TaskDetailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="p-0 gap-0 rounded-2xl border-0 shadow-2xl overflow-hidden"
+        className="p-0 gap-0 rounded-2xl border overflow-hidden"
         style={{
-          background: "var(--tracker-bg, var(--background))",
-          width: "75vw",
-          height: "85vh",
-          maxWidth: "75vw",
-          maxHeight: "85vh",
-          boxShadow: "0 25px 60px -12px color-mix(in srgb, var(--tracker-accent, #1D9E75) 20%, rgba(0,0,0,0.25))",
+          background: "var(--tracker-bg-card, var(--background))",
+          borderColor: "var(--tracker-border)",
+          width: "min(1200px, 94vw)",
+          height: "min(860px, 92vh)",
+          maxWidth: "min(1200px, 94vw)",
+          maxHeight: "min(860px, 92vh)",
+          boxShadow: "var(--shadow-pop)",
         }}
       >
         <DialogHeader className="sr-only">
@@ -250,7 +253,7 @@ export function TaskDetailDialog({
           <DialogDescription>Детали задачи и обсуждение</DialogDescription>
         </DialogHeader>
 
-        <div className="flex h-full overflow-hidden">
+        <div className="flex flex-col md:flex-row h-full overflow-hidden">
 
           {/* ═══════════════════ ЛЕВАЯ КОЛОНКА ═══════════════════ */}
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden" style={{ borderRight: "1px solid var(--tracker-border, var(--border))" }}>
@@ -260,42 +263,54 @@ export function TaskDetailDialog({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="text-base font-bold" style={{ color: "var(--tracker-text-main, var(--foreground))" }}>
+                    <span className="text-lg font-bold" style={{ color: "var(--tracker-text-main, #17181C)" }}>
                       {task.name || "Без названия"}
                     </span>
-                    {task.num && <span className="text-xs font-mono" style={{ color: "var(--tracker-text-muted, var(--muted-foreground))" }}>#{task.num}</span>}
+                    {task.num && <span className="text-sm font-mono" style={{ color: "var(--tracker-text-muted, var(--muted-foreground))" }}>#{task.num}</span>}
                   </div>
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
                       style={{ color: scolText(task.status, isDark) || "#888", background: (scolText(task.status, isDark) || "#888") + "18" }}>
                       {task.status}
                     </span>
-                    <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
-                      style={{ background: "var(--tracker-accent-bg, rgba(29,158,117,0.08))", color: "var(--tracker-text-muted, var(--muted-foreground))" }}>
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                      style={{ color: PCOL[task.priority] || "#888", background: (PCOL[task.priority] || "#888") + "20" }}>
                       {task.priority}
                     </span>
-                    <span className="text-xs tabular-nums" style={{ color: "var(--tracker-text-muted, var(--muted-foreground))" }}>
-                      {task.planH || "0"}ч план / {task.factH || "0"}ч факт
+                    <span className="text-sm tabular-nums" style={{ color: "var(--tracker-text-muted, var(--muted-foreground))" }}>
+                      {task.planH || "0"}ч план / {task.factH || "0"}ч факт / <span style={{ color: maxCum <= evalExpr(task.planH) ? "#1D9E75" : "#E24B4A" }}>{fmt2(maxCum)}ч</span> итого
                     </span>
-                    {(task.budgetAllocated ?? 0) > 0 && (
+                    {SHOW_BUDGET && (task.budgetAllocated ?? 0) > 0 && (
                       <span className="text-[10px] font-semibold tabular-nums px-2 py-0.5 rounded-full"
                         style={{ background: "rgba(29,158,117,0.1)", color: "#1D9E75" }}>
-                        💰 {task.budgetAllocated}ч
+                        {task.budgetAllocated}ч
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-3 shrink-0">
                   {savedFlash && (
                     <span className="text-[10px] font-medium px-2 py-0.5 rounded-lg"
                       style={{ background: "rgba(29,158,117,0.12)", color: "#1D9E75" }}>
                       ✓ Сохранено
                     </span>
                   )}
-                  <ActionButton icon={<Package className="size-3.5" />} label="В беклог" onClick={() => { snapshot(); onMoveToBacklog(month, task.id); onOpenChange(false); }} />
-                  <button className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+                  {planfixUrl && (
+                    <a href={planfixUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg transition-opacity hover:opacity-80"
+                      style={{ background: "var(--tracker-accent, #17181C)", color: "var(--tracker-accent-contrast, #F5F5F2)" }}>
+                      <ExternalLink className="size-4" /> Открыть в PlanFix
+                    </a>
+                  )}
+                  <button className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg transition-opacity hover:opacity-80"
+                    style={{ background: "var(--tracker-accent, #17181C)", color: "var(--tracker-accent-contrast, #F5F5F2)" }}
+                    onClick={() => { snapshot(); onMoveToBacklog(month, task.id); onOpenChange(false); }}>
+                    <Package className="size-4" /> В беклог
+                  </button>
+                  <button className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
+                    style={{ background: "var(--tracker-accent, #17181C)", color: "var(--tracker-danger, #E0706A)" }}
                     onClick={() => { snapshot(); onDeleteTask(month, task.id); onOpenChange(false); }}>
-                    <Trash2 className="size-3.5" /> Удалить
+                    <Trash2 className="size-4" /> Удалить
                   </button>
                 </div>
               </div>
@@ -303,10 +318,7 @@ export function TaskDetailDialog({
               {isPending && (
                 <div className="mt-2.5 rounded-xl p-2.5 border flex items-center justify-between"
                   style={{ background: "rgba(251,191,36,0.07)", borderColor: "rgba(251,191,36,0.3)" }}>
-                  <div className="flex items-center gap-2">
-                    <span>⏳</span>
-                    <span className="text-xs font-medium" style={{ color: "#854F0B" }}>Ожидает подтверждения БА</span>
-                  </div>
+                  <span className="text-xs font-medium" style={{ color: "#854F0B" }}>Ожидает подтверждения БА</span>
                   <div className="flex gap-2">
                     <Button size="sm" className="h-7 text-[11px] rounded-lg px-3" style={{ background: "#1D9E75", color: "#fff" }} onClick={handleAccept}>Принять</Button>
                     <Button size="sm" variant="outline" className="h-7 text-[11px] rounded-lg px-3" style={{ borderColor: "#E24B4A", color: "#E24B4A" }} onClick={handleReject}>Отклонить</Button>
@@ -315,7 +327,7 @@ export function TaskDetailDialog({
               )}
               {isRejected && (
                 <div className="mt-2.5 rounded-xl p-2.5 border text-xs" style={{ background: "rgba(226,75,74,0.06)", borderColor: "rgba(226,75,74,0.2)", color: "#A32D2D" }}>
-                  ✖ Задача отклонена БА. Бюджет обнулён.
+                  Задача отклонена БА.
                 </div>
               )}
               {hasFlag && task.executiveFlag && (
@@ -328,12 +340,6 @@ export function TaskDetailDialog({
                     onClick={() => onUpdateTask(month, task.id, "executiveFlag", undefined)}>Снять</button>
                 </div>
               )}
-              {isFirstToCutIds?.has(task.id) && (
-                <div className="mt-2 text-[10px] font-medium px-2 py-1 rounded-full inline-block"
-                  style={{ background: "rgba(249,115,22,0.1)", color: "#f97316" }}>
-                  ⚡ Авто: на отсечение
-                </div>
-              )}
             </div>
 
             {/* ── Scrollable Content ── */}
@@ -343,83 +349,109 @@ export function TaskDetailDialog({
             <div className="px-5 py-4">
               <SectionTitle>Основная информация</SectionTitle>
 
-              {/* Название */}
-              <div className="mb-3">
-                <label className="text-[10px] mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>Название задачи</label>
-                <input className="field-input h-9 text-sm w-full font-medium" value={task.name}
-                  onChange={e => handleFieldUpdate("name", e.target.value)} placeholder="Название задачи" />
-              </div>
-
-              {/* Номер + ссылка на PlanFix */}
-              <div className="grid grid-cols-3 gap-3 text-xs mb-3">
+              {/* Ряд 1: Название + Номер */}
+              <div className="grid grid-cols-4 gap-3 mb-4">
+                <div className="col-span-3">
+                  <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--tracker-text-main, #17181C)" }}>Название задачи</label>
+                  <input className="field-input h-10 text-base w-full font-medium" value={task.name}
+                    onChange={e => handleFieldUpdate("name", e.target.value)} placeholder="Название задачи" />
+                </div>
                 <div className="col-span-1">
                   <EditField label="Номер" value={task.num || ""} onChange={v => handleFieldUpdate("num", v)} />
                 </div>
-                <div className="col-span-1">
+              </div>
+
+              {/* Ряд 2: План + Факт + Итого */}
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <div>
                   <EditField label="План (ч)" value={task.planH || ""} onChange={v => handleFieldUpdate("planH", v)} />
                 </div>
-                <div className="col-span-1">
+                <div>
                   <EditField label="Факт (ч)" value={task.factH || ""} onChange={v => handleFieldUpdate("factH", v)} />
                 </div>
-              </div>
-
-              {/* Статус + Приоритет */}
-              <div className="mb-3">
-                <label className="text-[10px] mb-1.5 block" style={{ color: "var(--tracker-text-muted)" }}>Статус</label>
-                <div className="flex flex-wrap gap-1">
-                  {([
-                    { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW], color: PHASE_COLORS.new },
-                    { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS], color: PHASE_COLORS.in_progress },
-                    { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE], color: PHASE_COLORS.done },
-                    { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL], color: PHASE_COLORS.cancel },
-                  ]).map((group) => (
-                    <div key={group.label} className="w-full">
-                      <span className="text-[8px] uppercase tracking-wider font-semibold" style={{ color: group.color }}>{group.label}</span>
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {group.items.map((s) => (
-                          <button key={s}
-                            onClick={() => handleFieldUpdate("status", s)}
-                            className={`text-[9px] font-medium px-2 py-0.5 rounded-full transition-all ${task.status === s ? "ring-1 ring-offset-1" : "opacity-70 hover:opacity-100"}`}
-                            style={{
-                              color: scolText(s, isDark) || "#888",
-                              background: (scolText(s, isDark) || "#888") + "20",
-                              ...(task.status === s ? { ringColor: scolText(s, isDark) || "#888", outlineColor: scolText(s, isDark) || "#888" } : {}),
-                            }}>
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                <div>
+                  <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--tracker-text-main, #17181C)" }}>Итого (ч)</label>
+                  <div className="field-input h-10 flex items-center text-base font-semibold tabular-nums"
+                    style={{ color: maxCum <= maxMonthPlan ? "#1D9E75" : "#E24B4A" }}>
+                    {fmt2(maxCum)}
+                  </div>
                 </div>
               </div>
 
-              <div className="mb-3">
-                <label className="text-[10px] mb-1.5 block" style={{ color: "var(--tracker-text-muted)" }}>Приоритет</label>
-                <div className="flex flex-wrap gap-1">
+              {/* Статус */}
+              <div className="mb-4">
+                <label className="mb-1.5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg"
+                  style={{ color: "var(--tracker-accent-contrast, #F5F5F2)", background: "var(--tracker-accent, #17181C)" }}>Статус</label>
+
+                {/* Виджет прогресса */}
+                {(() => {
+                  const plan = evalExpr(task.planH);
+                  const fact = evalExpr(task.factH);
+                  const isClosed = ["Завершена", "Контроль на прод", "Выполненная", "Отменено", "Отложена"].includes(task.status);
+                  const pct = isClosed ? 100 : (plan > 0 ? Math.min(100, Math.round(fact / plan * 100)) : 0);
+                  const over = fact > plan && plan > 0;
+                  const barColor = isClosed ? "#1D9E75" : over ? "#E24B4A" : "#1D9E75";
+                  return (
+                    <div className="mb-3 p-3 rounded-xl" style={{ background: "var(--tracker-accent-soft, rgba(23,24,28,0.05))", border: "1px solid var(--tracker-border, #DEDDD6)" }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium" style={{ color: "var(--tracker-text-muted, #5D5D57)" }}>Прогресс</span>
+                        <span className="text-sm font-bold tabular-nums" style={{ color: barColor }}>{pct}%</span>
+                      </div>
+                      <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--tracker-border, #DEDDD6)" }}>
+                        <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: barColor }} />
+                      </div>
+                      <div className="flex justify-between mt-1.5 text-[10px]" style={{ color: "var(--tracker-text-muted, #5D5D57)" }}>
+                        <span>Факт: {fmt2(fact)}ч</span>
+                        <span>План: {fmt2(plan)}ч</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Компактные статусы */}
+                <div className="flex flex-wrap gap-1.5">
+                  {([
+                    { items: [STATUSES.IDEA, STATUSES.NEW], color: PHASE_COLORS.new },
+                    { items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS], color: PHASE_COLORS.in_progress },
+                    { items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE], color: PHASE_COLORS.done },
+                    { items: [STATUSES.POSTPONED, STATUSES.CANCEL], color: PHASE_COLORS.cancel },
+                  ]).map((group) =>
+                    group.items.map((s) => (
+                      <button key={s}
+                        onClick={() => handleFieldUpdate("status", s)}
+                        className={`text-[11px] font-medium px-2.5 py-1 rounded-full transition-all ${task.status === s ? "" : "opacity-60 hover:opacity-100"}`}
+                        style={{
+                          color: scolText(s, isDark) || "#888",
+                          background: (scolText(s, isDark) || "#888") + "20",
+                          outline: task.status === s ? `2px solid ${scolText(s, isDark) || "#888"}` : "none",
+                          outlineOffset: "2px",
+                        }}>
+                        {s}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="mb-1.5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg"
+                  style={{ color: "var(--tracker-accent-contrast, #F5F5F2)", background: "var(--tracker-accent, #17181C)" }}>Приоритет</label>
+                <div className="flex flex-wrap gap-1.5">
                   {Object.values(PRIORITIES).map(p => (
                     <button key={p}
                       onClick={() => handleFieldUpdate("priority", p)}
-                      className={`text-[9px] font-medium px-2 py-0.5 rounded-full transition-all ${task.priority === p ? "ring-1 ring-offset-1" : "opacity-70 hover:opacity-100"}`}
+                      className={`text-[11px] font-medium px-2.5 py-1 rounded-full transition-all ${task.priority === p ? "" : "opacity-60 hover:opacity-100"}`}
                       style={{
                         color: PCOL[p],
                         background: PCOL[p] + "20",
-                        ...(task.priority === p ? { ringColor: PCOL[p], outlineColor: PCOL[p] } : {}),
+                        outline: task.priority === p ? `2px solid ${PCOL[p]}` : "none",
+                        outlineOffset: "2px",
                       }}>
                       {p}
                     </button>
                   ))}
                 </div>
               </div>
-
-              {/* Ссылка на PlanFix */}
-              {planfixUrl && (
-                <a href={planfixUrl} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors hover:opacity-80"
-                  style={{ color: "var(--tracker-accent-fg, #1D9E75)", background: "var(--tracker-accent-bg, rgba(29,158,117,0.08))" }}>
-                  <ExternalLink className="size-3.5" /> Открыть в PlanFix #{task.num}
-                </a>
-              )}
             </div>
 
             {/* ── Часы по месяцам ── */}
@@ -495,11 +527,12 @@ export function TaskDetailDialog({
               </div>
             )}
 
-            {/* ── Бюджет ── */}
+            {/* ── Бюджет (скрыт: SHOW_BUDGET=false, код сохранён) ── */}
+            {SHOW_BUDGET && (
             <div className="px-5 py-4 border-t" style={{ borderColor: "var(--tracker-border, var(--border))" }}>
               <SectionTitle>
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px]"
-                  style={{ background: "rgba(29,158,117,0.12)", color: "#1D9E75" }}>💰</span>
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-md"
+                  style={{ background: "rgba(29,158,117,0.12)", color: "#1D9E75" }}><Wallet className="size-3" /></span>
                 Бюджет
               </SectionTitle>
 
@@ -542,19 +575,20 @@ export function TaskDetailDialog({
               <label className="flex items-center gap-2.5 mt-3 cursor-pointer text-sm">
                 <input type="checkbox" className="w-4 h-4 rounded accent-blue-500" checked={!!task.excludeFromCut}
                   onChange={() => onUpdateTask(month, task.id, "excludeFromCut", !task.excludeFromCut)} />
-                <span style={{ color: "var(--tracker-text-muted)" }}>🔒 Не отсекать при нехватке</span>
+                <span style={{ color: "var(--tracker-text-muted)" }}>Не отсекать при нехватке</span>
               </label>
             </div>
+            )}
             </div>{/* end scrollable content */}
           </div>{/* end left column */}
 
           {/* ═══════════════════ ПРАВАЯ КОЛОНКА: Комментарии ═══════════════════ */}
-          <div className="w-[38%] min-w-[320px] flex flex-col overflow-hidden">
+          <div className="w-full md:w-[38%] md:min-w-[320px] flex flex-col overflow-hidden border-t md:border-t-0"
+            style={{ borderColor: "var(--tracker-border, var(--border))" }}>
             <div className="px-5 py-4 flex items-center justify-between border-b shrink-0"
               style={{ borderColor: "var(--tracker-border, var(--border))" }}>
-              <h4 className="text-xs uppercase tracking-wider font-semibold flex items-center gap-2"
-                style={{ color: "var(--tracker-text-muted)" }}>
-                <MessageSquare className="size-4" />
+              <h4 className="paper-eyebrow flex items-center gap-2">
+                <MessageSquare className="size-3.5" />
                 Комментарии · {comments.length}
               </h4>
             </div>
@@ -568,54 +602,52 @@ export function TaskDetailDialog({
 
             {/* New comment input */}
             <div className="px-5 py-3 border-t shrink-0" style={{ borderColor: "var(--tracker-border, var(--border))" }}>
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                  style={{ background: "var(--tracker-accent-bg, rgba(29,158,117,0.1))", color: "var(--tracker-accent-fg-dark, var(--foreground))" }}>
-                  {currentUsername?.charAt(0)?.toUpperCase() || "?"}
-                </div>
-                <div className="flex-1">
-                  {replyTo && (
-                    <div className="flex items-center gap-1.5 mb-2 text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-                      <Reply className="size-3.5" /> Ответ
-                      <button onClick={() => setReplyTo(null)} className="hover:text-destructive"><X className="size-3.5" /></button>
-                    </div>
-                  )}
-                  <textarea ref={textareaRef}
-                    className="w-full text-sm p-3 rounded-2xl border outline-none resize-none min-h-[56px]"
-                    style={{ background: "var(--tracker-bg)", borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}
-                    placeholder="Написать комментарий..." value={newComment}
-                    onChange={e => setNewComment(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addComment(); }} />
-
-                  {attachments.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {attachments.map((att, i) => (
-                        <div key={i} className="relative group/att">
-                          {att.startsWith("data:image/") ? (
-                            <img src={att} alt="Вложение" className="h-16 w-16 rounded-xl object-cover" />
-                          ) : (
-                            <span className="text-xs px-2 py-1 rounded-xl border flex items-center gap-1 h-16"
-                              style={{ borderColor: "var(--tracker-border)" }}><Paperclip className="size-3.5" /> Файл</span>
-                          )}
-                          <button className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover/att:opacity-100"
-                            onClick={() => setAttachments(p => p.filter((_, j) => j !== i))}>
-                            <X className="size-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2 mt-2">
-                    <input ref={fileInputRef} type="file" className="hidden" multiple accept="image/*,.pdf,.doc,.docx,.txt,.xlsx,.xls" onChange={handleFileSelect} />
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => fileInputRef.current?.click()}><Paperclip className="size-4" /></Button>
-                    <div className="flex-1" />
-                    <Button size="sm" className="h-8 text-xs rounded-full px-4"
-                      style={{ background: "var(--tracker-accent, #1D9E75)", color: "#fff" }}
-                      disabled={!newComment.trim() && attachments.length === 0} onClick={addComment}>
-                      <Send className="size-3.5 mr-1.5" /> Отправить
-                    </Button>
+              <div className="flex flex-col gap-2">
+                {replyTo && (
+                  <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--tracker-text-muted)" }}>
+                    <Reply className="size-3.5" /> Ответ
+                    <button onClick={() => setReplyTo(null)} className="hover:text-destructive"><X className="size-3.5" /></button>
                   </div>
+                )}
+                <textarea ref={textareaRef}
+                  className="w-full text-sm p-3 rounded-2xl border outline-none resize-none min-h-[56px]"
+                  style={{ background: "var(--tracker-bg)", borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}
+                  placeholder="Написать комментарий..." value={newComment}
+                  onChange={e => setNewComment(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addComment(); }} />
+
+                {attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {attachments.map((att, i) => (
+                      <div key={i} className="relative group/att">
+                        {att.startsWith("data:image/") ? (
+                          <img src={att} alt="Вложение" className="h-16 w-16 rounded-xl object-cover" />
+                        ) : (
+                          <span className="text-xs px-2 py-1 rounded-xl border flex items-center gap-1 h-16"
+                            style={{ borderColor: "var(--tracker-border)" }}><Paperclip className="size-3.5" /> Файл</span>
+                        )}
+                        <button className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover/att:opacity-100"
+                          onClick={() => setAttachments(p => p.filter((_, j) => j !== i))}>
+                          <X className="size-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                    style={{ background: "var(--tracker-accent-bg, rgba(29,158,117,0.1))", color: "var(--tracker-accent-fg-dark, var(--foreground))" }}>
+                    {currentUsername?.charAt(0)?.toUpperCase() || "?"}
+                  </div>
+                  <input ref={fileInputRef} type="file" className="hidden" multiple accept="image/*,.pdf,.doc,.docx,.txt,.xlsx,.xls" onChange={handleFileSelect} />
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => fileInputRef.current?.click()}><Paperclip className="size-4" /></Button>
+                  <div className="flex-1" />
+                  <Button size="sm" className="h-8 text-xs font-semibold rounded-full px-4"
+                    style={{ background: "var(--tracker-accent, #17181C)", color: "var(--tracker-accent-contrast, #F5F5F2)" }}
+                    disabled={!newComment.trim() && attachments.length === 0} onClick={addComment}>
+                    <Send className="size-3.5 mr-1.5" /> Отправить
+                  </Button>
                 </div>
               </div>
             </div>
@@ -628,8 +660,8 @@ export function TaskDetailDialog({
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h4 className="text-xs uppercase tracking-wider font-semibold mb-3 flex items-center gap-2"
-      style={{ color: "var(--tracker-text-muted)" }}>
+    <h4 className="mb-3 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg"
+      style={{ color: "var(--tracker-accent-contrast, #F5F5F2)", background: "var(--tracker-accent, #17181C)" }}>
       {children}
     </h4>
   );
@@ -638,8 +670,8 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function EditField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <label className="text-[10px] mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>{label}</label>
-      <input className="field-input h-9 text-sm w-full" value={value} onChange={e => onChange(e.target.value)} />
+      <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--tracker-text-main, #17181C)" }}>{label}</label>
+      <input className="field-input h-10 text-base w-full" value={value} onChange={e => onChange(e.target.value)} />
     </div>
   );
 }

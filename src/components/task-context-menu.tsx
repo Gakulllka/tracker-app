@@ -13,6 +13,7 @@ import {
 import { STATUSES, PRIORITIES, MONTHS, type Status, type Priority, type Task } from "@/lib/types";
 import { scolText, PCOL } from "@/lib/types";
 import { useTaskStore } from "@/lib/store";
+import { Tag, Flag, Calendar, Copy, Package, Trash2 } from "lucide-react";
 
 interface TaskContextMenuProps {
   task: Task;
@@ -57,12 +58,12 @@ export function TaskContextMenu({
       <ContextMenuTrigger asChild>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-56">
+      <ContextMenuContent className="w-56 ink-ctx">
         <ContextMenuSub>
           <ContextMenuSubTrigger>
-            <span className="mr-2">🏷️</span> Статус
+            <Tag className="mr-2 size-3.5" /> Статус
           </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="max-h-72 overflow-y-auto">
+          <ContextMenuSubContent className="max-h-72 overflow-y-auto ink-ctx">
             {Object.values(STATUSES).map(s => (
               <ContextMenuItem
                 key={s}
@@ -70,11 +71,11 @@ export function TaskContextMenu({
                 className="text-xs gap-2"
               >
                 <span
-                  className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                  className="ctx-dot inline-block w-2.5 h-2.5 rounded-full shrink-0"
                   style={{ backgroundColor: scolText(s, isDark) || "#888" }}
                 />
                 {s}
-                {task.status === s && <span className="ml-auto text-muted-foreground">✓</span>}
+                {task.status === s && <span className="ml-auto ctx-check">✓</span>}
               </ContextMenuItem>
             ))}
           </ContextMenuSubContent>
@@ -82,9 +83,9 @@ export function TaskContextMenu({
 
         <ContextMenuSub>
           <ContextMenuSubTrigger>
-            <span className="mr-2">⚡</span> Приоритет
+            <Flag className="mr-2 size-3.5" /> Приоритет
           </ContextMenuSubTrigger>
-          <ContextMenuSubContent>
+          <ContextMenuSubContent className="ink-ctx">
             {Object.values(PRIORITIES).map(p => (
               <ContextMenuItem
                 key={p}
@@ -92,11 +93,11 @@ export function TaskContextMenu({
                 className="text-xs gap-2"
               >
                 <span
-                  className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                  className="ctx-dot inline-block w-2.5 h-2.5 rounded-full shrink-0"
                   style={{ backgroundColor: PCOL[p] }}
                 />
                 {p}
-                {task.priority === p && <span className="ml-auto text-muted-foreground">✓</span>}
+                {task.priority === p && <span className="ml-auto ctx-check">✓</span>}
               </ContextMenuItem>
             ))}
           </ContextMenuSubContent>
@@ -104,9 +105,9 @@ export function TaskContextMenu({
 
         <ContextMenuSub>
           <ContextMenuSubTrigger>
-            <span className="mr-2">📅</span> Перенести в месяц
+            <Calendar className="mr-2 size-3.5" /> Перенести в месяц
           </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="max-h-72 overflow-y-auto">
+          <ContextMenuSubContent className="max-h-72 overflow-y-auto ink-ctx">
             {MONTHS.map((m, i) => (
               <ContextMenuItem
                 key={m}
@@ -115,7 +116,7 @@ export function TaskContextMenu({
                 className="text-xs"
               >
                 {m}
-                {i === month && <span className="ml-auto text-muted-foreground">←</span>}
+                {i === month && <span className="ml-auto" style={{ color: "rgba(250,250,248,0.45)" }}>←</span>}
               </ContextMenuItem>
             ))}
           </ContextMenuSubContent>
@@ -124,20 +125,20 @@ export function TaskContextMenu({
         <ContextMenuSeparator />
 
         <ContextMenuItem onClick={() => moveToBacklog(month, task.id)} className="text-xs gap-2">
-          <span>📦</span> В беклог
+          <Package className="size-3.5" /> В беклог
         </ContextMenuItem>
 
         <ContextMenuItem onClick={() => duplicateTask(month, task.id)} className="text-xs gap-2">
-          <span>📋</span> Дублировать
+          <Copy className="size-3.5" /> Дублировать
         </ContextMenuItem>
 
         <ContextMenuSeparator />
 
         <ContextMenuItem
           onClick={() => deleteTask(month, task.id)}
-          className="text-xs gap-2 text-destructive focus:text-destructive"
+          className="text-xs gap-2 text-[#FF4444] focus:text-[#FF4444]"
         >
-          <span>🗑</span> Удалить
+          <Trash2 className="size-3.5" /> Удалить
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

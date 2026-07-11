@@ -60,10 +60,10 @@ export interface ExecSignalsPanelProps {
 }
 
 const FLAG_LABELS: Record<string, string> = {
-  escalate: "⚡ Эскалировать",
+  escalate: "Эскалировать",
   pause: "⏸ Поставить на паузу",
-  cancel: "✖ Отменить",
-  request_status: "❓ Запросить статус",
+  cancel: "Отменить",
+  request_status: "Запросить статус",
 };
 const FLAG_COLORS: Record<string, string> = {
   escalate: "#ef4444", pause: "#6b7280", cancel: "#ef4444", request_status: "#6366f1",
@@ -184,10 +184,11 @@ export function ExecSignalsPanel({
     <>
       {/* ── Кнопка-колокол в шапке ── */}
       <button
-        className="relative h-8 w-8 rounded-lg flex items-center justify-center transition-colors"
+        className="rail-iconbtn relative h-8 w-8 rounded-lg flex items-center justify-center transition-colors"
         style={{
-          background: open || filterActive ? "var(--tracker-accent-bg)" : "transparent",
-          color: bellColor ?? "var(--tracker-text-muted)",
+          // Живёт на чёрной рельсе: бумажные цвета, независимо от темы
+          background: open || filterActive ? "rgba(250,250,248,0.12)" : "transparent",
+          color: bellColor ?? "rgba(250,250,248,0.68)",
         }}
         title={isAdmin
           ? `Сигналы: ${pendingCount} pending, ${rejectedCount} отклонено`
@@ -220,7 +221,7 @@ export function ExecSignalsPanel({
           title={filterActive ? "Показать все задачи" : "Показать только задачи с запросами руководителя"}
           onClick={() => onFilterSignals(!filterActive)}
         >
-          {filterActive ? "✕ Снять фильтр" : `⚡ Запросы (${baSignals.length})`}
+          {filterActive ? "Снять фильтр" : `Запросы (${baSignals.length})`}
         </button>
       )}
 
@@ -230,7 +231,7 @@ export function ExecSignalsPanel({
           style={{ background: "var(--tracker-bg-card, var(--card))", borderLeft: "1px solid var(--tracker-border)" }}>
           <SheetHeader className="pb-3">
             <SheetTitle className="text-base flex items-center gap-2" style={T}>
-              {isAdmin ? "🔔 Статус запросов" : "🔔 Запросы руководителя"}
+              {isAdmin ? "Статус запросов" : "Запросы руководителя"}
             </SheetTitle>
             <div className="flex gap-2 flex-wrap mt-1">
               {pendingCount > 0 && (
@@ -242,7 +243,7 @@ export function ExecSignalsPanel({
               {rejectedCount > 0 && (
                 <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
                   style={{ background: "rgba(239,68,68,0.1)", color: "#dc2626" }}>
-                  ✖ {rejectedCount} отклонено
+                  {rejectedCount} отклонено
                 </span>
               )}
               {totalCount === 0 && (
@@ -254,7 +255,7 @@ export function ExecSignalsPanel({
           <div className="space-y-3 mt-2">
             {visibleSignals.length === 0 && (
               <div className="text-center py-12">
-                <div className="text-3xl mb-2">✅</div>
+                
                 <p className="text-sm font-medium" style={T}>Всё подтверждено</p>
                 <p className="text-xs mt-1" style={M}>Нет запросов, требующих внимания</p>
               </div>
@@ -305,7 +306,7 @@ export function ExecSignalsPanel({
           <div className="rounded-2xl shadow-2xl p-6 w-[360px] space-y-4"
             style={{ background: "var(--tracker-bg-card, var(--card))", border: "1px solid var(--tracker-border)" }}>
             <div>
-              <h2 className="font-bold text-base" style={T}>✏️ Изменить задачу</h2>
+              <h2 className="font-bold text-base" style={T}>Изменить задачу</h2>
               <p className="text-xs mt-0.5 truncate" style={M}>
                 {editTaskOpen.task.name || editTaskOpen.task.num || "Без названия"}
               </p>
@@ -348,7 +349,7 @@ export function ExecSignalsPanel({
             </div>
             <div className="flex gap-2 pt-1">
               <Button variant="outline" size="sm" className="flex-1" onClick={() => setEditTaskOpen(null)}>Отмена</Button>
-              <Button size="sm" className="flex-1" style={{ background: "var(--tracker-accent)", color: "#fff" }} onClick={handleEditTask}>
+              <Button size="sm" className="flex-1" style={{ background: "var(--tracker-accent)", color: "var(--tracker-accent-contrast)" }} onClick={handleEditTask}>
                 Сохранить
               </Button>
             </div>
@@ -452,10 +453,10 @@ function SignalCard({
         {!isAdmin && type !== "rejected" && (
           <div className="flex gap-2">
             <Button size="sm" className="flex-1 h-7 text-xs" style={{ background: "#22c55e", color: "#fff" }} onClick={onAccept}>
-              ✅ Принять
+              Принять
             </Button>
             <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" style={{ borderColor: "#ef4444", color: "#ef4444" }} onClick={onRejectOpen}>
-              ✖ Отклонить
+              Отклонить
             </Button>
           </div>
         )}
@@ -492,12 +493,12 @@ function SignalCard({
             <Button size="sm" variant="outline" className="flex-1 h-7 text-xs gap-1"
               style={{ borderColor: "var(--tracker-border)" }}
               onClick={onQuestionOpen}>
-              💬 Создать вопрос
+              Создать вопрос
             </Button>
             <Button size="sm" variant="outline" className="flex-1 h-7 text-xs gap-1"
               style={{ borderColor: "var(--tracker-border)" }}
               onClick={onEditOpen}>
-              ✏️ Изменить задачу
+              Изменить задачу
             </Button>
           </div>
         )}
@@ -514,7 +515,7 @@ function SignalCard({
               placeholder="Текст вопроса…"
             />
             <Button size="sm" className="w-full h-7 text-xs"
-              style={{ background: "var(--tracker-accent)", color: "#fff" }}
+              style={{ background: "var(--tracker-accent)", color: "var(--tracker-accent-contrast)" }}
               disabled={!questionText.trim()}
               onClick={onQuestionSubmit}>
               Создать вопрос и перейти
@@ -531,12 +532,12 @@ function SignalCard({
 function TypeBadge({ type, flag }: { type: SignalItem["type"]; flag?: string }) {
   if (type === "rejected") return (
     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.12)", color: "#dc2626" }}>
-      ✖ Отклонено БА
+      Отклонено БА
     </span>
   );
   if (type === "pending_budget") return (
     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.12)", color: "#d97706" }}>
-      📅 Ролловер / превышение
+      Ролловер / превышение
     </span>
   );
   if (type === "executive_flag") return (

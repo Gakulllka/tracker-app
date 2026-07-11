@@ -53,7 +53,7 @@ export function useExport({
 
   const handleExportJSON = useCallback(() => {
     exportJSON(allData, backlog, themeId, customColor, domains, activeDomainId, activeDomainName, questions, presBg);
-    toast({ title: "💾 Экспорт", description: "JSON файл сохранён" });
+    toast({ title: "Экспорт готов", description: "JSON-файл сохранён" });
   }, [allData, backlog, themeId, customColor, domains, activeDomainId, activeDomainName, questions, presBg, toast]);
 
   const handleExportMonthXLSX = useCallback(async () => {
@@ -64,7 +64,7 @@ export function useExport({
     }
     try {
       await exportMonthXLSX(monthRows, currentMonth, totalFactMap, accentHex);
-      toast({ title: "💾 Сохранить", description: "Excel файл сохранён" });
+      toast({ title: "Экспорт готов", description: "Excel-файл сохранён" });
     } catch (err) {
       toast({ title: "Ошибка", description: String(err), variant: "destructive" });
     }
@@ -73,7 +73,7 @@ export function useExport({
   const handleExportAllXLSX = useCallback(async () => {
     try {
       await exportAllXLSX(allData, totalFactMap, accentHex);
-      toast({ title: "💾 Сохранить", description: "Excel файл (все месяцы) сохранён" });
+      toast({ title: "Экспорт готов", description: "Excel-файл со всеми месяцами сохранён" });
     } catch (err) {
       toast({ title: "Ошибка", description: String(err), variant: "destructive" });
     }
@@ -107,7 +107,7 @@ export function useExport({
       storeSetCustomColor(result.customColor || "", false);
       if (result.presBg && storeSetPresBg) storeSetPresBg(result.presBg);
       if (result.questions && setQuestions) setQuestions(result.questions);
-      toast({ title: "📂 Импорт", description: "Данные успешно загружены из JSON" });
+      toast({ title: "Импорт завершён", description: "Данные загружены из JSON" });
     } catch (err) {
       toast({
         title: "Ошибка импорта",

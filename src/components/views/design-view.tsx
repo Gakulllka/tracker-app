@@ -207,9 +207,7 @@ export function DesignView({ themeId, customColor, customDark, accentHex, onSetT
               <p className="text-xs mt-0.5" style={{ color: "var(--tracker-text-muted)" }}>Выберите одну из готовых тем</p>
             </div>
             <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-full" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>
-              <span style={{ fontSize: "14px" }}>
-                {NAMED_THEMES.find(t => t.hex === activeHex)?.emoji || "🎨"}
-              </span>
+              <span className="size-3 rounded-full shrink-0" style={{ background: activeHex, boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.08)" }} />
               <span className="font-semibold">
                 {NAMED_THEMES.find(t => t.hex === activeHex)?.label || (isCustom ? "Свой цвет" : "Тема")}
               </span>

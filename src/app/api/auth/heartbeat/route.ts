@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getClientIp } from "@/lib/auth";
 
 /**
  * POST /api/auth/heartbeat
  * Body: { token: string, currentPage?: string }
  *
- * Лёгкий пинг от клиента, что вкладка открыта и пользователь "присутствует".
- * Обновляет Session.lastActivity (и currentPage, если передан).
- *
- * Клиент шлёт раз в ~60 секунд при условиях:
- *   - вкладка не скрыта (document.visibilityState === "visible") ИЛИ
- *   - пользователь активен (был mousemove/keydown за последние N минут)
- *
- * Сервер не возвращает данные — только статус. Поэтому ответ маленький
- * (≈30 байт) и не нагружает соединение.
+ * Лёгкий пинг от клиента, что вкладка открыта. Обновляет Session.lastActivity
+ * (и currentPage/ipAddress). Используется админкой для списка "кто онлайн".
  */
 export async function POST(req: NextRequest) {
   try {
@@ -25,30 +19,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No token" }, { status: 401 });
     }
 
-    const session = await prisma.session.findUnique({
-      where: { token },
-      select: { id: true, expiresAt: true },
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-    if (session.expiresAt < new Date()) {
-      // Не удаляем — пусть /api/auth/me разлогинит при следующем заходе
-      // и зафиксирует это (наш job — просто проверка).
-      return NextResponse.json({ error: "Session expired" }, { status: 401 });
+    const session = await prisma.session.findUnique({ where: { token } });
+    if (!session || session.expiresAt < new Date()) {
+      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
     await prisma.session.update({
       where: { id: session.id },
       data: {
         lastActivity: new Date(),
-        // currentPage — опциональный, не перезаписываем пустой строкой
-        ...(currentPage !== undefined ? { currentPage: String(currentPage).slice(0, 200) } : {}),
+        ipAddress: getClientIp(req) || undefined,
+        ...(currentPage !== undefined ? { currentPage } : {}),
       },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

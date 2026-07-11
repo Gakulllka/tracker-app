@@ -7,7 +7,7 @@ import { useState, useCallback } from "react";
 import { mapQuestionFromAPI } from "@/lib/questions";
 import type { Question } from "@/lib/questions";
 
-export function useQuestions(currentUsername: string) {
+export function useQuestions(currentUsername: string, activeDomainId?: string) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [newQuestionText, setNewQuestionText] = useState("");
 
@@ -17,7 +17,7 @@ export function useQuestions(currentUsername: string) {
       const res = await fetch("/api/question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: newQuestionText.trim(), author: currentUsername }),
+        body: JSON.stringify({ question: newQuestionText.trim(), author: currentUsername, domainId: activeDomainId }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -25,7 +25,7 @@ export function useQuestions(currentUsername: string) {
       }
     } catch { /* silent */ }
     setNewQuestionText("");
-  }, [newQuestionText, currentUsername]);
+  }, [newQuestionText, currentUsername, activeDomainId]);
 
   const addQuestionDirect = useCallback(async (text: string, author: string) => {
     if (!text.trim()) return;
@@ -33,14 +33,14 @@ export function useQuestions(currentUsername: string) {
       const res = await fetch("/api/question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text.trim(), author: author || "AI-ассистент" }),
+        body: JSON.stringify({ question: text.trim(), author: author || "AI-ассистент", domainId: activeDomainId }),
       });
       if (res.ok) {
         const data = await res.json();
         if (data.question) setQuestions(prev => [...prev, mapQuestionFromAPI(data.question)]);
       }
     } catch { /* silent */ }
-  }, []);
+  }, [activeDomainId]);
 
   const addLinkedQuestion = useCallback(async (
     text: string, author: string, linkedTaskId: string, linkedTaskName: string
@@ -50,7 +50,7 @@ export function useQuestions(currentUsername: string) {
       const res = await fetch("/api/question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text.trim(), author }),
+        body: JSON.stringify({ question: text.trim(), author, domainId: activeDomainId }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -63,8 +63,9 @@ export function useQuestions(currentUsername: string) {
     setQuestions(prev => [...prev, {
       id: crypto.randomUUID(), text: text.trim(), author,
       answers: [], status: "open" as const, questionDate: new Date().toISOString(), linkedTaskId, linkedTaskName,
+      domainId: activeDomainId ?? null,
     }]);
-  }, []);
+  }, [activeDomainId]);
 
   const removeQuestion = useCallback(async (id: string) => {
     setQuestions(prev => prev.filter(q => q.id !== id));

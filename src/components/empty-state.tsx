@@ -69,7 +69,7 @@ export function EmptyState({ type, onAction }: EmptyStateProps) {
       {onAction && actionLabel && (
         <button
           onClick={onAction}
-          className="mt-2 inline-flex items-center gap-2 rounded-xl bg-[var(--tracker-accent)] px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-[var(--tracker-accent-hover)] hover:shadow-lg active:scale-95"
+          className="mt-2 inline-flex items-center gap-2 rounded-xl bg-[var(--tracker-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--tracker-accent-contrast)] transition-all hover:bg-[var(--tracker-accent-hover)] hover:shadow-lg active:scale-95"
         >
           <Plus className="size-4" />
           {actionLabel}

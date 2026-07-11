@@ -305,7 +305,7 @@ export function BacklogView({
       {!isGuest && (
         <Button
           size="sm"
-          className="gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)] shadow-md"
+          className="gap-1.5 bg-[var(--tracker-accent)] text-[var(--tracker-accent-contrast)] hover:bg-[var(--tracker-accent-hover)] shadow-md"
           style={{ boxShadow: "0 2px 12px color-mix(in srgb, var(--tracker-accent, #9B72CF) 35%, transparent)" }}
           onClick={handleAdd}
         >
@@ -388,7 +388,7 @@ export function BacklogView({
             </div>
           </div>
           <DialogFooter className="gap-2 sm:flex-row sm:justify-stretch">
-            <Button onClick={handleReturnToTable} className="flex-1 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]">
+            <Button onClick={handleReturnToTable} className="flex-1 bg-[var(--tracker-accent)] text-[var(--tracker-accent-contrast)] hover:bg-[var(--tracker-accent-hover)]">
               Перенести в таблицу
             </Button>
             <Button variant="destructive" onClick={closeDialog} className="flex-1">

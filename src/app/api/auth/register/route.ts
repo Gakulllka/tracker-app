@@ -1,28 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, generateSessionToken } from "@/lib/password";
+import { getClientIp, logActivity, publicUser } from "@/lib/auth";
 
 // POST /api/auth/register
 // Body: { username: string, password: string, displayName?: string }
+// Первый зарегистрированный пользователь автоматически становится админом.
+// Остальные получают роль "member" (редактируют домены, которые создали
+// или куда им выдали права; остальное — только просмотр).
 export async function POST(req: NextRequest) {
   try {
     const { username, password, displayName } = await req.json();
 
     if (!username) {
-      return NextResponse.json(
-        { error: "Укажите имя пользователя" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Укажите имя пользователя" }, { status: 400 });
     }
-
     if (username.length < 3) {
       return NextResponse.json(
         { error: "Имя пользователя должно быть не менее 3 символов" },
         { status: 400 }
       );
     }
+    if (username.toLowerCase() === "guest") {
+      return NextResponse.json({ error: "Это имя зарезервировано" }, { status: 409 });
+    }
+    if (!password || String(password).length < 4) {
+      return NextResponse.json(
+        { error: "Пароль обязателен: минимум 4 символа" },
+        { status: 400 }
+      );
+    }
 
-    // Check if user already exists
     const existing = await prisma.user.findUnique({ where: { username } });
     if (existing) {
       return NextResponse.json(
@@ -31,70 +39,44 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if this is the first user (they become admin automatically)
-    const userCount = await prisma.user.count();
-    const isFirstUser = userCount === 0;
+    // Первый пользователь (не считая гостя) — всегда админ
+    const userCount = await prisma.user.count({ where: { role: { not: "guest" } } });
+    const role = userCount === 0 ? "admin" : "member";
 
-    // Create user — пароль может быть пустым
-    const passwordHash = password ? await hashPassword(password) : await hashPassword("");
-    const defaultRole = await prisma.role.findFirst({
-      where: { name: isFirstUser ? "admin" : "editor" },
-    });
+    const passwordHash = await hashPassword(String(password));
     const user = await prisma.user.create({
       data: {
         username,
         passwordHash,
         displayName: displayName || username,
-        roleId: defaultRole!.id,
+        role,
       },
     });
 
-    // Create default workspace for the user
-    const workspace = await prisma.workspace.create({
-      data: {
-        name: "Моё пространство",
-        userId: user.id,
-      },
-    });
-
-    // Create session
     const token = generateSessionToken();
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+    expiresAt.setDate(expiresAt.getDate() + 30);
 
     await prisma.session.create({
-      data: {
-        token,
-        userId: user.id,
-        expiresAt,
-      },
+      data: { token, userId: user.id, expiresAt, ipAddress: getClientIp(req) },
     });
 
-    // Log registration event
-    try {
-      await prisma.activityLog.create({
-        data: {
-          userId: user.id,
-          username: user.username,
-          action: "register",
-          entityType: "user",
-          entityId: user.id,
-          newValue: JSON.stringify({ username: user.username, displayName: user.displayName }),
-        },
-      });
-    } catch { /* ignore log errors */ }
+    await logActivity({
+      userId: user.id,
+      username: user.username,
+      action: "register",
+      entityType: "user",
+      entityId: user.id,
+      newValue: JSON.stringify({ username: user.username, role }),
+      ipAddress: getClientIp(req),
+    });
 
-    const userRole = await prisma.role.findUnique({ where: { id: user.roleId } });
     return NextResponse.json({
       success: true,
-      user: {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        role: userRole?.name?.toLowerCase() || "viewer",
-      },
+      user: publicUser(user),
       token,
-      workspaceId: workspace.id,
+      // Совместимость со старым фронтендом: единое общее пространство
+      workspaceId: "global",
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";

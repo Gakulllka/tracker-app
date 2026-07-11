@@ -20,10 +20,11 @@ import {
 } from "@/components/ui/popover";
 import {
   Plus, Trash2, Search, Eye, EyeOff,
-  Filter, X,
+  Filter, X, ClipboardList, AlertTriangle, History,
   FileSpreadsheet, Upload, ArrowRight, Check,
   ArrowUpDown, Save, FolderOpen, FileText,
   Package, MessageSquare, Ruler, Timer, Wallet,
+  ExternalLink,
 } from "lucide-react";
 import {
   MONTHS, STATUSES, PRIORITIES, PCOL, scolText,
@@ -296,7 +297,7 @@ export function TableView({
       {/* ---- TOOLBAR ---- */}
       {!clientMode && (() => {
         const totalFilters = filterStatuses.size + filterPriorities.size + (searchQuery ? 1 : 0);
-        const btnClass = "hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-accent)]/30 text-[var(--tracker-accent-fg)] hover:bg-[var(--tracker-accent-soft)]";
+        const btnClass = "hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-border)] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)]";
         return (
           <div className="flex flex-wrap items-center gap-2">
 
@@ -466,8 +467,8 @@ export function TableView({
             {!isGuest && (
               <Button
                 size="sm"
-                className="h-8 gap-1.5 bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)] shadow-md"
-                style={{ boxShadow: "0 2px 12px color-mix(in srgb, var(--tracker-accent, #9B72CF) 35%, transparent)" }}
+                className="h-8 gap-1.5 bg-[var(--tracker-accent)] text-[var(--tracker-accent-contrast)] hover:bg-[var(--tracker-accent-hover)]"
+                style={{ boxShadow: "var(--shadow-card)" }}
                 onClick={() => onOpenNewTaskDialog(month)}
               >
                 <Plus className="size-3.5" />
@@ -527,13 +528,56 @@ export function TableView({
       })()}
 
 
-      {/* ---- MOBILE TASK CARDS (md:hidden) ---- */}
+      {/* ---- MOBILE TOOLBAR (md:hidden) ---- */}
       <div className="md:hidden space-y-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5" style={{ color: "var(--tracker-text-muted)" }} />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск задач..."
+            className="w-full h-9 pl-9 pr-8 text-sm rounded-xl border bg-[var(--tracker-bg-card)] outline-none focus:ring-1 focus:ring-[var(--tracker-accent)]"
+            style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--tracker-text-muted)]">
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+          {(Object.keys(STATUS_ORDER) as Status[]).map((st) => {
+            const active = filterStatuses.has(st);
+            return (
+              <button key={st}
+                onClick={() => toggleStatusFilter(st)}
+                className="shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-full border transition-colors"
+                style={{
+                  borderColor: active ? "var(--tracker-accent)" : "var(--tracker-border)",
+                  background: active ? "var(--tracker-accent-bg)" : "transparent",
+                  color: active ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
+                }}>
+                {st}
+              </button>
+            );
+          })}
+          {(filterStatuses.size > 0 || filterPriorities.size > 0) && (
+            <button onClick={clearFilters}
+              className="shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-full border border-red-200 text-red-500">
+              Сбросить
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ---- MOBILE TASK CARDS (md:hidden) ---- */}
+      <div className="md:hidden space-y-2 stagger">
         {rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-            <span className="text-4xl mb-3">📋</span>
-            <p className="text-sm font-medium">Нет задач</p>
-            <p className="text-xs mt-1 opacity-60">Добавьте первую задачу</p>
+          <div className="empty-state">
+            <div className="empty-state-icon"><ClipboardList className="size-6" /></div>
+            <p className="empty-state-title">В этом месяце пока пусто</p>
+            <p className="empty-state-hint">Добавьте первую задачу кнопкой ниже — или перенесите из другого месяца</p>
           </div>
         ) : (
           rows.map((task) => {
@@ -553,7 +597,7 @@ export function TableView({
                   <div className="flex items-center gap-2">
                     <span className="mobile-task-num">#{task.num || "—"}</span>
                     {task.approvalStatus === "pending" && (
-                      <span className="mobile-task-pending-badge">⏳ Ожидает БА</span>
+                      <span className="mobile-task-pending-badge">Ожидает БА</span>
                     )}
                   </div>
                   <span
@@ -584,8 +628,8 @@ export function TableView({
                         <Wallet className="size-3 inline" /> {task.budgetAllocated}ч
                       </span>
                     )}
-                    <span className="flex items-center gap-1"><Ruler className="size-3" /> {task.planH || "0"}ч</span>
-                    <span className={`flex items-center gap-1 ${isOver ? "text-red-500 font-semibold" : ""}`}>
+                    <span className="flex items-center gap-1 delta-num"><Ruler className="size-3" /> {task.planH || "0"}ч</span>
+                    <span className={`flex items-center gap-1 delta-num ${isOver ? "text-red-500 font-semibold" : ""}`}>
                       <Timer className="size-3" /> {task.factH || "0"}ч
                     </span>
                   </div>
@@ -635,7 +679,7 @@ export function TableView({
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-7 text-xs border-[var(--tracker-accent)]/30">
-                  🏷️ Статус
+                  Статус
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[280px] p-2" align="start" side="bottom">
@@ -657,7 +701,7 @@ export function TableView({
                               snapshot();
                               ids.forEach(id => bulkUpdateTasks(month, [id], "status", s));
                               clearSelection();
-                              toast({ title: "🏷️ Статус", description: `${ids.length} задач → ${s}` });
+                              toast({ title: "Статус обновлён", description: `${ids.length} задач → ${s}` });
                             }}
                             className="text-[9px] font-medium px-1.5 py-0.5 rounded-full transition-all opacity-70 hover:opacity-100"
                             style={{
@@ -678,7 +722,7 @@ export function TableView({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="h-7 text-xs border-[var(--tracker-accent)]/30">
-                  ⚡ Приоритет
+                  Приоритет
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
@@ -688,7 +732,7 @@ export function TableView({
                     snapshot();
                     ids.forEach(id => bulkUpdateTasks(month, [id], "priority", p));
                     clearSelection();
-                    toast({ title: "⚡ Приоритет", description: `${ids.length} задач → ${p}` });
+                    toast({ title: "Приоритет обновлён", description: `${ids.length} задач → ${p}` });
                   }}>
                     <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PCOL[p] }} />
                     {p}
@@ -705,10 +749,10 @@ export function TableView({
                 snapshot();
                 ids.forEach(id => moveToBacklog(month, id));
                 clearSelection();
-                toast({ title: "📦 Беклог", description: `${ids.length} задач перемещено в беклог` });
+                toast({ title: "Перемещено в бэклог", description: `${ids.length} задач перемещено в беклог` });
               }}
             >
-              📦 В беклог
+              В беклог
             </Button>
 
             <Button
@@ -719,10 +763,10 @@ export function TableView({
                 snapshot();
                 ids.forEach(id => deleteTask(month, id));
                 clearSelection();
-                toast({ title: "🗑 Удалено", description: `${ids.length} задач удалено` });
+                toast({ title: "Удалено", description: `${ids.length} задач удалено` });
               }}
             >
-              🗑 Удалить
+              Удалить
             </Button>
 
             <div className="flex-1" />
@@ -733,18 +777,34 @@ export function TableView({
         );
       })()}
 
-      {/* Summary bar */}
+      {/* Summary bar: Δ-полоса — суть продукта (разница план/факт) в метрике */}
       {rows.length > 0 && (
-        <div className="hidden md:flex items-center gap-4 px-4 py-2.5 rounded-xl text-xs font-medium" style={{ background: "color-mix(in srgb, var(--tracker-accent, #9B72CF) 6%, var(--tracker-bg-card, #fff))" }}>
-          <span className="text-[var(--tracker-accent-fg)] font-bold tracking-wide">ИТОГО</span>
-          <span className="text-[var(--tracker-text-muted)]">План: <span className="text-[var(--tracker-text-main)] font-semibold">{fmt2(rowsMetrics.totPlan)}ч</span></span>
-          <span className="text-[var(--tracker-text-muted)]">Факт: <span className={rowsMetrics.totFact > rowsMetrics.totPlan ? "text-[var(--tracker-danger)] font-semibold" : "text-[var(--tracker-text-main)] font-semibold"}>{fmt2(rowsMetrics.totFact)}ч</span></span>
-          <span className="text-[var(--tracker-accent-fg)] font-bold">Итого: {fmt2(rowsMetrics.totTotalH)}ч</span>
-          <div className="flex items-center gap-1.5 ml-auto">
-            <div className="h-2 w-24 rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, var(--tracker-accent, #9B72CF) 12%, transparent)" }}>
-              <div className="h-full rounded-full transition-all" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: progColor(rowsMetrics.avgProg) }} />
+        <div
+          className="hidden md:flex items-stretch gap-6 px-5 py-3 rounded-[var(--radius-card,14px)] border bg-[var(--tracker-bg-card)]"
+          style={{ borderColor: "var(--tracker-border)", boxShadow: "var(--shadow-card)" }}
+        >
+          <div className="flex flex-col justify-center gap-0.5">
+            <span className="paper-eyebrow">План</span>
+            <span className="delta-num text-[15px] font-semibold text-[var(--tracker-text-main)]">{fmt2(rowsMetrics.totPlan)}ч</span>
+          </div>
+          <div className="w-px h-8 self-center shrink-0" style={{ background: "var(--tracker-border)" }} />
+          <div className="flex flex-col justify-center gap-0.5">
+            <span className="paper-eyebrow">Факт</span>
+            <span className="delta-num text-[15px] font-semibold text-[var(--tracker-text-main)]">{fmt2(rowsMetrics.totFact)}ч</span>
+          </div>
+          <div className="w-px h-8 self-center shrink-0" style={{ background: "var(--tracker-border)" }} />
+          <div className="flex flex-col justify-center gap-0.5">
+            <span className="paper-eyebrow">Итого</span>
+            <span className="delta-num text-[15px] font-semibold text-[var(--tracker-text-main)]">{fmt2(rowsMetrics.totTotalH)}ч</span>
+          </div>
+          <div className="flex items-center gap-2.5 ml-auto">
+            <div className="flex flex-col items-end gap-1">
+              <span className="paper-eyebrow">Прогресс</span>
+              <div className="h-1.5 w-28 rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
+                <div className="h-full rounded-full transition-all" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: progColor(rowsMetrics.avgProg) }} />
+              </div>
             </div>
-            <span className="text-[var(--tracker-accent-fg)] font-bold">{rowsMetrics.avgProg}%</span>
+            <span className="delta-num text-[15px] font-semibold text-[var(--tracker-text-main)]">{rowsMetrics.avgProg}%</span>
           </div>
         </div>
       )}
@@ -756,7 +816,7 @@ export function TableView({
             onAction={totalRows.length === 0 ? () => onOpenNewTaskDialog(month) : undefined}
           />
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-1 stagger">
             {(() => {
               const priorityOrder: Priority[] = ["Наивысший", "Высокий", "Средний", "Низкий", "Очередь"];
               const grouped = priorityOrder.map(p => ({
@@ -874,7 +934,7 @@ export function TableView({
                                   </span>
                                 )}
                                 {task.approvalStatus === "pending" && (
-                                  <span className="inline-flex items-center text-[9px] font-bold px-1 py-0.5 rounded bg-amber-100 text-amber-700 border border-dashed border-amber-300">⏳</span>
+                                  <span className="inline-flex items-center text-[9px] font-bold px-1 py-0.5 rounded bg-amber-100 text-amber-700 border border-dashed border-amber-300" title="Ожидает согласования">БА</span>
                                 )}
                                 {task._hidden && (
                                   <span className="inline-flex items-center text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">скрыта</span>
@@ -960,15 +1020,31 @@ export function TableView({
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-3 mt-2 pl-5 text-xs text-[var(--tracker-text-muted)]">
+                          {/* Прогресс — над часами */}
+                          <div className="flex items-center gap-1.5 mt-2 pl-5">
+                            <div className="task-card-progress flex-1">
+                              <div
+                                className="task-card-progress-fill"
+                                style={{
+                                  width: `${Math.min(metrics.prog, 100)}%`,
+                                  backgroundColor: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over),
+                                }}
+                              />
+                            </div>
+                            <span className="text-[10px] font-semibold tabular-nums shrink-0" style={{ color: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over) }}>
+                              {metrics.prog}%
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 mt-1.5 pl-5 text-[13px] delta-num text-[var(--tracker-text-main)] [&_svg]:opacity-45">
                             <span
-                              className="cursor-pointer hover:text-[var(--tracker-text-main)] transition-colors rounded px-0.5 hover:bg-[var(--tracker-accent-soft)] flex items-center gap-1"
+                              className="cursor-pointer hover:text-[var(--tracker-text-main)] transition-colors rounded px-1 hover:bg-[var(--tracker-accent-soft)] flex items-center gap-1 w-[72px]"
                               onClick={(e) => { e.stopPropagation(); startEditing(task.id, "planH"); }}
                             >
-                              <Ruler className="size-3" /> {isEditing(task.id, "planH") ? (
+                              <Ruler className="size-3.5 shrink-0" /> {isEditing(task.id, "planH") ? (
                                 <input
                                   ref={inputEditRef}
-                                  className="w-10 text-right font-medium bg-transparent border-b border-[var(--tracker-accent)] outline-none"
+                                  className="w-10 text-right font-semibold bg-transparent border-b-2 border-[var(--tracker-accent)] outline-none py-0.5"
                                   value={task.planH}
                                   onChange={(e) => updateTask(month, task.id, "planH", e.target.value)}
                                   onBlur={stopEditing}
@@ -976,16 +1052,16 @@ export function TableView({
                                   onClick={(e) => e.stopPropagation()}
                                   autoFocus
                                 />
-                              ) : fmt2(metrics.plan)}ч
+                              ) : <>{fmt2(metrics.plan)}<span className="text-[var(--tracker-text-muted)]">ч</span></>}
                             </span>
                             <span
-                              className={`cursor-pointer hover:text-[var(--tracker-text-main)] transition-colors rounded px-0.5 hover:bg-[var(--tracker-accent-soft)] flex items-center gap-1 ${metrics.fact > metrics.plan && metrics.plan > 0 ? "text-[var(--tracker-danger)] font-semibold" : ""}`}
+                              className={`cursor-pointer hover:text-[var(--tracker-text-main)] transition-colors rounded px-1 hover:bg-[var(--tracker-accent-soft)] flex items-center gap-1 w-[72px] ${metrics.fact > metrics.plan && metrics.plan > 0 ? "text-[var(--tracker-danger)] font-semibold" : ""}`}
                               onClick={(e) => { e.stopPropagation(); startEditing(task.id, "factH"); }}
                             >
-                              <Timer className="size-3" /> {isEditing(task.id, "factH") ? (
+                              <Timer className="size-3.5 shrink-0" /> {isEditing(task.id, "factH") ? (
                                 <input
                                   ref={inputEditRef}
-                                  className="w-10 text-right font-medium bg-transparent border-b border-[var(--tracker-accent)] outline-none"
+                                  className="w-10 text-right font-semibold bg-transparent border-b-2 border-[var(--tracker-accent)] outline-none py-0.5"
                                   value={task.factH}
                                   onChange={(e) => updateTask(month, task.id, "factH", e.target.value)}
                                   onBlur={stopEditing}
@@ -993,14 +1069,14 @@ export function TableView({
                                   onClick={(e) => e.stopPropagation()}
                                   autoFocus
                                 />
-                              ) : fmt2(metrics.fact)}ч
+                              ) : <>{fmt2(metrics.fact)}<span className="text-[var(--tracker-text-muted)]">ч</span></>}
                             </span>
                             {task.num && (
                               <button
-                                className={`font-medium hover:underline ${metrics.totalH > 0 ? "text-[var(--tracker-accent-fg)]" : ""}`}
+                                className={`flex items-center gap-1 font-medium hover:underline w-[72px] ${metrics.totalH > 0 ? "text-[var(--tracker-accent-fg)]" : ""}`}
                                 onClick={(e) => { e.stopPropagation(); setTotalHDialog({ taskNum: task.num, open: true }); }}
                               >
-                                Σ {fmt2(metrics.totalH)}ч
+                                <span className="opacity-60">Σ</span> {fmt2(metrics.totalH)}<span className="text-[var(--tracker-text-muted)]">ч</span>
                               </button>
                             )}
                             {(task.budgetAllocated ?? 0) > 0 && (
@@ -1012,20 +1088,6 @@ export function TableView({
                                 <Wallet className="size-3 inline" /> {task.budgetAllocated}ч
                               </button>
                             )}
-                            <div className="flex-1 flex items-center gap-1.5 ml-auto">
-                              <div className="task-card-progress flex-1">
-                                <div
-                                  className="task-card-progress-fill"
-                                  style={{
-                                    width: `${Math.min(metrics.prog, 100)}%`,
-                                    backgroundColor: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over),
-                                  }}
-                                />
-                              </div>
-                              <span className="text-[10px] font-semibold tabular-nums shrink-0" style={{ color: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over) }}>
-                                {metrics.prog}%
-                              </span>
-                            </div>
                           </div>
 
                           {!clientMode && !isGuest && (
@@ -1036,6 +1098,13 @@ export function TableView({
                               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onOpenTaskDetail?.(task, month)} title="Бюджет и комментарии">
                                 <MessageSquare className="size-3" />
                               </Button>
+                              {task.num && (
+                                <Button variant="ghost" size="icon" className="h-6 w-6" asChild title="Открыть в PlanFix">
+                                  <a href={`https://emk.planfix.ru/task/${task.num}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                    <ExternalLink className="size-3" />
+                                  </a>
+                                </Button>
+                              )}
                               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveToBacklog(month, task.id)} title="В беклог">
                                 <Package className="size-3" />
                               </Button>
@@ -1050,7 +1119,7 @@ export function TableView({
                               className={`mt-1.5 pl-5 flex items-center gap-1 text-[11px] text-[var(--tracker-text-muted)] truncate ${isGuest ? 'cursor-default' : 'cursor-pointer hover:text-[var(--tracker-text-main)] transition-colors'}`}
                               onClick={(e) => { if (!isGuest) { e.stopPropagation(); startEditing(task.id, "comment"); } }}
                             >
-                              <span className="truncate">💬 {task.comment}</span>
+                              <span className="truncate">{task.comment}</span>
                               {task.commentLog && task.commentLog.length > 0 && (
                                 <button
                                   className="shrink-0 opacity-50 hover:opacity-100 transition-opacity ml-1"
@@ -1068,7 +1137,7 @@ export function TableView({
                                   }}
                                   title="Архив комментариев"
                                 >
-                                  📜
+                                  <History className="size-3" />
                                 </button>
                               )}
                             </div>
@@ -1139,7 +1208,7 @@ export function TableView({
           <DialogHeader className="text-center sm:text-left">
             <div className="flex flex-col items-center sm:items-start gap-2">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-50">
-                <span className="text-lg">⚠️</span>
+                <AlertTriangle className="size-5 text-red-500" />
               </div>
               <div>
                 <DialogTitle className="text-lg">Удалить задачу?</DialogTitle>
@@ -1156,7 +1225,7 @@ export function TableView({
               onClick={() => {
                 deleteTask(month, deleteConfirm.taskId);
                 setDeleteConfirm({ open: false, taskId: "", taskName: "" });
-                toast({ title: "🗑 Удалено", description: `Задача удалена` });
+                toast({ title: "Удалено", description: `Задача удалена` });
               }}
             >
               Удалить

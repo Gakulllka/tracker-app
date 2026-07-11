@@ -49,11 +49,37 @@ export interface AuthData {
   permissions: UserPermissions | null;
   rolePermissions: RolePermissions | null;
   accessibleWorkspaces: AccessibleWorkspace[];
+  /** Домены, доступные на редактирование: "all" (admin/editor) или список id (member). */
+  editableDomainIds: "all" | string[];
 }
 
 export function useAuth() {
   const [authData, setAuthData] = useState<AuthData | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
+
+  /** Тянет /api/auth/me и обновляет состояние. Возвращает успех. */
+  const fetchMe = useCallback(async (token: string): Promise<boolean> => {
+    const res = await fetch("/api/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data.success) return false;
+    localStorage.setItem("auth_user", JSON.stringify(data.user));
+    localStorage.setItem("auth_permissions", JSON.stringify(data.permissions || null));
+    localStorage.setItem("auth_role_permissions", JSON.stringify(data.rolePermissions || null));
+    localStorage.setItem("auth_editable_domains", JSON.stringify(data.editableDomainIds ?? []));
+    setAuthData({
+      token,
+      workspaceId: data.workspaceId,
+      user: data.user,
+      permissions: data.permissions,
+      rolePermissions: data.rolePermissions ?? null,
+      accessibleWorkspaces: data.accessibleWorkspaces ?? [],
+      editableDomainIds: data.editableDomainIds ?? [],
+    });
+    return true;
+  }, []);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -61,19 +87,9 @@ export function useAuth() {
         const token = localStorage.getItem("auth_token");
         if (!token) { setAuthChecking(false); return; }
 
-        const res = await fetch(`/api/auth/me?token=${encodeURIComponent(token)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            localStorage.setItem("auth_user", JSON.stringify(data.user));
-            localStorage.setItem("auth_permissions", JSON.stringify(data.permissions || null));
-            localStorage.setItem("auth_role_permissions", JSON.stringify(data.rolePermissions || null));
-            setAuthData({ token, workspaceId: data.workspaceId, user: data.user, permissions: data.permissions, rolePermissions: data.rolePermissions ?? null, accessibleWorkspaces: data.accessibleWorkspaces ?? [] });
-          } else {
-            ["auth_token","auth_user","auth_workspace","auth_permissions","auth_role_permissions"].forEach(k => localStorage.removeItem(k));
-          }
-        } else {
-          ["auth_token","auth_user","auth_workspace","auth_permissions","auth_role_permissions"].forEach(k => localStorage.removeItem(k));
+        const ok = await fetchMe(token);
+        if (!ok) {
+          ["auth_token","auth_user","auth_workspace","auth_permissions","auth_role_permissions","auth_editable_domains"].forEach(k => localStorage.removeItem(k));
         }
       } catch {
         // Offline fallback
@@ -83,21 +99,30 @@ export function useAuth() {
         if (t && u && w) {
           const p = localStorage.getItem("auth_permissions");
           const rp = localStorage.getItem("auth_role_permissions");
-          setAuthData({ token: t, workspaceId: w, user: JSON.parse(u), permissions: p ? JSON.parse(p) : null, rolePermissions: rp ? JSON.parse(rp) : null, accessibleWorkspaces: [] });
+          const ed = localStorage.getItem("auth_editable_domains");
+          setAuthData({ token: t, workspaceId: w, user: JSON.parse(u), permissions: p ? JSON.parse(p) : null, rolePermissions: rp ? JSON.parse(rp) : null, accessibleWorkspaces: [], editableDomainIds: ed ? JSON.parse(ed) : [] });
         }
       } finally {
         setAuthChecking(false);
       }
     };
     checkSession();
-  }, []);
+  }, [fetchMe]);
+
+  /** Перечитать права с сервера (после выдачи доступа и т.п.). */
+  const refreshAuth = useCallback(async () => {
+    const token = localStorage.getItem("auth_token");
+    if (!token) return;
+    try { await fetchMe(token); } catch { /* silent */ }
+  }, [fetchMe]);
 
   const handleAuth = useCallback((data: {
     token: string; workspaceId: string; user: AuthData["user"];
     permissions?: unknown; rolePermissions?: unknown;
     accessibleWorkspaces?: AccessibleWorkspace[];
+    editableDomainIds?: "all" | string[];
   }) => {
-    setAuthData({ token: data.token, workspaceId: data.workspaceId, user: data.user, permissions: (data.permissions as UserPermissions | null) ?? null, rolePermissions: (data.rolePermissions as RolePermissions | null) ?? null, accessibleWorkspaces: data.accessibleWorkspaces ?? [] });
+    setAuthData({ token: data.token, workspaceId: data.workspaceId, user: data.user, permissions: (data.permissions as UserPermissions | null) ?? null, rolePermissions: (data.rolePermissions as RolePermissions | null) ?? null, accessibleWorkspaces: data.accessibleWorkspaces ?? [], editableDomainIds: data.editableDomainIds ?? [] });
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -106,7 +131,7 @@ export function useAuth() {
         await fetch("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: authData.token }) });
       } catch { /* silent */ }
     }
-    ["auth_token","auth_user","auth_workspace","auth_permissions","auth_role_permissions"].forEach(k => localStorage.removeItem(k));
+    ["auth_token","auth_user","auth_workspace","auth_permissions","auth_role_permissions","auth_editable_domains"].forEach(k => localStorage.removeItem(k));
     document.cookie = "auth_token=; path=/; max-age=0; SameSite=Lax";
     setAuthData(null);
   }, [authData]);
@@ -117,5 +142,5 @@ export function useAuth() {
     setAuthData({ ...authData, workspaceId: newWorkspaceId });
   }, [authData]);
 
-  return { authData, authChecking, handleAuth, handleLogout, switchWorkspace };
+  return { authData, authChecking, handleAuth, handleLogout, switchWorkspace, refreshAuth };
 }

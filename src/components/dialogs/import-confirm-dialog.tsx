@@ -19,7 +19,7 @@ export function ImportConfirmDialog({ open, file, onConfirm, onClose }: ImportCo
     <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>📂 Загрузить JSON?</DialogTitle>
+          <DialogTitle>Загрузить JSON?</DialogTitle>
           <DialogDescription>Текущие данные будут заменены данными из файла. Продолжить?</DialogDescription>
         </DialogHeader>
         {file && (

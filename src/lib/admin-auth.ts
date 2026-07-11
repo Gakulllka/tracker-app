@@ -1,16 +1,14 @@
-import { prisma } from "@/lib/prisma";
 import { NextRequest } from "next/server";
+import { resolveSession } from "@/lib/auth";
 
 /**
- * Validates that the request comes from an admin.
+ * Проверяет, что запрос пришёл от админа.
  *
- * Token resolution order:
- *   1. `explicitToken` argument (pass it when you already parsed the body)
- *   2. Query-string  ?token=...
+ * Токен берётся из:
+ *   1. Аргумента `explicitToken` (передавай его, если тело уже прочитано)
+ *   2. Query-string ?token=...
  *
- * ⚠️  Never call req.json() here — the route handler may have already read
- *     the body stream, and Node.js HTTP streams can only be consumed once.
- *     Pass `token` explicitly from the route after parsing the body.
+ * ⚠️  Никогда не вызывай req.json() здесь — тело потока читается один раз.
  */
 export async function validateAdminRequest(
   req: NextRequest,
@@ -18,32 +16,15 @@ export async function validateAdminRequest(
 ): Promise<{
   user: {
     id: string; username: string; displayName: string;
-    role: string; roleId: string; status: string;
+    role: string; status: string;
   }
 } | null> {
-  // Prefer explicit token, then query string
   const token = explicitToken ?? req.nextUrl.searchParams.get("token");
   if (!token) return null;
 
-  const session = await prisma.session.findUnique({
-    where: { token },
-    include: { user: { include: { role: true } } },
-  });
+  const auth = await resolveSession(token);
+  if (!auth) return null;
+  if (auth.user.role !== "admin") return null;
 
-  if (!session || session.expiresAt < new Date()) return null;
-
-  if (session.user.role.name.toLowerCase() !== "admin") return null;
-
-  if (session.user.status === "BLOCKED") return null;
-
-  return {
-    user: {
-      id: session.user.id,
-      username: session.user.username,
-      displayName: session.user.displayName,
-      role: session.user.role.name,
-      roleId: session.user.roleId,
-      status: session.user.status,
-    },
-  };
+  return { user: auth.user };
 }

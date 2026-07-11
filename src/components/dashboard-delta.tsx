@@ -108,7 +108,6 @@ function BubbleTooltip({ active, payload }: { active?: boolean; payload?: Array<
         <p>Бюджет в месяце: <b style={{ color: "#60a5fa" }}>{d.budgetH}ч</b>{d.planH > 100 ? " (Ролловер)" : ""}</p>
         <p>Факт: <b style={{ color: "#22c55e" }}>{d.factH}ч</b></p>
         {d.isPending && <p className="font-semibold mt-1" style={{ color: "#f59e0b" }}>⏳ Ожидает подтверждения БА</p>}
-        {d.isFirstToCut && <p className="font-semibold mt-1" style={{ color: "#ef4444" }}>⚡ Первая на отсечение</p>}
       </div>
     </div>
   );
@@ -589,12 +588,6 @@ export function DashboardDelta({
           <div className="pt-2 border-t space-y-1.5"
             style={{ borderColor: "var(--tracker-border, var(--border))" }}>
             <div className="flex justify-between text-xs" style={TEXT_MUTED}>
-              <span>⚡ На отсечение:</span>
-              <span className="font-bold" style={{ color: firstToCutTasks.length > 0 ? "#f97316" : "var(--tracker-text-muted)" }}>
-                {firstToCutTasks.length} зад. ({firstToCutHours}ч)
-              </span>
-            </div>
-            <div className="flex justify-between text-xs" style={TEXT_MUTED}>
               <span>⏳ Ожидает БА:</span>
               <span className="font-bold" style={{ color: pendingTasks.length > 0 ? "#f59e0b" : "var(--tracker-text-muted)" }}>
                 {pendingTasks.length} зад. ({pendingHours}ч)
@@ -839,14 +832,6 @@ export function DashboardDelta({
                   </button>
                 );
               })}
-
-              {/* Авто-индикатор "На отсечение" */}
-              {isFirstToCutIds.has(selectedTask.id) && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
-                  style={{ background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.25)" }}>
-                  <span className="text-sm font-medium" style={{ color: "#f97316" }}>⚡ Авто: на отсечение</span>
-                </div>
-              )}
 
               {/* Чекбокс "Зафиксировать — не отсекать" */}
               <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer"

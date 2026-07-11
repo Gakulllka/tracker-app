@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword, generateSessionToken } from "@/lib/password";
+import { getClientIp, logActivity, publicUser } from "@/lib/auth";
+import { loginBlockedFor, recordLoginFail, recordLoginSuccess } from "@/lib/rate-limit";
 
 // POST /api/auth/login
 // Body: { username: string, password: string }
@@ -9,22 +11,28 @@ export async function POST(req: NextRequest) {
     const { username, password } = await req.json();
 
     if (!username) {
+      return NextResponse.json({ error: "Укажите имя пользователя" }, { status: 400 });
+    }
+
+    // Защита от перебора: 5 неудач за 10 минут → блок на 15 минут
+    const rlKey = `${String(username).toLowerCase()}|${getClientIp(req)}`;
+    const blockedSec = loginBlockedFor(rlKey);
+    if (blockedSec > 0) {
       return NextResponse.json(
-        { error: "Укажите имя пользователя" },
-        { status: 400 }
+        { error: `Слишком много неудачных попыток. Попробуйте через ${Math.ceil(blockedSec / 60)} мин.` },
+        { status: 429 }
       );
     }
 
-    // Find user
     const user = await prisma.user.findUnique({ where: { username } });
     if (!user) {
+      recordLoginFail(rlKey);
       return NextResponse.json(
         { error: "Неверное имя пользователя или пароль" },
         { status: 401 }
       );
     }
 
-    // Check if user is blocked
     if (user.status === "BLOCKED") {
       return NextResponse.json(
         { error: "Аккаунт заблокирован. Обратитесь к администратору." },
@@ -32,84 +40,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify password — если пароль пустой, проверяем что и в базе пустой
-    if (password) {
-      const valid = await verifyPassword(password, user.passwordHash);
-      if (!valid) {
-        return NextResponse.json(
-          { error: "Неверное имя пользователя или пароль" },
-          { status: 401 }
-        );
-      }
-    } else {
-      // Если пользователь ввёл пустой пароль — проверяем что в базе тоже пустой
-      const validEmpty = await verifyPassword("", user.passwordHash);
-      if (!validEmpty) {
-        return NextResponse.json(
-          { error: "Неверное имя пользователя или пароль" },
-          { status: 401 }
-        );
-      }
+    const valid = await verifyPassword(password || "", user.passwordHash);
+    if (!valid) {
+      recordLoginFail(rlKey);
+      return NextResponse.json(
+        { error: "Неверное имя пользователя или пароль" },
+        { status: 401 }
+      );
     }
+    recordLoginSuccess(rlKey);
 
-    // Find or create default workspace
-    let workspace = await prisma.workspace.findFirst({
-      where: { userId: user.id },
-    });
-    if (!workspace) {
-      workspace = await prisma.workspace.create({
-        data: {
-          name: "Моё пространство",
-          userId: user.id,
-        },
-      });
-    }
-
-    // Clean up old sessions for this user
+    // Чистим просроченные сессии пользователя
     await prisma.session.deleteMany({
-      where: {
-        userId: user.id,
-        expiresAt: { lt: new Date() },
-      },
+      where: { userId: user.id, expiresAt: { lt: new Date() } },
     });
 
-    // Create session
     const token = generateSessionToken();
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+    expiresAt.setDate(expiresAt.getDate() + 30);
 
     await prisma.session.create({
-      data: {
-        token,
-        userId: user.id,
-        expiresAt,
-      },
+      data: { token, userId: user.id, expiresAt, ipAddress: getClientIp(req) },
     });
 
-    // Log the login event
-    try {
-      await prisma.activityLog.create({
-        data: {
-          userId: user.id,
-          username: user.username,
-          action: "login",
-          entityType: "user",
-          entityId: user.id,
-        },
-      });
-    } catch { /* ignore log errors */ }
+    await logActivity({
+      userId: user.id,
+      username: user.username,
+      action: "login",
+      entityType: "user",
+      entityId: user.id,
+      ipAddress: getClientIp(req),
+    });
 
-    const userRole = await prisma.role.findUnique({ where: { id: user.roleId } });
     return NextResponse.json({
       success: true,
-      user: {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        role: userRole?.name?.toLowerCase() || "viewer",
-      },
+      user: publicUser(user),
       token,
-      workspaceId: workspace.id,
+      workspaceId: "global",
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";

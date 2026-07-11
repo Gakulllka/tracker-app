@@ -2,102 +2,213 @@ generator client {
   provider      = "prisma-client-js"
   // ВАЖНО: без этого Prisma на Netlify Functions падает с
   // "Query engine binary for current platform 'rhel-openssl-3.0.x' could not be found".
-  // "native"            — для локальной разработки (Windows/Mac/Linux)
-  // "rhel-openssl-3.0.x"  — для Netlify Functions / AWS Lambda Amazon Linux 2023
-  // "linux-musl-openssl-3.0.x" — на случай если Netlify когда-то переедет на Alpine
   binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  // directUrl нужен только если будешь запускать `prisma migrate deploy` —
-  // миграции должны идти мимо пулера PgBouncer.
-  // Если переменной нет, Prisma просто использует url.
   directUrl = env("DIRECT_URL")
 }
 
-model User {
-  id               String   @id @default(cuid())
-  username         String   @unique
-  passwordHash     String
-  displayName      String   @default("")
-  status           String   @default("ACTIVE")
-  roleId           String
-  role             Role     @relation(fields: [roleId], references: [id])
-  selectedDomains  String   @default("[]") // JSON array of domain IDs — какие домены видит пользователь
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+// ============================================================================
+//  ЕДИНЫЙ ОБЩИЙ МИР
+//  Нет воркспейсов. Все данные живут в рамках Домена, домены глобальны и
+//  видны всем. Права: глобальная роль пользователя + пер-доменные права
+//  редактирования (DomainEditor).
+// ============================================================================
 
-  aiInsights  AiInsight[]
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  displayName  String   @default("")
+  // Глобальная роль:
+  //   admin  — полный доступ + админ-панель (первый зарегистрированный)
+  //   editor — редактирует ВСЕ домены, без админ-панели
+  //   viewer — видит все домены, ничего не редактирует
+  //   member — обычный пользователь: редактирует домены из DomainEditor,
+  //            остальные — только просмотр
+  //   guest  — общий гостевой аккаунт, только просмотр, права не выдаются
+  role      String   @default("member")
+  status    String   @default("ACTIVE") // ACTIVE | BLOCKED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions     Session[]
+  domainRights DomainEditor[]
+  editRequests EditRequest[]
 }
 
-model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String   @default("")
-  permissions String   @default("{}")
-  isSystem    Boolean  @default(false)
+model Session {
+  id           String   @id @default(cuid())
+  token        String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress    String   @default("")
+  currentPage  String   @default("")
+  lastActivity DateTime @default(now())
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@index([userId])
+}
+
+model Domain {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  archived     Boolean  @default(false) // архив: видит только админ
+  createdById  String   @default("")
+  // План часов по месяцам: JSON {"YYYY-MM": число}. Общий для всех.
+  monthlyPlans String   @default("{}")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  editors      DomainEditor[]
+  editRequests EditRequest[]
+  tasks        Task[]
+  backlogItems BacklogItem[]
+  questions    Question[]
+  aiInsights   AiInsight[]
 }
 
+// Право редактирования домена. Наличие записи = может редактировать.
+// Создатель домена получает запись автоматически.
+model DomainEditor {
+  id        String   @id @default(cuid())
+  domainId  String
+  domain    Domain   @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy String   @default("") // username выдавшего право
+  createdAt DateTime @default(now())
+
+  @@unique([domainId, userId])
+  @@index([userId])
+}
+
+// Запрос пользователя на право редактирования домена.
+// Одобрить/отклонить может админ, глобальный редактор или редактор домена.
+model EditRequest {
+  id           String    @id @default(cuid())
+  domainId     String
+  domain       Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       String    @default("pending") // pending | approved | rejected
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+  resolvedById String    @default("")
+
+  @@index([domainId, status])
+  @@index([userId])
+}
+
+// Задача. Одна задача = одна строка. Принадлежит домену и месяцу.
+model Task {
+  id         String   @id @default(cuid())
+  domainId   String
+  domain     Domain   @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  monthKey   String // "YYYY-MM"
+  num        String   @default("")
+  name       String   @default("")
+  planH      String   @default("0")
+  factH      String   @default("0")
+  priority   String   @default("Средний")
+  status     String   @default("Идея")
+  comment    String   @default("")
+  commentLog String   @default("[]") // JSON-массив записей комментариев
+  // Прочие поля задачи (дельта-поля БА/руководителя: budgetAllocated,
+  // approvalStatus, executiveFlag, statusChangedAt и т.д.) — JSON-объект.
+  extra      String   @default("{}")
+  sortOrder  Int      @default(0)
+  // Клиентский last-modified. Last-write-wins: сервер принимает обновление
+  // строки только если входящий ts >= сохранённого.
+  ts         DateTime @default(now())
+  updatedBy  String   @default("") // username последнего редактора
+  deleted    Boolean  @default(false) // мягкое удаление (tombstone)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([domainId, monthKey])
+  @@index([domainId, deleted])
+}
+
+model BacklogItem {
+  id         String   @id @default(cuid())
+  domainId   String
+  domain     Domain   @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  num        String   @default("")
+  name       String   @default("")
+  planH      String   @default("0")
+  factH      String   @default("0")
+  priority   String   @default("Средний")
+  status     String   @default("Идея")
+  comment    String   @default("")
+  commentLog String   @default("[]")
+  extra      String   @default("{}")
+  sortOrder  Int      @default(0)
+  ts         DateTime @default(now())
+  updatedBy  String   @default("")
+  deleted    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([domainId, deleted])
+}
+
+// Вопрос привязан к домену. domainId nullable на переходный период —
+// пока фронтенд не передаёт домен, вопросы считаются общими.
 model Question {
   id           String    @id @default(cuid())
+  domainId     String?
+  domain       Domain?   @relation(fields: [domainId], references: [id], onDelete: Cascade)
   text         String
   author       String    @default("Аноним")
-  answer       String    @default("")
+  answer       String    @default("") // JSON-массив ответов
   status       String    @default("open")
   questionDate DateTime  @default(now())
   answerDate   DateTime?
   createdAt    DateTime  @default(now())
+
+  @@index([domainId])
 }
 
-// Phase 4: AI-инсайты привязаны к (пользователь, домен, месяц).
-// На каждую комбинацию ровно один инсайт; повторное сохранение перезаписывает.
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String   @default("")
+  username   String   @default("")
+  action     String
+  entityType String   @default("")
+  entityId   String   @default("")
+  oldValue   String   @default("")
+  newValue   String   @default("")
+  details    String   @default("")
+  ipAddress  String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+}
+
+// AI-инсайты: один инсайт на (домен, месяц), общий для всех пользователей.
 model AiInsight {
   id       String @id @default(cuid())
-  userId   String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   domainId String
+  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
   monthKey String // "YYYY-MM"
 
-  achievements String @default("[]") // JSON array
-  risks        String @default("[]") // JSON array
-  inProgress   String @default("[]") // JSON array
-  nextSteps    String @default("[]") // JSON array
+  achievements String @default("[]")
+  risks        String @default("[]")
+  inProgress   String @default("[]")
+  nextSteps    String @default("[]")
 
-  dataHash String @default("") // hash задач на момент генерации
-  source   String @default("manual") // "ai" | "manual" | "edited"
+  dataHash  String @default("")
+  source    String @default("manual") // "ai" | "manual" | "edited"
+  updatedBy String @default("") // username последнего редактора
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, domainId, monthKey])
-  @@index([userId, domainId])
-}
-
-model Domain {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  createdAt   DateTime @default(now())
-}
-
-model BacklogItem {
-  id          String   @id @default(cuid())
-  domainId    String
-  num         String   @default("")
-  name        String   @default("")
-  planH       String   @default("0")
-  factH       String   @default("0")
-  priority    String   @default("Средний")
-  status      String   @default("Идея")
-  comment     String   @default("")
-  commentLog  String   @default("[]")
-  ts          DateTime @default(now())
-  deleted     Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([domainId])
+  @@unique([domainId, monthKey])
 }

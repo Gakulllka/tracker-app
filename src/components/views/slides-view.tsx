@@ -285,7 +285,7 @@ export function SlidesView({
               disabled={!!aiDraft}>
               ✏️ Заполнить вручную
             </Button>
-            <Button size="sm" className="h-8 gap-1.5 text-xs bg-[var(--tracker-accent)] text-white hover:bg-[var(--tracker-accent-hover)]"
+            <Button size="sm" className="h-8 gap-1.5 text-xs bg-[var(--tracker-accent)] text-[var(--tracker-accent-contrast)] hover:bg-[var(--tracker-accent-hover)]"
               onClick={onAiAnalysis} disabled={aiAnalysisBusy || !!aiDraft}>
               {aiAnalysisBusy
                 ? <><Loader2 className="size-3.5 animate-spin" />Анализирую...</>
@@ -349,7 +349,7 @@ export function SlidesView({
               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={onDiscardDraft}>
                 <X className="size-3" />Отклонить
               </Button>
-              <Button size="sm" className="h-8 gap-1.5 text-xs bg-[var(--tracker-accent)] text-white" onClick={onApproveDraft}>
+              <Button size="sm" className="h-8 gap-1.5 text-xs bg-[var(--tracker-accent)] text-[var(--tracker-accent-contrast)]" onClick={onApproveDraft}>
                 <Check className="size-3" />Применить
               </Button>
             </div>

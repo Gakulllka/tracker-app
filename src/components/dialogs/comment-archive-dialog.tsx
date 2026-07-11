@@ -24,7 +24,7 @@ export function CommentArchiveDialog({ open, taskName, logs, isDark, onClose }: 
     <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader className="gap-0.5">
-          <DialogTitle className="text-base leading-tight">📜 Архив комментариев</DialogTitle>
+          <DialogTitle className="text-base leading-tight">Архив комментариев</DialogTitle>
           <span className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>{taskName}</span>
           <DialogDescription>История комментариев и статусов задачи по неделям</DialogDescription>
         </DialogHeader>

@@ -1,9 +1,26 @@
 "use client";
-
+/**
+ * AuthScreen — вход и регистрация.
+ *
+ * Фирменная «дверь» продукта: единая для всех, не зависит от темы
+ * и акцентного цвета пользователя. Графит и бумага, знак — стек
+ * вложенных «дельт» (Δ = разница план/факт). Цвет начинается внутри.
+ *
+ * Десктоп: брендовая панель слева + форма справа. Мобильный: форма
+ * с компактным знаком сверху.
+ */
 import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Loader2, ArrowRight, Plus, Trash2, Check } from "lucide-react";
+import { Loader2, ArrowRight, Eye } from "lucide-react";
+
+/* Фиксированные фирменные токены (сознательно не из темы) */
+const INK = "#17181C";
+const INK_SOFT = "#26282E";
+const PAPER = "#FAFAF8";
+const CARD = "#FFFFFF";
+const LINE = "#E8E7E2";
+const TEXT = "#1C1D21";
+const MUTED = "#8B8A84";
+const MONO = "var(--font-geist-mono, ui-monospace, monospace)";
 
 interface AuthScreenProps {
   onAuth: (data: {
@@ -12,36 +29,47 @@ interface AuthScreenProps {
     user: { id: string; username: string; displayName: string; role: string; roleName?: string };
     permissions?: unknown;
     rolePermissions?: unknown;
+    editableDomainIds?: "all" | string[];
   }) => void;
 }
 
-interface Domain {
-  id: string;
-  name: string;
+/** Стек вложенных дельт — фирменный знак на брендовой панели. */
+function DeltaStack({ size = 260, stroke = PAPER }: { size?: number; stroke?: string }) {
+  return (
+    <svg
+      className="brand-hero-delta"
+      width={size} height={size * 0.9} viewBox="0 0 100 90"
+      xmlns="http://www.w3.org/2000/svg" aria-hidden
+    >
+      <polygon points="50,4 96,86 4,86" fill="none" stroke={stroke} strokeWidth="1.6" strokeLinejoin="round" opacity="0.9" />
+      <polygon points="50,20 86.5,84 13.5,84" fill="none" stroke={stroke} strokeWidth="1.2" strokeLinejoin="round" opacity="0.55" />
+      <polygon points="50,36 77,82 23,82" fill="none" stroke={stroke} strokeWidth="1" strokeLinejoin="round" opacity="0.34" />
+      <polygon points="50,52 67.5,80 32.5,80" fill="none" stroke={stroke} strokeWidth="0.9" strokeLinejoin="round" opacity="0.2" />
+      <polygon points="50,66 59,78.5 41,78.5" fill="none" stroke={stroke} strokeWidth="0.8" strokeLinejoin="round" opacity="0.12" />
+    </svg>
+  );
+}
+
+/** Компактный знак для мобильной версии и словесного знака. */
+function DeltaMark({ size = 20, color = PAPER }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size * 0.9} viewBox="0 0 44 40" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <polygon points="22,3 41,37 3,37" fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round" />
+      <polygon points="22,13 35,35 9,35" fill="none" stroke={color} strokeWidth="1.4" strokeLinejoin="round" opacity="0.4" />
+    </svg>
+  );
 }
 
 export default function AuthScreen({ onAuth }: AuthScreenProps) {
-  const [step, setStep] = useState<"auth" | "domains">("auth");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Domain selection
-  const [domains, setDomains] = useState<Domain[]>([]);
-  const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set());
-  const [newDomainName, setNewDomainName] = useState("");
-  const [creatingDomain, setCreatingDomain] = useState(false);
-
-  const [authData, setAuthData] = useState<{
-    token: string;
-    workspaceId: string;
-    user: { id: string; username: string; displayName: string; role: string };
-  } | null>(null);
-
-  // Default theme — мята
+  // Тема по умолчанию для нового устройства (визуально на вход не влияет)
   useEffect(() => {
     try {
       const raw = localStorage.getItem("task-tracker-storage");
@@ -54,11 +82,51 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
     } catch { /* silent */ }
   }, []);
 
+  /** Завершение авторизации: сохраняем токен, тянем права, входим. */
+  const finishAuth = async (data: {
+    token: string;
+    workspaceId: string;
+    user: { id: string; username: string; displayName: string; role: string };
+  }) => {
+    localStorage.setItem("auth_token", data.token);
+    localStorage.setItem("auth_user", JSON.stringify(data.user));
+    localStorage.setItem("auth_workspace", data.workspaceId);
+    document.cookie = `auth_token=${encodeURIComponent(data.token)}; path=/; max-age=2592000; SameSite=Lax`;
+
+    let permissions: unknown = null;
+    let rolePermissions: unknown = null;
+    let editableDomainIds: "all" | string[] = [];
+    try {
+      const meRes = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${data.token}` },
+      });
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        if (meData.success) {
+          permissions = meData.permissions ?? null;
+          rolePermissions = meData.rolePermissions ?? null;
+          editableDomainIds = meData.editableDomainIds ?? [];
+          localStorage.setItem("auth_permissions", JSON.stringify(permissions));
+          localStorage.setItem("auth_role_permissions", JSON.stringify(rolePermissions));
+          localStorage.setItem("auth_editable_domains", JSON.stringify(editableDomainIds));
+        }
+      }
+    } catch { /* ignore */ }
+
+    onAuth({
+      token: data.token,
+      workspaceId: data.workspaceId,
+      user: data.user,
+      permissions,
+      rolePermissions,
+      editableDomainIds,
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
       const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
       const body: Record<string, string> = { username: username.trim() };
@@ -70,309 +138,187 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Ошибка"); return; }
-
-      setAuthData({ token: data.token, workspaceId: data.workspaceId, user: data.user });
-      await loadDomains();
-      setStep("domains");
+      await finishAuth({ token: data.token, workspaceId: data.workspaceId, user: data.user });
     } catch {
-      setError("Ошибка подключения к серверу");
+      setError("Нет соединения с сервером. Проверьте сеть и попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
   };
 
-  const loadDomains = async () => {
+  const handleGuest = async () => {
+    setError("");
+    setGuestLoading(true);
     try {
-      const res = await fetch("/api/domains");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.domains) {
-          setDomains(data.domains);
-          // Автоматически выбрать все домены
-          setSelectedDomains(new Set(data.domains.map((d: Domain) => d.id)));
-        }
-      }
-    } catch { /* ignore */ }
+      const res = await fetch("/api/auth/guest", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Гостевой вход сейчас недоступен"); return; }
+      await finishAuth({ token: data.token, workspaceId: data.workspaceId, user: data.user });
+    } catch {
+      setError("Нет соединения с сервером. Проверьте сеть и попробуйте ещё раз.");
+    } finally {
+      setGuestLoading(false);
+    }
   };
 
-  const handleCreateDomain = async () => {
-    if (!newDomainName.trim() || !authData) return;
-    setCreatingDomain(true);
-    try {
-      const res = await fetch("/api/domains", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: authData.token, name: newDomainName.trim() }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const newDomain = { id: data.domain.id, name: data.domain.name };
-        setDomains([...domains, newDomain]);
-        setSelectedDomains(new Set([...selectedDomains, newDomain.id]));
-        setNewDomainName("");
-      }
-    } catch { /* ignore */ }
-    setCreatingDomain(false);
+  const inputStyle: React.CSSProperties = {
+    background: CARD,
+    border: `1px solid ${LINE}`,
+    color: TEXT,
   };
 
-  const handleDeleteDomain = async (domainId: string) => {
-    if (!authData) return;
-    try {
-      await fetch("/api/domains", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: authData.token, domainId }),
-      });
-      setDomains(domains.filter(d => d.id !== domainId));
-      const newSelected = new Set(selectedDomains);
-      newSelected.delete(domainId);
-      setSelectedDomains(newSelected);
-    } catch { /* ignore */ }
-  };
-
-  const toggleDomain = (id: string) => {
-    const next = new Set(selectedDomains);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedDomains(next);
-  };
-
-  const handleContinue = async () => {
-    if (!authData) return;
-    setLoading(true);
-
-    // Сохраняем выбранные домены
-    try {
-      await fetch("/api/domains/select", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token: authData.token,
-          domainIds: Array.from(selectedDomains),
-        }),
-      });
-    } catch { /* ignore */ }
-
-    localStorage.setItem("auth_token", authData.token);
-    localStorage.setItem("auth_user", JSON.stringify(authData.user));
-    localStorage.setItem("auth_workspace", authData.workspaceId);
-    document.cookie = `auth_token=${encodeURIComponent(authData.token)}; path=/; max-age=2592000; SameSite=Lax`;
-
-    let permissions: unknown = null;
-    let rolePermissions: unknown = null;
-    try {
-      const meRes = await fetch(`/api/auth/me?token=${encodeURIComponent(authData.token)}`);
-      if (meRes.ok) {
-        const meData = await meRes.json();
-        if (meData.success) {
-          permissions = meData.permissions ?? null;
-          rolePermissions = meData.rolePermissions ?? null;
-          localStorage.setItem("auth_permissions", JSON.stringify(permissions));
-          localStorage.setItem("auth_role_permissions", JSON.stringify(rolePermissions));
-        }
-      }
-    } catch { /* ignore */ }
-
-    onAuth({
-      token: authData.token,
-      workspaceId: authData.workspaceId,
-      user: authData.user,
-      permissions,
-      rolePermissions,
-    });
-  };
-
-  // Мятные цвета
-  const mint = {
-    bg: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #ecfdf5 100%)",
-    card: "#ffffff",
-    cardBorder: "#bbf7d0",
-    cardShadow: "0 8px 40px rgba(34,197,94,0.08), 0 2px 8px rgba(34,197,94,0.04)",
-    accent: "#16a34a",
-    accentHover: "#15803d",
-    accentLight: "#dcfce7",
-    text: "#14532d",
-    textMuted: "#6b7280",
-    inputBg: "#f0fdf4",
-    inputBorder: "#bbf7d0",
-    blob1: "rgba(34,197,94,0.08)",
-    blob2: "rgba(74,222,128,0.06)",
-  };
+  const canSubmit = !loading && !guestLoading && !!username.trim() &&
+    (mode === "login" || password.length >= 4);
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden"
-      style={{ background: mint.bg }}
-    >
-      <div className="absolute pointer-events-none" style={{
-        top: "-150px", left: "-120px", width: "500px", height: "500px",
-        borderRadius: "50%", background: `radial-gradient(circle, ${mint.blob1} 0%, transparent 70%)`,
-        filter: "blur(60px)",
-      }} />
-      <div className="absolute pointer-events-none" style={{
-        bottom: "-120px", right: "-100px", width: "450px", height: "450px",
-        borderRadius: "50%", background: `radial-gradient(circle, ${mint.blob2} 0%, transparent 70%)`,
-        filter: "blur(60px)",
-      }} />
+    <div className="fixed inset-0 z-[200] flex" style={{ background: PAPER }}>
 
-      <div className="relative z-10 w-full max-w-[400px] mx-4 animate-fade-in-up">
-        {/* Логотип — ЧБ */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 flex items-center justify-center rounded-2xl mb-4 bg-gray-900 shadow-lg">
-            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-              <polygon points="16,3 30.5,29 1.5,29" fill="white" opacity="0.95"/>
-              <polygon points="16,11.5 25,27.5 7,27.5" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5"/>
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: mint.text }}>
-            {step === "auth"
-              ? (mode === "login" ? "Вход в систему" : "Регистрация")
-              : "Выберите домены"
-            }
-          </h1>
-          <p className="mt-1.5 text-sm" style={{ color: mint.textMuted }}>
-            {step === "auth"
-              ? (mode === "login" ? "Введите данные для входа" : "Создайте новый аккаунт")
-              : "Выберите домены для работы или пропустите"
-            }
-          </p>
+      {/* ── Брендовая панель (десктоп) ── */}
+      <div
+        className="hidden lg:flex flex-col justify-between w-[42%] max-w-[560px] shrink-0 p-10"
+        style={{ background: INK }}
+      >
+        {/* Словесный знак */}
+        <div className="flex items-center gap-2.5 select-none">
+          <DeltaMark size={18} />
+          <span
+            className="text-[13px] font-semibold uppercase"
+            style={{ color: PAPER, letterSpacing: "0.38em", fontFamily: MONO }}
+          >
+            Delta
+          </span>
         </div>
 
-        {/* Auth Form */}
-        {step === "auth" && (
-          <div className="rounded-2xl p-6" style={{
-            background: mint.card,
-            border: `1px solid ${mint.cardBorder}`,
-            boxShadow: mint.cardShadow,
-          }}>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: mint.textMuted }}>Логин</label>
-                <Input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Введите логин" className="h-11 rounded-xl text-sm"
-                  style={{ borderColor: mint.inputBorder, background: mint.inputBg, color: mint.text }}
-                  autoComplete="username" disabled={loading} />
-              </div>
+        {/* Знак и мысль */}
+        <div className="flex flex-col items-start gap-8">
+          <DeltaStack />
+          <div>
+            <p className="text-[22px] font-semibold leading-snug tracking-tight" style={{ color: PAPER }}>
+              Дельта — это разница<br />между планом и фактом.
+            </p>
+            <p className="mt-3 text-[13.5px] leading-relaxed" style={{ color: "rgba(250,250,248,0.55)" }}>
+              Задачи по месяцам, часы, бэклог и вопросы —<br />
+              в одном общем пространстве команды.
+            </p>
+          </div>
+        </div>
 
-              {mode === "register" && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: mint.textMuted }}>
-                    Имя <span className="font-normal opacity-60">(необязательно)</span>
-                  </label>
-                  <Input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Как вас зовут?" className="h-11 rounded-xl text-sm"
-                    style={{ borderColor: mint.inputBorder, background: mint.inputBg, color: mint.text }}
-                    autoComplete="name" disabled={loading} />
-                </div>
-              )}
+        <p className="text-[11px] select-none" style={{ color: "rgba(250,250,248,0.30)", fontFamily: MONO }}>
+          Δ · трекер задач команды
+        </p>
+      </div>
 
+      {/* ── Форма ── */}
+      <div className="flex-1 flex flex-col items-center justify-center px-5 py-10 overflow-y-auto">
+        <div className="w-full max-w-[360px]">
+
+          {/* Мобильный знак */}
+          <div className="lg:hidden flex flex-col items-center mb-8 select-none">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center"
+              style={{ background: INK }}
+            >
+              <DeltaMark size={24} />
+            </div>
+            <span
+              className="mt-3 text-[11px] font-semibold uppercase"
+              style={{ color: TEXT, letterSpacing: "0.38em", marginRight: "-0.38em", fontFamily: MONO }}
+            >
+              Delta
+            </span>
+          </div>
+
+          <h1 className="text-[24px] font-bold tracking-tight" style={{ color: TEXT }}>
+            {mode === "login" ? "С возвращением" : "Новый аккаунт"}
+          </h1>
+          <p className="mt-1.5 text-[13.5px]" style={{ color: MUTED }}>
+            {mode === "login"
+              ? "Войдите, чтобы продолжить работу с задачами"
+              : "Пара полей — и вы в общем пространстве команды"}
+          </p>
+
+          <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-medium" style={{ color: TEXT }}>Логин</label>
+              <input
+                type="text" value={username} onChange={(e) => setUsername(e.target.value)}
+                placeholder="ivan" autoComplete="username" disabled={loading}
+                className="h-11 rounded-[10px] px-3.5 text-[14px] outline-none transition-shadow focus:shadow-[0_0_0_3px_rgba(23,24,28,0.10)] focus:border-[#17181C]"
+                style={inputStyle}
+              />
+            </div>
+
+            {mode === "register" && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: mint.textMuted }}>
-                  Пароль <span className="font-normal opacity-60">(необязательно)</span>
+                <label className="text-[12px] font-medium" style={{ color: TEXT }}>
+                  Имя <span className="font-normal" style={{ color: MUTED }}>· необязательно</span>
                 </label>
-                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === "login" ? "Введите пароль" : "Можно оставить пустым"}
-                  className="h-11 rounded-xl text-sm"
-                  style={{ borderColor: mint.inputBorder, background: mint.inputBg, color: mint.text }}
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  disabled={loading} />
+                <input
+                  type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Иван Петров" autoComplete="name" disabled={loading}
+                  className="h-11 rounded-[10px] px-3.5 text-[14px] outline-none transition-shadow focus:shadow-[0_0_0_3px_rgba(23,24,28,0.10)] focus:border-[#17181C]"
+                  style={inputStyle}
+                />
               </div>
+            )}
 
-              {error && (
-                <div className="text-sm px-4 py-2.5 rounded-xl bg-red-50 text-red-600 border border-red-200">{error}</div>
-              )}
-
-              <Button type="submit" disabled={loading || !username.trim()}
-                className="w-full h-11 gap-2 rounded-xl text-sm font-semibold text-white transition-all shadow-lg"
-                style={{ background: mint.accent, boxShadow: `0 4px 20px ${mint.accent}35` }}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                  <>{mode === "login" ? "Войти" : "Создать аккаунт"} <ArrowRight className="h-4 w-4" /></>
-                )}
-              </Button>
-            </form>
-
-            <div className="mt-4 pt-4 text-center" style={{ borderTop: `1px solid ${mint.cardBorder}` }}>
-              <button onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
-                className="text-sm transition-colors hover:underline" style={{ color: mint.accent }}>
-                {mode === "login" ? "Нет аккаунта? Зарегистрироваться" : "Уже есть аккаунт? Войти"}
-              </button>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-medium" style={{ color: TEXT }}>
+                Пароль
+                {mode === "login" && <span className="font-normal" style={{ color: MUTED }}> · если был задан</span>}
+                {mode === "register" && <span className="font-normal" style={{ color: MUTED }}> · минимум 4 символа</span>}
+              </label>
+              <input
+                type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••" disabled={loading}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                className="h-11 rounded-[10px] px-3.5 text-[14px] outline-none transition-shadow focus:shadow-[0_0_0_3px_rgba(23,24,28,0.10)] focus:border-[#17181C]"
+                style={inputStyle}
+              />
             </div>
-          </div>
-        )}
 
-        {/* Domain Selector */}
-        {step === "domains" && (
-          <div className="rounded-2xl p-6" style={{
-            background: mint.card,
-            border: `1px solid ${mint.cardBorder}`,
-            boxShadow: mint.cardShadow,
-          }}>
-            <div className="flex flex-col gap-3">
-              {domains.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: mint.textMuted }}>Ваши домены</p>
-                  {domains.map((d) => {
-                    const selected = selectedDomains.has(d.id);
-                    return (
-                      <div key={d.id} className="flex items-center gap-2">
-                        <button
-                          onClick={() => toggleDomain(d.id)}
-                          className="flex-1 flex items-center gap-3 p-3 rounded-xl border transition-all"
-                          style={{
-                            borderColor: selected ? mint.accent : mint.cardBorder,
-                            background: selected ? mint.accentLight : "transparent",
-                          }}
-                        >
-                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                            style={{ background: selected ? mint.accent : "#e5e7eb" }}>
-                            {selected && <Check className="w-4 h-4 text-white" />}
-                          </div>
-                          <span className="text-sm font-medium" style={{ color: mint.text }}>{d.name}</span>
-                        </button>
-                        <button onClick={() => handleDeleteDomain(d.id)}
-                          className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                          title="Удалить домен">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="pt-2" style={{ borderTop: `1px solid ${mint.cardBorder}` }}>
-                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: mint.textMuted }}>Новый домен</p>
-                <div className="flex gap-2">
-                  <Input type="text" value={newDomainName} onChange={(e) => setNewDomainName(e.target.value)}
-                    placeholder="Название домена" className="h-10 rounded-xl text-sm flex-1"
-                    style={{ borderColor: mint.inputBorder, background: mint.inputBg, color: mint.text }}
-                    disabled={creatingDomain} onKeyDown={(e) => e.key === "Enter" && handleCreateDomain()} />
-                  <Button type="button" size="sm" onClick={handleCreateDomain}
-                    disabled={creatingDomain || !newDomainName.trim()}
-                    className="h-10 px-4 rounded-xl text-white"
-                    style={{ background: mint.accent }}>
-                    {creatingDomain ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  </Button>
-                </div>
+            {error && (
+              <div
+                className="text-[13px] px-3.5 py-2.5 rounded-[10px]"
+                style={{ background: "#FDF1F1", color: "#B3403C", border: "1px solid #F3D9D8" }}
+              >
+                {error}
               </div>
+            )}
 
-              <div className="flex gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setStep("auth")}
-                  className="flex-1 h-11 rounded-xl text-sm"
-                  style={{ borderColor: mint.cardBorder, color: mint.textMuted }}>
-                  Назад
-                </Button>
-                <Button type="button" onClick={handleContinue} disabled={loading}
-                  className="flex-1 h-11 rounded-xl text-sm font-semibold text-white shadow-lg"
-                  style={{ background: mint.accent, boxShadow: `0 4px 20px ${mint.accent}35` }}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Продолжить"}
-                </Button>
-              </div>
-            </div>
+            <button
+              type="submit" disabled={!canSubmit}
+              className="mt-1 h-11 w-full rounded-[10px] inline-flex items-center justify-center gap-2 text-[14px] font-semibold transition-colors disabled:opacity-45 disabled:cursor-not-allowed"
+              style={{ background: INK, color: PAPER }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = INK_SOFT; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = INK; }}
+            >
+              {loading
+                ? <Loader2 className="size-4 animate-spin" />
+                : <>{mode === "login" ? "Войти" : "Создать аккаунт"} <ArrowRight className="size-4" /></>}
+            </button>
+          </form>
+
+          <div className="mt-6 pt-5 flex flex-col items-center gap-2.5" style={{ borderTop: `1px solid ${LINE}` }}>
+            <button
+              onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
+              className="text-[13px] font-medium hover:underline underline-offset-4"
+              style={{ color: TEXT }}
+            >
+              {mode === "login" ? "Нет аккаунта? Зарегистрироваться" : "Уже есть аккаунт? Войти"}
+            </button>
+            <button
+              onClick={handleGuest} disabled={loading || guestLoading}
+              className="inline-flex items-center gap-1.5 text-[12px] hover:underline underline-offset-4 disabled:opacity-50"
+              style={{ color: MUTED }}
+            >
+              {guestLoading ? <Loader2 className="size-3 animate-spin" /> : <Eye className="size-3" />}
+              Посмотреть как гость
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

@@ -22,6 +22,8 @@ export interface Question {
   answerDate?: string;
   linkedTaskId?: string;
   linkedTaskName?: string;
+  /** Домен, к которому относится вопрос (null/undefined = общий). */
+  domainId?: string | null;
 }
 
 type APIQuestion = {
@@ -35,6 +37,7 @@ type APIQuestion = {
   answerDate?: string;
   linkedTaskId?: string;
   linkedTaskName?: string;
+  domainId?: string | null;
 };
 
 /**
@@ -69,6 +72,7 @@ export function mapQuestionFromAPI(q: APIQuestion): Question {
     answerDate: q.answerDate,
     linkedTaskId: q.linkedTaskId || undefined,
     linkedTaskName: q.linkedTaskName || undefined,
+    domainId: q.domainId ?? null,
   };
 }
 

@@ -1,0 +1,68 @@
+# CI: проверка типов на каждый push/PR (блокирующая) + линт (информационный)
+# + опциональные смоук-тесты Playwright, если в секретах задан DATABASE_URL.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  typecheck:
+    name: TypeScript + ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: TypeScript (блокирующая проверка)
+        run: npx tsc --noEmit
+
+      # В page.tsx есть 5 унаследованных предупреждений react-hooks —
+      # линт информационный, чтобы не блокировать деплой из-за старого кода.
+      - name: ESLint (информационно)
+        run: npx eslint src || echo "::warning::ESLint нашёл проблемы — смотри лог выше"
+
+  smoke:
+    name: Смоук-тесты (Playwright)
+    runs-on: ubuntu-latest
+    # Запускается только если в Settings → Secrets задан TEST_DATABASE_URL —
+    # тестам нужна живая база (можно отдельную ветку Supabase).
+    if: ${{ vars.RUN_SMOKE_TESTS == 'true' }}
+    env:
+      DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.TEST_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright
+        run: |
+          npm i -D @playwright/test
+          npx playwright install --with-deps chromium
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Build
+        run: npm run build
+
+      - name: Run smoke tests
+        run: npx playwright test

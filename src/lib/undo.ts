@@ -112,5 +112,8 @@ export function createUndoHelpers() {
     redo,
     canUndo: () => undoStack.length > 0,
     canRedo: () => redoStack.length > 0,
+    /** Полный сброс истории — например, когда с сервера пришли чужие
+     *  правки: откат к локальному снимку перезаписал бы их. */
+    clear: () => { undoStack.length = 0; redoStack.length = 0; },
   };
 }

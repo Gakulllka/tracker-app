@@ -57,7 +57,7 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.42 0 0);
+  --muted-foreground: oklch(0.36 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -92,7 +92,7 @@
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.78 0 0);
+  --muted-foreground: oklch(0.83 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
@@ -156,147 +156,17 @@
 }
 
 /* ================================================================ */
-/*  Loading Screen Animations                                        */
-/* ================================================================ */
-
-/* Floating background particles — адаптированы под светлую и тёмную тему */
-.loader-circle {
-  position: absolute;
-  border-radius: 50%;
-  animation: loader-float 8s ease-in-out infinite;
-}
-/* Светлый фон */
-.loader-bg-light .loader-circle {
-  opacity: 0.07;
-  background: #7c3aed;
-}
-/* Тёмный фон */
-.loader-bg-dark .loader-circle {
-  opacity: 0.12;
-  background: #a78bfa;
-}
-.loader-circle-1 {
-  width: 500px;
-  height: 500px;
-  top: -15%;
-  left: -10%;
-  animation-delay: 0s;
-  animation-duration: 10s;
-}
-.loader-circle-2 {
-  width: 350px;
-  height: 350px;
-  bottom: -10%;
-  right: -5%;
-  animation-delay: -3s;
-  animation-duration: 8s;
-}
-.loader-circle-3 {
-  width: 200px;
-  height: 200px;
-  top: 30%;
-  right: 15%;
-  animation-delay: -5s;
-  animation-duration: 12s;
-}
-
-@keyframes loader-float {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(30px, -20px) scale(1.05); }
-  50% { transform: translate(-20px, 20px) scale(0.95); }
-  75% { transform: translate(15px, 10px) scale(1.03); }
-}
-
-/* ── Delta SVG logo — пульсирующий треугольник ── */
-.loader-delta-wrap {
-  position: relative;
-  width: 88px;
-  height: 88px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Внешний орбитальный ринг */
-.loader-delta-ring {
-  position: absolute;
-  inset: -14px;
-  border-radius: 50%;
-  border: 1.5px solid color-mix(in srgb, var(--tracker-accent, #9B72CF) 35%, transparent);
-  animation: loader-ring-spin 6s linear infinite;
-}
-.loader-delta-ring::before {
-  content: "";
-  position: absolute;
-  top: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--tracker-accent, #9B72CF);
-  box-shadow: 0 0 8px 2px color-mix(in srgb, var(--tracker-accent, #9B72CF) 60%, transparent);
-}
-
-@keyframes loader-ring-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
-/* Второй ринг — обратное вращение */
-.loader-delta-ring2 {
-  position: absolute;
-  inset: -6px;
-  border-radius: 50%;
-  border: 1px dashed color-mix(in srgb, var(--tracker-accent, #9B72CF) 20%, transparent);
-  animation: loader-ring-spin 10s linear infinite reverse;
-}
-
-/* SVG-логотип Delta */
-.loader-delta-svg {
-  width: 60px;
-  height: 54px;
-  animation: loader-delta-pulse 2.6s ease-in-out infinite;
-  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--tracker-accent, #9B72CF) 50%, transparent));
-}
-
-@keyframes loader-delta-pulse {
-  0%, 100% { transform: scale(1);    filter: drop-shadow(0 0 8px  color-mix(in srgb, var(--tracker-accent, #9B72CF) 45%, transparent)); }
-  50%       { transform: scale(1.07); filter: drop-shadow(0 0 18px color-mix(in srgb, var(--tracker-accent, #9B72CF) 70%, transparent)); }
-}
-
-/* Shimmer progress bar */
-.loader-shimmer-bar {
-  width: 100%;
-  height: 100%;
-  border-radius: 9999px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    #a78bfa 30%,
-    #c084fc 50%,
-    transparent 100%
-  );
-  animation: loader-shimmer 1.8s ease-in-out infinite;
-}
-
-@keyframes loader-shimmer {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(200%); }
-}
-
-/* ================================================================ */
 /*  Task Cards (desktop list view)                                  */
 /* ================================================================ */
 
 .task-card {
   background: var(--tracker-bg-card, #fff);
   border: 1px solid var(--tracker-border, #e8e0f5);
-  border-radius: 16px;
-  padding: 16px 20px;
+  border-radius: var(--radius-card, 14px);
+  padding: 18px 20px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  transition: box-shadow 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
+  box-shadow: var(--shadow-card);
   position: relative;
   overflow: hidden;
 }
@@ -314,9 +184,9 @@
 }
 
 .task-card:hover {
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 12%, transparent);
+  box-shadow: var(--shadow-raise);
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 30%, var(--tracker-border, #e8e0f5));
+  border-color: color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 28%, var(--tracker-border, #e8e0f5));
 }
 
 .task-card:hover::before {
@@ -392,8 +262,9 @@
   font-family: var(--font-geist-mono, monospace);
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--tracker-text-muted, #888);
+  color: var(--tracker-text-main, #17181C);
   letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .task-card-name {
@@ -650,12 +521,9 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
 /* ── Bottom Navigation ──────────────────────────────────────────── */
 
 .mobile-bottom-nav {
-  background: var(--tracker-bg-card, #fff);
-  border-top: 1px solid var(--tracker-border, #e8e0f5);
+  background: #17181C;
+  border-top: 1px solid rgba(250, 250, 248, 0.12);
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  box-shadow:
-    0 -2px 8px rgba(0,0,0,0.04),
-    0 -1px 0 0 var(--tracker-border, #e8e0f5);
 }
 
 .mobile-bottom-nav-item {
@@ -667,14 +535,14 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
   gap: 2px;
   padding: 8px 4px 6px;
   min-height: 56px;
-  color: var(--tracker-text-muted, #888);
+  color: rgba(250, 250, 248, 0.55);
   transition: color 0.15s ease, background 0.15s ease;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 
 .mobile-bottom-nav-item.active {
-  color: var(--tracker-accent, #9B72CF);
+  color: #FAFAF8;
 }
 
 .mobile-bottom-nav-item.active .mobile-bottom-nav-icon {
@@ -682,7 +550,7 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
 }
 
 .mobile-bottom-nav-item:active {
-  background: var(--tracker-accent-bg, #f4f1fc);
+  background: rgba(250, 250, 248, 0.08);
 }
 
 .mobile-bottom-nav-icon {
@@ -993,4 +861,548 @@ html, body {
     color: var(--tracker-text-muted);
     margin-bottom: 6px;
   }
+}
+
+
+/* ================================================================ */
+/*  Design System 2.0 — тёплый SaaS-слой (пакет «Дизайн»)           */
+/* ================================================================ */
+
+:root {
+  /* Радиусы: контролы 10px (radius-md), карточки 14px, диалоги 16px */
+  --radius-card: 14px;
+  /* Тени: два уровня + hover. Тёплый чёрный, очень сдержанно. */
+  --shadow-card: 0 1px 2px rgba(28, 22, 14, 0.04), 0 1px 3px rgba(28, 22, 14, 0.03);
+  --shadow-pop: 0 8px 28px -6px rgba(28, 22, 14, 0.12), 0 3px 10px -2px rgba(28, 22, 14, 0.06);
+  --shadow-raise: 0 6px 20px -4px rgba(28, 22, 14, 0.10), 0 2px 6px rgba(28, 22, 14, 0.05);
+}
+
+.dark {
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.18);
+  --shadow-pop: 0 10px 32px -6px rgba(0, 0, 0, 0.45), 0 3px 10px -2px rgba(0, 0, 0, 0.30);
+  --shadow-raise: 0 6px 20px -4px rgba(0, 0, 0, 0.38), 0 2px 6px rgba(0, 0, 0, 0.24);
+}
+
+/* Выделение текста — в цвет темы */
+::selection {
+  background: color-mix(in srgb, var(--tracker-accent, #9B72CF) 24%, transparent);
+}
+
+/* Тонкие тёплые скроллбары */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--tracker-text-muted, #8a8378) 32%, transparent) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--tracker-text-muted, #8a8378) 28%, transparent);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--tracker-text-muted, #8a8378) 45%, transparent);
+  background-clip: content-box;
+}
+
+/* Единый видимый фокус с клавиатуры */
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--tracker-accent, #9B72CF) 60%, transparent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Пустые состояния: иконка в мягком круге + заголовок + подсказка */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 24px;
+  text-align: center;
+}
+.empty-state-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tracker-accent-bg, #f3eefb);
+  color: var(--tracker-accent, #9B72CF);
+  margin-bottom: 14px;
+}
+.empty-state-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tracker-text-main, #2a2520);
+}
+.empty-state-hint {
+  font-size: 12px;
+  margin-top: 4px;
+  color: var(--tracker-text-muted, #8a8378);
+  max-width: 260px;
+  line-height: 1.5;
+}
+
+/* kbd — подсказки клавиш */
+kbd {
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--tracker-border, #e8e0f5);
+  border-bottom-width: 2px;
+  background: var(--tracker-bg-main, #faf9f7);
+  color: var(--tracker-text-muted, #8a8378);
+}
+
+/* Группа инструментов в шапке: hairline-разделитель */
+.header-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--tracker-border, #e8e0f5);
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
+/* Бережём людей с reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* ================================================================ */
+/*  Brand Splash — фирменная загрузка (графит и бумага)              */
+/* ================================================================ */
+
+.brand-delta-draw {
+  stroke-dasharray: 118;
+  stroke-dashoffset: 118;
+  animation: brand-delta-draw 2.4s ease-in-out infinite;
+}
+@keyframes brand-delta-draw {
+  0%        { stroke-dashoffset: 118; opacity: 0.9; }
+  55%, 70%  { stroke-dashoffset: 0;   opacity: 1; }
+  100%      { stroke-dashoffset: -118; opacity: 0.9; }
+}
+
+.brand-delta-fade { animation: brand-delta-fade 2.4s ease-in-out infinite; }
+.brand-delta-fade-1 { animation-delay: 0.25s; opacity: 0.4; }
+.brand-delta-fade-2 { animation-delay: 0.5s;  opacity: 0.25; }
+@keyframes brand-delta-fade {
+  0%, 100% { opacity: 0.18; }
+  60%      { opacity: 0.55; }
+}
+
+.brand-progress-line {
+  animation: brand-progress 1.6s ease-in-out infinite;
+}
+@keyframes brand-progress {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(420%); }
+}
+
+/* Вход: медленное «дыхание» стека дельт на брендовой панели */
+.brand-hero-delta { animation: brand-hero-breathe 7s ease-in-out infinite; transform-origin: 50% 62%; }
+@keyframes brand-hero-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.015); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-delta-draw { animation: none; stroke-dashoffset: 0; }
+}
+
+
+/* ================================================================ */
+/*  Ink Rail — графитовая рельса: язык фирменной двери внутри        */
+/* ================================================================ */
+
+.ink-rail,
+[data-slot="sidebar"][data-mobile="true"] {
+  /* Рельса ВСЕГДА графитовая — фирменный стиль, продолжение двери.
+     Переключение свет/тьма меняет только рабочее пространство.
+     Контраст поднят: всё на рельсе читается чётко. */
+  --rail-bg: #17181C;
+  --rail-line: rgba(250, 250, 248, 0.12);
+  --rail-text: #FAFAF8;
+  --rail-muted: rgba(250, 250, 248, 0.74);
+  --rail-faint: rgba(250, 250, 248, 0.50);
+  --rail-hover: rgba(250, 250, 248, 0.08);
+  --rail-active: rgba(250, 250, 248, 0.12);
+
+  /* Прокидываем в токены shadcn-сайдбара */
+  --sidebar: var(--rail-bg);
+  --sidebar-foreground: var(--rail-text);
+  --sidebar-border: var(--rail-line);
+  --sidebar-accent: var(--rail-hover);
+  --sidebar-accent-foreground: var(--rail-text);
+  --sidebar-ring: var(--tracker-accent, #17181C);
+
+  /* ── Замораживаем ВСЕ темы-переменные на тёмные значения.
+     applyTheme() ставит --background/--card/--tracker-* на <html>;
+     внутри рельсы они ДОЛЖНЫ оставаться графитовыми. */
+  --background: #131418;
+  --foreground: #F5F5F2;
+  --card: #1A1B20;
+  --card-foreground: #F5F5F2;
+  --popover: #1C1D22;
+  --popover-foreground: #F5F5F2;
+  --primary: #F5F5F2;
+  --primary-foreground: #17181C;
+  --secondary: #131418;
+  --secondary-foreground: #F5F5F2;
+  --muted: #1A1B20;
+  --muted-foreground: #ABABA5;
+  --accent: rgba(250,250,248,0.10);
+  --accent-foreground: #F5F5F2;
+  --destructive: #E0706A;
+  --destructive-foreground: #ffffff;
+  --border: #34353C;
+  --input: #34353C;
+  --ring: #F5F5F2;
+  --tracker-accent: #F5F5F2;
+  --tracker-accent-soft: rgba(250,250,248,0.10);
+  --tracker-accent-bg: #26282E;
+  --tracker-accent-fg-dark: #F2F2EF;
+  --tracker-accent-contrast: #17181C;
+  --tracker-bg-main: #131418;
+  --tracker-bg-card: #1A1B20;
+  --tracker-text-main: #F5F5F2;
+  --tracker-text-muted: #ABABA5;
+  --tracker-border: #34353C;
+  --tracker-danger: #E0706A;
+
+  /* Страховка: прямой фон + цвет-схема, чтобы светлая тема
+     никогда не просочилась через CSS-переменные или формы. */
+  background: #17181C !important;
+  color: #FAFAF8 !important;
+  color-scheme: dark !important;
+}
+
+/* Заголовок-«бровь»: моно, разрядка — как словесный знак DELTA */
+.rail-eyebrow {
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--rail-faint);
+}
+
+
+/* Моноширинные табличные цифры — для метрик и часов */
+.delta-num {
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Бровь на светлой поверхности */
+.paper-eyebrow {
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--tracker-text-muted, #8a8378);
+}
+
+
+/* ================================================================ */
+/*  Появление интерфейса — рельса, виды, каскад строк                */
+/* ================================================================ */
+
+@keyframes rail-enter {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+.rail-enter { animation: rail-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes view-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.view-enter { animation: view-enter 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Каскад дочерних элементов: строки таблицы, карточки */
+.stagger > * { animation: view-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.stagger > *:nth-child(1)  { animation-delay: 0.02s; }
+.stagger > *:nth-child(2)  { animation-delay: 0.05s; }
+.stagger > *:nth-child(3)  { animation-delay: 0.08s; }
+.stagger > *:nth-child(4)  { animation-delay: 0.11s; }
+.stagger > *:nth-child(5)  { animation-delay: 0.14s; }
+.stagger > *:nth-child(6)  { animation-delay: 0.17s; }
+.stagger > *:nth-child(7)  { animation-delay: 0.20s; }
+.stagger > *:nth-child(8)  { animation-delay: 0.23s; }
+.stagger > *:nth-child(n+9) { animation-delay: 0.26s; }
+
+
+
+/* Текст на акцентном фоне всегда контрастен: чернила на белом акценте
+   (тёмная тема), белый на чернильном (светлая).
+   ВАЖНО: матчим только БЕЗУСЛОВНЫЙ bg-акцент (начало класса или после
+   пробела) — иначе правило ловило hover:bg-[...] и красило текст в белый
+   на светлом фоне ещё ДО ховера. */
+[class^="bg-[var(--tracker-accent)]"],
+[class*=" bg-[var(--tracker-accent)]"] {
+  color: var(--tracker-accent-contrast, #fff);
+}
+
+
+/* ================================================================ */
+/*  Ink Pop — меню, открывающиеся С РЕЛЬСЫ: всегда графит            */
+/*  (аккаунт, домен, год, уведомления). Порталы не наследуют         */
+/*  токены рельсы, поэтому задаём их классом на контенте меню.       */
+/* ================================================================ */
+
+.ink-pop {
+  --popover: #1C1D22;
+  --popover-foreground: #FAFAF8;
+  --accent: rgba(250, 250, 248, 0.09);
+  --accent-foreground: #FAFAF8;
+  --border: rgba(250, 250, 248, 0.14);
+  --muted-foreground: rgba(250, 250, 248, 0.60);
+  background: #1C1D22 !important;
+  color: #FAFAF8;
+  border-color: rgba(250, 250, 248, 0.14) !important;
+  box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.55), 0 3px 10px rgba(0, 0, 0, 0.35) !important;
+}
+.ink-pop [data-slot="dropdown-menu-separator"],
+.ink-pop [data-slot="select-separator"] {
+  background: rgba(250, 250, 248, 0.12);
+}
+
+
+/* ================================================================ */
+/*  Ink Ctx — контекстное меню: чистый ЧБ, яркие акценты.            */
+/*  Меньше серого, чёткие разделители, цвет — только у семантики.    */
+/* ================================================================ */
+
+.ink-ctx {
+  --popover: #0F1013;
+  --popover-foreground: #FAFAF8;
+  --accent: #FAFAF8;
+  --accent-foreground: #0F1013;
+  --border: rgba(250, 250, 248, 0.10);
+  --muted-foreground: rgba(250, 250, 248, 0.45);
+  --destructive: #FF4444;
+  background: #0F1013 !important;
+  color: #FAFAF8;
+  border: 1px solid rgba(250, 250, 248, 0.10) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 16px 48px -8px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  padding: 4px !important;
+}
+/* Hover-состояние: белый фон, чёрный текст —.max контраст */
+.ink-ctx [data-slot="context-menu-item"],
+.ink-ctx [data-slot="context-menu-sub-trigger"] {
+  border-radius: 10px !important;
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+  transition: background 0.1s, color 0.1s !important;
+}
+.ink-ctx [data-slot="context-menu-item"]:hover,
+.ink-ctx [data-slot="context-menu-item"]:focus,
+.ink-ctx [data-slot="context-menu-sub-trigger"]:hover,
+.ink-ctx [data-slot="context-menu-sub-trigger"]:focus {
+  background: #FAFAF8 !important;
+  color: #0F1013 !important;
+}
+.ink-ctx [data-slot="context-menu-item"]:hover svg,
+.ink-ctx [data-slot="context-menu-item"]:focus svg,
+.ink-ctx [data-slot="context-menu-sub-trigger"]:hover svg,
+.ink-ctx [data-slot="context-menu-sub-trigger"]:focus svg {
+  color: #0F1013 !important;
+}
+/* Подменю: такой же ЧБ стиль */
+.ink-ctx [data-slot="context-menu-sub-content"] {
+  --popover: #0F1013;
+  --popover-foreground: #FAFAF8;
+  --accent: #FAFAF8;
+  --accent-foreground: #0F1013;
+  background: #0F1013 !important;
+  color: #FAFAF8;
+  border: 1px solid rgba(250, 250, 248, 0.10) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 16px 48px -8px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  padding: 4px !important;
+}
+.ink-ctx [data-slot="context-menu-sub-content"] [data-slot="context-menu-item"] {
+  border-radius: 10px !important;
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+}
+.ink-ctx [data-slot="context-menu-sub-content"] [data-slot="context-menu-item"]:hover,
+.ink-ctx [data-slot="context-menu-sub-content"] [data-slot="context-menu-item"]:focus {
+  background: #FAFAF8 !important;
+  color: #0F1013 !important;
+}
+/* Разделитель — тонкая белая линия */
+.ink-ctx [data-slot="context-menu-separator"] {
+  background: rgba(250, 250, 248, 0.10) !important;
+  margin: 4px 8px !important;
+  height: 1px !important;
+}
+/* Удалить — красный при наведении */
+.ink-ctx [data-slot="context-menu-item"][data-variant="destructive"]:hover,
+.ink-ctx [data-slot="context-menu-item"][data-variant="destructive"]:focus {
+  background: #FF4444 !important;
+  color: #FFFFFF !important;
+}
+/* Чекмарк активного статуса/приоритета */
+.ink-ctx .ctx-check {
+  color: #FAFAF8;
+  font-weight: 700;
+}
+/* Цветные точки статусов/приоритетов — яркие на чёрном фоне */
+.ink-ctx .ctx-dot {
+  box-shadow: 0 0 0 1px rgba(250, 250, 248, 0.15);
+}
+
+
+/* ================================================================ */
+/*  Ink Scope — целый блок всегда в графите (настройки, тосты).      */
+/*  Переопределяет и tracker-, и shadcn-токены в своей области,      */
+/*  поэтому вложенные поля, табы и кнопки переходят в тёмный сами.   */
+/* ================================================================ */
+
+.ink-scope {
+  /* tracker-токены */
+  --tracker-bg-main: #17181C;
+  --tracker-bg-card: #1C1D22;
+  --tracker-text-main: #F5F5F2;
+  --tracker-text-muted: #A9A9A3;
+  --tracker-border: #34353C;
+  --tracker-accent: #F5F5F2;
+  --tracker-accent-contrast: #17181C;
+  --tracker-accent-hover: #E4E4E0;
+  --tracker-accent-bg: #26282E;
+  --tracker-accent-soft: rgba(250, 250, 248, 0.10);
+  --tracker-accent-fg-dark: #F2F2EF;
+  --tracker-danger: #E0706A;
+  /* shadcn-токены */
+  --background: #17181C;
+  --foreground: #F5F5F2;
+  --card: #1C1D22;
+  --card-foreground: #F5F5F2;
+  --popover: #1C1D22;
+  --popover-foreground: #F5F5F2;
+  --muted: #26282E;
+  --muted-foreground: #A9A9A3;
+  --border: #34353C;
+  --input: #34353C;
+  --accent: rgba(250, 250, 248, 0.09);
+  --accent-foreground: #F5F5F2;
+  --secondary: #26282E;
+  --secondary-foreground: #F5F5F2;
+  --ring: rgba(250, 250, 248, 0.4);
+
+  background: #1C1D22 !important;
+  color: #F5F5F2;
+  border-color: #34353C !important;
+  box-shadow: 0 16px 48px -10px rgba(0, 0, 0, 0.55), 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+}
+
+
+/* ================================================================ */
+/*  Рельса: страховка фона на КАЖДОМ слое. Что бы ни красило подвал  */
+/*  (настройки+аккаунт) белым — графит побеждает с !important.       */
+/* ================================================================ */
+
+.ink-rail [data-slot="sidebar-inner"],
+[data-slot="sidebar"][data-mobile="true"] {
+  background: #17181C !important;
+  color: #FAFAF8;
+}
+.ink-rail [data-slot="sidebar-header"],
+.ink-rail [data-slot="sidebar-content"],
+.ink-rail [data-slot="sidebar-footer"],
+.ink-rail [data-slot="sidebar-group"],
+.ink-rail [data-slot="sidebar-group-content"] {
+  background: transparent !important;
+  color: #FAFAF8;
+}
+/* Футер: графит как страховка — белая тема не должна менять подвал */
+.ink-rail [data-slot="sidebar-footer"] {
+  background: #17181C !important;
+  color: #FAFAF8 !important;
+}
+
+
+/* ================================================================ */
+/*  Рельса: обычные CSS-классы вместо tailwind-var-классов.          */
+/*  На проде произвольные классы с var(--rail-*) не доехали до CSS   */
+/*  (кэш сборки) — инлайн-стили и простой CSS работают всегда.       */
+/* ================================================================ */
+
+.rail-item {
+  color: rgba(250, 250, 248, 0.74) !important;
+}
+.rail-item:hover:not([data-active="true"]) {
+  color: #FAFAF8 !important;
+  background: rgba(250, 250, 248, 0.08) !important;
+}
+/* Активная вкладка: как активный месяц — белая плашка, чёрный текст,
+   всегда, независимо от темы. */
+.rail-item[data-active="true"] {
+  color: #17181C !important;
+  background: #FAFAF8 !important;
+}
+.rail-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rail-iconbtn {
+  color: rgba(250, 250, 248, 0.74);
+}
+.rail-iconbtn:hover:not(:disabled) {
+  background: rgba(250, 250, 248, 0.08);
+}
+.rail-iconbtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.rail-hoverable:hover {
+  background: rgba(250, 250, 248, 0.08);
+}
+
+
+/* ================================================================ */
+/*  rail-nav — навигация рельсы (v2). Класс переименован намеренно:  */
+/*  устаревший CSS в кэше со старыми правилами .rail-item больше     */
+/*  не может конфликтовать с новым поведением.                       */
+/*  Активная вкладка: белая плашка + чёрный текст, всегда.           */
+/* ================================================================ */
+
+.rail-nav {
+  color: rgba(250, 250, 248, 0.74);
+}
+.rail-nav:hover:not([data-active="true"]) {
+  color: #FAFAF8 !important;
+  background: rgba(250, 250, 248, 0.08) !important;
+}
+.rail-nav[data-active="true"],
+.rail-nav[data-active="true"]:hover,
+.ink-rail [data-active="true"].rail-nav,
+.ink-rail [data-active="true"].rail-nav:hover {
+  color: #17181C !important;
+  background: #FAFAF8 !important;
+}
+/* Страховка: перебиваем data-[active=true]:bg-sidebar-accent из вариантов */
+.ink-rail [data-active="true"][data-slot="sidebar-menu-button"] {
+  background: #FAFAF8 !important;
+  color: #17181C !important;
+}
+.rail-nav:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

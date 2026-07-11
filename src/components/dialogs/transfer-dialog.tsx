@@ -30,7 +30,7 @@ export function TransferDialog({
       <DialogContent className="sm:max-w-sm" style={{ background: "var(--tracker-bg-card, var(--card))", border: "1px solid var(--tracker-border, var(--border))" }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
-            <span className="w-8 h-8 rounded-xl flex items-center justify-center text-lg" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>↗️</span>
+            <span className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent)" }}><ArrowRight className="size-4" /></span>
             Перенос задач
           </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">

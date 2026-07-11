@@ -20,6 +20,15 @@ interface UsePermissionsParams {
   currentShare?: AccessibleWorkspace;
 }
 
+/** Может ли пользователь редактировать конкретный домен. */
+export function canEditDomainId(
+  editableDomainIds: "all" | string[] | undefined,
+  domainId: string,
+): boolean {
+  if (editableDomainIds === "all") return true;
+  return Array.isArray(editableDomainIds) && editableDomainIds.includes(domainId);
+}
+
 export function usePermissions({
   authData, domains, activeDomainId, storeSetActiveDomain, currentShare,
 }: UsePermissionsParams) {
@@ -37,6 +46,14 @@ export function usePermissions({
     if (rolePerms && typeof rolePerms.canEditTasks === "boolean") return rolePerms.canEditTasks;
     return true;
   }, [isAdmin, isGuest, perms, rolePerms, isExecutive]);
+
+  /** Право редактирования АКТИВНОГО домена (пер-доменная модель).
+   *  admin/editor — все домены; member — только из editableDomainIds;
+   *  viewer/guest — ничего. */
+  const canEditActiveDomain = useMemo(() => {
+    if (!canEdit) return false;
+    return canEditDomainId(authData.editableDomainIds, activeDomainId);
+  }, [canEdit, authData.editableDomainIds, activeDomainId]);
 
   // Руководитель может комментировать и ставить флаги
   // Гость — ничего не может
@@ -97,7 +114,7 @@ export function usePermissions({
   }, [isAdmin, perms, rolePerms]);
 
   return {
-    isAdmin, isGuest, canEdit, canComment, canSetFlags,
+    isAdmin, isGuest, canEdit, canEditActiveDomain, canComment, canSetFlags,
     canDeleteTasks, canEditBacklog, canDeleteBacklog,
     canCreatePresentations, canUseAI,
     allowedTabs, visibleDomains, canSeeQuestions,

@@ -81,7 +81,7 @@ export function usePresentation({
     a.download = `presentation_${currentYear}-${String(currentMonth + 1).padStart(2, "0")}.html`;
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
-    toast({ title: "📥 Скачать HTML", description: "Презентация сохранена как HTML" });
+    toast({ title: "Презентация скачана", description: "Презентация сохранена как HTML" });
   }, [slides, currentMonth, currentYear, presBg, aiConclusion, readTrackerTokens, toast]);
 
   const handleExportPDF = useCallback(() => {
@@ -105,7 +105,7 @@ export function usePresentation({
       } catch { cleanup(); }
     };
     iframe.srcdoc = html;
-    toast({ title: "📄 PDF", description: "Откроется диалог печати — выберите «Сохранить как PDF»" });
+    toast({ title: "Экспорт в PDF", description: "Откроется диалог печати — выберите «Сохранить как PDF»" });
   }, [slides, presBg, aiConclusion, readTrackerTokens, toast]);
 
   const handleEnterFullscreen = useCallback(() => {
@@ -130,7 +130,7 @@ export function usePresentation({
       if (data.error) throw new Error(data.error);
       const parsed = JSON.parse((data.text || "").replace(/```json|```/g, "").trim());
       setAiDraft(parsed);
-      toast({ title: "✨ AI черновик готов", description: "Проверьте тезисы и нажмите «Применить в презентацию»" });
+      toast({ title: "Черновик AI готов", description: "Проверьте тезисы и нажмите «Применить в презентацию»" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
       setAiAnalysisError(msg);
@@ -143,7 +143,7 @@ export function usePresentation({
     const source: "ai" | "manual" | "edited" = aiConclusion ? "edited" : "ai";
     const newConclusion: AiInsightShape = { ...aiDraft, dataHash: currentDataHash, source, updatedAt: new Date().toISOString() };
     setAiConclusion(newConclusion); setAiDraft(null);
-    toast({ title: "✅ AI анализ применён", description: "Тезисы добавлены в слайд «Итоги»" });
+    toast({ title: "Анализ применён", description: "Тезисы добавлены в слайд «Итоги»" });
     if (workspaceId) {
       saveInsight(workspaceId, activeDomainId, insightMonthKey, { ...aiDraft, dataHash: currentDataHash, source }).catch(err =>
         toast({ title: "Не удалось сохранить инсайт", description: err instanceof Error ? err.message : "Сетевая ошибка", variant: "destructive" })

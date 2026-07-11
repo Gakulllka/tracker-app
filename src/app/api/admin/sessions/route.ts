@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { validateAdminRequest } from "@/lib/admin-auth";
 
-/** Окно "пользователь онлайн" в минутах. Клиент шлёт heartbeat каждую минуту,
- *  поэтому 2 минуты с запасом покрывают одну пропущенную попытку. */
+/** Окно "пользователь онлайн" в минутах. Клиент шлёт heartbeat раз в минуту. */
 const ONLINE_WINDOW_MS = 2 * 60 * 1000;
 
 // GET /api/admin/sessions?token=xxx
@@ -18,8 +17,7 @@ export async function GET(req: NextRequest) {
         id: true, token: true, ipAddress: true, lastActivity: true,
         currentPage: true, createdAt: true, expiresAt: true,
         user: {
-          select: { id: true, username: true, displayName: true, status: true,
-            role: { select: { name: true } } },
+          select: { id: true, username: true, displayName: true, status: true, role: true },
         },
       },
       orderBy: { lastActivity: "desc" },
@@ -28,6 +26,7 @@ export async function GET(req: NextRequest) {
     const threshold = new Date(Date.now() - ONLINE_WINDOW_MS);
     const enriched = sessions.map((s) => ({
       ...s,
+      user: { ...s.user, role: { name: s.user.role } },
       isOnline: s.lastActivity > threshold,
     }));
 

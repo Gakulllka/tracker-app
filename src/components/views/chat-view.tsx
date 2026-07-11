@@ -145,9 +145,9 @@ export function ChatView({
     const backlogCount = (backlog || []).filter(r => !r._deleted).length;
     const unansweredCount = questions.filter(q => !(q.answers || []).length).length;
     return [
-      { label: "📊 Отчёт за месяц", text: `Составь краткий отчёт по задачам за ${MONTHS[month]} ${year}.` },
-      { label: `⚠️ Зона риска${atRiskCount > 0 ? ` (${atRiskCount})` : ""}`, text: `Проанализируй задачи которые превышают план в ${MONTHS[month]} ${year}.` },
-      { label: "💡 Предложи вопросы", text: `На основе данных предложи 5 ключевых вопросов. Оформи в блоке "### Предлагаемые вопросы:"` },
+      { label: "Отчёт за месяц", text: `Составь краткий отчёт по задачам за ${MONTHS[month]} ${year}.` },
+      { label: `Зона риска${atRiskCount > 0 ? ` (${atRiskCount})` : ""}`, text: `Проанализируй задачи которые превышают план в ${MONTHS[month]} ${year}.` },
+      { label: "Предложи вопросы", text: `На основе данных предложи 5 ключевых вопросов. Оформи в блоке "### Предлагаемые вопросы:"` },
       ...(backlogCount > 0 ? [{ label: `📦 Беклог (${backlogCount})`, text: `Какие задачи беклога приоритетнее перенести?` }] : []),
       ...(unansweredCount > 0 ? [{ label: `❓ Открытые (${unansweredCount})`, text: `Какие открытые вопросы наиболее критичны?` }] : []),
     ];
@@ -181,7 +181,7 @@ export function ChatView({
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setApiKeyDialogOpen(false)}>Отмена</Button>
-            <Button disabled={!apiKeyInput.trim()} className="bg-[var(--tracker-accent)] text-white"
+            <Button disabled={!apiKeyInput.trim()} className="bg-[var(--tracker-accent)] text-[var(--tracker-accent-contrast)]"
               onClick={() => { apiKeyRef.current = apiKeyInput.trim(); setApiKeyDialogOpen(false); setApiKeyInput(""); onApiKeySaved(); }}>
               <Check className="size-4 mr-1.5" />Сохранить
             </Button>
@@ -196,7 +196,7 @@ export function ChatView({
           <div className="py-2"><Textarea value={creatingQuestion || ""} onChange={e => setCreatingQuestion(e.target.value)} rows={3} className="text-sm resize-none" /></div>
           <DialogFooter className="gap-2 sm:flex-row sm:justify-stretch">
             <Button onClick={() => { if (creatingQuestion?.trim()) { addQuestion(creatingQuestion.trim(), "AI-ассистент"); setCreatingQuestion(null); } }}
-              className="flex-1 bg-[var(--tracker-accent)] text-white">Добавить вопрос</Button>
+              className="flex-1 bg-[var(--tracker-accent)] text-[var(--tracker-accent-contrast)]">Добавить вопрос</Button>
             <Button variant="destructive" onClick={() => setCreatingQuestion(null)} className="flex-1">Отмена</Button>
           </DialogFooter>
         </DialogContent>
