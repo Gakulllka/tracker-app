@@ -67,15 +67,11 @@ export function buildTheme(
   tokens?: TrackerThemeTokens,
   isDarkOverride?: boolean,
 ): PresentationTheme {
-  const safeAccent = accentHex && /^#?[0-9a-fA-F]{6}$/.test(accentHex) ? accentHex : "#5B9BD5";
-  const rgb = hexToRgb(safeAccent);
-  const [r, g, b] = rgb;
-
   let resolved: TrackerThemeTokens;
   if (tokens) {
     resolved = tokens;
   } else if (isDarkOverride !== undefined) {
-    const synth = createTheme(safeAccent, isDarkOverride);
+    const synth = createTheme("#17181C", isDarkOverride);
     resolved = {
       bgMain: synth.bgMain,
       bgCard: synth.bgCard,
@@ -104,14 +100,18 @@ export function buildTheme(
     };
   }
 
-  const overlayBg = resolved.isDark ? resolved.bgMain : resolved.bgMain;
+  // Чёрно-белая тема: акцент — белый на тёмном фоне, чёрный на светлом
+  const bwAccent = resolved.isDark ? "#F5F5F2" : "#17181C";
+  const rgb = hexToRgb(bwAccent);
+
+  const overlayBg = resolved.isDark ? "linear-gradient(160deg,#131418 0%,#1A1B20 100%)" : "linear-gradient(160deg,#FAFAF8 0%,#FFFFFF 100%)";
 
   const cardColors = resolved.isDark
-    ? ["#1a1a30", "#181830", "#161628"]
-    : ["#f0ecf8", "#ede8f5", "#eae5f2"];
+    ? ["#1e1e22", "#1c1c20", "#1a1a1e"]
+    : ["#f5f5f5", "#f0f0f0", "#ebebeb"];
 
   return {
-    accentHex: safeAccent.startsWith("#") ? safeAccent : `#${safeAccent}`,
+    accentHex: bwAccent,
     rgb, styleId: bg.styleId, bodyBg: resolved.bgMain, overlayBg,
     textColor: resolved.textMain, mutedColor: resolved.textMuted,
     cardColors, isLight: !resolved.isDark, bg,

@@ -128,7 +128,7 @@ export function SlidesView({
             className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all font-medium"
             style={{
               background: active ? "var(--tracker-accent)" : "transparent",
-              color: active ? "#fff" : "var(--tracker-text-muted)",
+              color: active ? "var(--tracker-accent-contrast)" : "var(--tracker-text-muted)",
             }}
           >
             <Icon className="size-4" />
