@@ -3,9 +3,8 @@
  * BrandSplash — фирменный экран загрузки.
  *
  * Единый для всех: графит и бумага, без привязки к теме пользователя.
- * Знак — стек вложенных «дельт» (Δ — разница план/факт, суть продукта),
- * контур верхней рисуется в цикле. Используется и при проверке сессии,
- * и при первой загрузке данных.
+ * Знак — стек вложенных «дельт» с разной прозрачностью.
+ * Используется и при проверке сессии, и при первой загрузке данных.
  */
 import React from "react";
 
@@ -33,31 +32,67 @@ export function BrandSplash({ visible, label = "Загрузка..." }: BrandSpl
           visible ? "scale-100" : "scale-[0.97]"
         }`}
       >
-        {/* Знак: три вложенные дельты, внешняя — рисуется */}
-        <svg width="88" height="80" viewBox="0 0 44 40" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-          <polygon
-            className="brand-delta-draw"
-            points="22,3 41,37 3,37"
-            fill="none" stroke={PAPER} strokeWidth="2" strokeLinejoin="round"
-          />
-          <polygon
-            className="brand-delta-fade brand-delta-fade-1"
-            points="22,11.5 35.5,35 8.5,35"
-            fill="none" stroke={PAPER} strokeWidth="1.1" strokeLinejoin="round"
-          />
-          <polygon
-            className="brand-delta-fade brand-delta-fade-2"
-            points="22,20 30,34 14,34"
-            fill="none" stroke={PAPER} strokeWidth="0.9" strokeLinejoin="round"
-          />
-        </svg>
+        {/* Delta triangles — три вложенных SVG как в Delta-hub */}
+        <div className="relative w-32 h-32 mb-8">
+          {/* Внешний треугольник — дыхание */}
+          <svg
+            width="128"
+            height="128"
+            viewBox="0 0 100 100"
+            fill="none"
+            stroke={PAPER}
+            strokeWidth="2"
+            className="absolute inset-0"
+            style={{
+              animation: 'brand-hero-breathe 7s ease-in-out infinite',
+              transformOrigin: '50% 62%',
+            }}
+          >
+            <polygon points="50,8 92,88 8,88" />
+          </svg>
+
+          {/* Средний треугольник — прорисовка контура */}
+          <svg
+            width="128"
+            height="128"
+            viewBox="0 0 100 100"
+            fill="none"
+            stroke={PAPER}
+            strokeWidth="2"
+            className="absolute inset-0"
+            style={{ opacity: 0.5 }}
+          >
+            <polygon
+              points="50,25 78,78 22,78"
+              style={{
+                strokeDasharray: 118,
+                strokeDashoffset: 118,
+                animation: 'brand-delta-draw 2.4s ease-in-out infinite',
+              }}
+            />
+          </svg>
+
+          {/* Маленький треугольник */}
+          <svg
+            width="128"
+            height="128"
+            viewBox="0 0 100 100"
+            fill="none"
+            stroke={PAPER}
+            strokeWidth="2"
+            className="absolute inset-0"
+            style={{ opacity: 0.25 }}
+          >
+            <polygon points="50,40 62,68 38,68" />
+          </svg>
+        </div>
 
         {/* Словесный знак */}
         <p
-          className="mt-5 text-[13px] font-semibold uppercase select-none"
-          style={{ color: PAPER, letterSpacing: "0.42em", marginRight: "-0.42em", fontFamily: "var(--font-geist-mono, ui-monospace, monospace)" }}
+          className="font-mono text-xs font-semibold uppercase"
+          style={{ color: 'rgba(250, 250, 248, 0.74)', letterSpacing: '0.2em' }}
         >
-          Delta
+          DELTA
         </p>
 
         {/* Подпись */}
@@ -66,8 +101,14 @@ export function BrandSplash({ visible, label = "Загрузка..." }: BrandSpl
         </p>
 
         {/* Тонкая линия прогресса */}
-        <div className="mt-4 h-px w-40 overflow-hidden rounded-full" style={{ background: "rgba(250,250,248,0.14)" }}>
-          <div className="brand-progress-line h-full w-1/3 rounded-full" style={{ background: "rgba(250,250,248,0.75)" }} />
+        <div className="mt-4 w-24 h-0.5 overflow-hidden rounded-full" style={{ background: "rgba(250,250,248,0.12)" }}>
+          <div
+            className="h-full w-1/3 rounded-full"
+            style={{
+              background: PAPER,
+              animation: 'brand-progress 1.6s ease-in-out infinite',
+            }}
+          />
         </div>
       </div>
     </div>
