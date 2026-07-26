@@ -424,6 +424,15 @@ export function AppSidebar({
             <Redo2 className="size-3.5" />
           </RailIcon>
           <div className="w-px h-4 mx-1" style={{ background: "rgba(250,250,248,0.12)" }} />
+          <a
+            href="https://delta-hub-alpha.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Delta Hub — Главная"
+            className="rail-iconbtn flex items-center justify-center w-7 h-7 rounded-lg transition-colors"
+          >
+            <span className="text-[9px] font-bold" style={{ fontFamily: "var(--font-geist-mono, ui-monospace, monospace)" }}>HUB</span>
+          </a>
           {!isGuest && (
             <>
               <NotificationsBell
