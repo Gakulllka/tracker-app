@@ -69,3 +69,18 @@ Stage Summary:
 - Three-layer defense against 412: middleware header stripping + response no-cache + next.config.ts static headers
 - If z.ai proxy respects Cache-Control: no-store, it will stop caching and sending conditional requests
 - If 412 persists, the issue is entirely within the z.ai proxy infrastructure (cannot fix from app side)
+
+## 2026-07-30 — понятная ошибка при отсутствии DATABASE_URL
+
+- Исправлена причина падения API входа с `Cannot read properties of undefined (reading 'user')`.
+- Prisma больше не подменяется значением `undefined`, если сервер запущен без `DATABASE_URL`.
+- `/api/auth/login` возвращает статус 503 и понятное сообщение вместо внутренней ошибки JavaScript.
+- Добавлен `.env.example` без реальных секретов.
+- Схема и данные базы не изменялись.
+- `npm ci` и проверки не запустились: внутренний npm-реестр не содержит архив `zustand@5.0.13`.
+
+## 2026-07-30 — группировка задач по умолчанию
+
+- Режим группировки при первом запуске изменён со статусов на приоритеты.
+- Группировка по статусам сохранена как переключаемая опция.
+- Ранее выбранный пользователем режим продолжает восстанавливаться из `localStorage`.

@@ -3,7 +3,7 @@
  * usePresentation — хук слайдов, AI-анализа, экспорта презентации.
  * Вынесено из TaskTrackerInner.
  */
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { renderPresentationHtml } from "@/lib/presentation-export";
 import { generateSlides } from "@/lib/slides";
 import { saveInsight, deleteInsight } from "@/lib/ai-insights-client";
@@ -11,10 +11,12 @@ import type { AiInsightShape } from "@/lib/ai-insights-client";
 import type { Task } from "@/lib/types";
 import type { SlideData } from "@/lib/presentation-renderer";
 import type { PresBgSettings } from "@/lib/store";
+import { fetchPresentationSnapshot, type SnapshotResponse } from "@/lib/presentation-snapshots-client";
 import { MONTHS } from "@/lib/types";
 
 interface UsePresentationParams {
   allData: Record<number, Task[]>;
+  backlog: Task[];
   currentMonth: number;
   currentYear: number;
   accentHex: string;
@@ -34,7 +36,7 @@ interface UsePresentationParams {
 }
 
 export function usePresentation({
-  allData, currentMonth, currentYear, accentHex, customDark,
+  allData, backlog, currentMonth, currentYear, accentHex, customDark,
   totalFactMap, presBg, workspaceId, activeDomainId, insightMonthKey,
   chatModel, apiKeyRef, setView, setApiKeyDialogOpen, toast,
   monthCapacity,
@@ -47,9 +49,22 @@ export function usePresentation({
   const [aiAnalysisError, setAiAnalysisError]   = useState<string | null>(null);
   const [currentDataHash, setCurrentDataHash]   = useState("");
   const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
+  const [snapshot, setSnapshot] = useState<SnapshotResponse | null>(null);
+  const [previousSnapshot, setPreviousSnapshot] = useState<SnapshotResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPresentationSnapshot(activeDomainId, insightMonthKey).then((value) => { if (!cancelled) setSnapshot(value); }).catch(() => { if (!cancelled) setSnapshot(null); });
+    const [year, month] = insightMonthKey.split("-").map(Number);
+    const previousDate = new Date(year, month - 2, 1);
+    const previousKey = `${previousDate.getFullYear()}-${String(previousDate.getMonth() + 1).padStart(2, "0")}`;
+    fetchPresentationSnapshot(activeDomainId, previousKey).then((value) => { if (!cancelled) setPreviousSnapshot(value); }).catch(() => { if (!cancelled) setPreviousSnapshot(null); });
+    return () => { cancelled = true; };
+  }, [activeDomainId, insightMonthKey]);
 
   const slides: SlideData[] = generateSlides(
-    currentMonth, currentYear, allData, accentHex, totalFactMap, monthCapacity
+    currentMonth, currentYear, allData, accentHex, totalFactMap, monthCapacity, backlog,
+    snapshot?.closed ? snapshot.active : null, previousSnapshot?.active ?? null
   );
 
   const openPresentation = useCallback(() => setView("slides"), [setView]);
@@ -117,7 +132,7 @@ export function usePresentation({
   const handleAiAnalysis = useCallback(async () => {
     const apiKey = apiKeyRef.current;
     if (!apiKey) { setApiKeyDialogOpen(true); setAiAnalysisError("Сначала введите API ключ Gemini"); return; }
-    const rows = (allData[currentMonth] || []).filter(r => r.name || r.num);
+    const rows = (allData[currentMonth] || []).filter(r => !r._deleted && (r.name || r.num));
     if (!rows.length) { setAiAnalysisError("В этом месяце нет задач для анализа"); return; }
     setAiAnalysisError(null); setAiConclusionBusy(true);
     try {
@@ -173,5 +188,6 @@ export function usePresentation({
     readTrackerTokens,
     handleExportSlidesHTML, handleExportPDF, handleEnterFullscreen,
     handleAiAnalysis, handleApproveDraft, handleDiscardDraft, handleRemoveConclusion,
+    snapshot, setSnapshot,
   };
 }

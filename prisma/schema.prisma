@@ -70,6 +70,7 @@ model Domain {
   backlogItems BacklogItem[]
   questions    Question[]
   aiInsights   AiInsight[]
+  monthlySnapshots DomainMonthlySnapshot[]
 }
 
 // Право редактирования домена. Наличие записи = может редактировать.
@@ -211,4 +212,37 @@ model AiInsight {
   updatedAt DateTime @updatedAt
 
   @@unique([domainId, monthKey])
+}
+
+// Исторический снимок показателей презентации для домена и месяца.
+model DomainMonthlySnapshot {
+  id              String   @id @default(cuid())
+  domainId        String
+  domain          Domain   @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  monthKey        String
+  activeVersionId String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  versions        DomainMonthlySnapshotVersion[]
+
+  @@unique([domainId, monthKey])
+  @@index([domainId, monthKey])
+}
+
+model DomainMonthlySnapshotVersion {
+  id                String   @id @default(cuid())
+  snapshotId        String
+  snapshot          DomainMonthlySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  versionNumber     Int
+  monthlyTasksCount Int
+  backlogCount      Int
+  ideasCount        Int
+  versionType       String   @default("system") // system | manual | rollback
+  createdByUserId   String   @default("")
+  createdByUsername String   @default("")
+  sourceVersionId   String   @default("")
+  createdAt         DateTime @default(now())
+
+  @@unique([snapshotId, versionNumber])
+  @@index([snapshotId, createdAt])
 }

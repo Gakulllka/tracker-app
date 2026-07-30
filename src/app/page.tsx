@@ -772,7 +772,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
    * Хеш хранится в state, чтобы UI мог его сравнить с aiConclusion.dataHash. */
   useEffect(() => {
     let cancelled = false;
-    const monthRows = (allData[currentMonth] || []).filter((r) => r.name || r.num);
+    const monthRows = (allData[currentMonth] || []).filter((r) => !r._deleted && (r.name || r.num));
     if (monthRows.length === 0) {
       setCurrentDataHash("");
       return;
@@ -977,8 +977,9 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     readTrackerTokens,
     handleExportSlidesHTML, handleExportPDF, handleEnterFullscreen,
     handleAiAnalysis, handleApproveDraft, handleDiscardDraft, handleRemoveConclusion,
+    snapshot: presentationSnapshot, setSnapshot: setPresentationSnapshot,
   } = usePresentation({
-    allData, currentMonth, currentYear, accentHex, customDark,
+    allData, backlog, currentMonth, currentYear, accentHex, customDark,
     totalFactMap, presBg, workspaceId, activeDomainId, insightMonthKey,
     chatModel, apiKeyRef, setView: setView as (v: string) => void, setApiKeyDialogOpen, toast,
     monthCapacity: monthlyPlan > 0 ? monthlyPlan : 240,
@@ -1379,7 +1380,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             onExportPDF={handleExportPDF}
             onEnterFullscreen={handleEnterFullscreen}
             fullscreenContainerRef={fullscreenContainerRef}
-            hasData={(allData[currentMonth] || []).some((r) => r.name || r.num)}
+            hasData={Object.values(allData as Record<number, Task[]>).some((monthRows) => monthRows.some((r) => !r._deleted && (r.name || r.num))) || backlog.some((r) => !r._deleted && (r.name || r.num))}
             onAiAnalysis={handleAiAnalysis}
             aiAnalysisBusy={aiConclusionBusy}
             aiDraft={aiDraft}
@@ -1399,6 +1400,11 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             currentMonth={currentMonth}
             currentYear={currentYear}
             isGuest={isGuest}
+            authToken={authData.token}
+            activeDomainId={activeDomainId}
+            monthKey={insightMonthKey}
+            snapshot={presentationSnapshot}
+            onSnapshotChange={setPresentationSnapshot}
           />
           </div>
         )}

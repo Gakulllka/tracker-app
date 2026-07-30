@@ -14,9 +14,19 @@ export function generateSlides(
   accentHex: string,
   totalFactMap: Record<string, number>,
   monthCapacity: number,
+  backlog: Task[] = [],
+  currentSnapshot?: { monthlyTasksCount: number; backlogCount: number; ideasCount: number } | null,
+  previousSnapshot?: { monthlyTasksCount: number; backlogCount: number; ideasCount: number } | null,
 ): SlideData[] {
-  const rows = (allData[month] || []).filter((r) => r.name || r.num);
-  let total = rows.length;
+  const monthRows = (allData[month] || []).filter((r) => !r._deleted && (r.name || r.num));
+  const rows = monthRows.filter((r) => r.status !== STATUSES.IDEA);
+  const liveBacklogCount = (backlog || []).filter((r) => !r._deleted && (r.name || r.num)).length;
+  const ideaIds = new Set<string>();
+  Object.values(allData).forEach((monthTasks) => monthTasks.forEach((r) => { if (!r._deleted && r.status === STATUSES.IDEA && (r.name || r.num)) ideaIds.add(r.id); }));
+  const liveIdeasCount = ideaIds.size;
+  const backlogCount = currentSnapshot?.backlogCount ?? liveBacklogCount;
+  const ideasCount = currentSnapshot?.ideasCount ?? liveIdeasCount;
+  let total = currentSnapshot?.monthlyTasksCount ?? rows.length;
   let completed = 0;
   let factH = 0;
   const completedTasks: Task[] = [];
@@ -43,7 +53,7 @@ export function generateSlides(
   // ── Previous month data for dynamics ──
   const prevMonth = month > 0 ? month - 1 : -1;
   const prevRows = prevMonth >= 0
-    ? (allData[prevMonth] || []).filter((r) => r.name || r.num)
+    ? (allData[prevMonth] || []).filter((r) => !r._deleted && (r.name || r.num) && r.status !== STATUSES.IDEA)
     : [];
   let prevCompleted = 0;
   let prevFactH = 0;
@@ -103,7 +113,7 @@ export function generateSlides(
   // 1) Title
   slides.push({
     type: "title",
-    content: { month: monthLabel, total, completed, pct: compPct, accent: accentHex },
+    content: { month: monthLabel, total, secondaryTotal: backlogCount + ideasCount, completed, pct: compPct, accent: accentHex },
   });
 
   // 2) KPI — Plan (Dashboard budget), Fact, dynamics
@@ -117,7 +127,10 @@ export function generateSlides(
       completed,
       completedPrev: prevCompleted,
       total,
-      totalPrev: prevRows.length,
+      totalPrev: previousSnapshot ? previousSnapshot.monthlyTasksCount + previousSnapshot.backlogCount + previousSnapshot.ideasCount : prevRows.length,
+      backlogCount,
+      ideasCount,
+      totalAll: total + backlogCount + ideasCount,
       compPct,
       compPctPrev: prevCompPct,
       currentUncompleted,
@@ -208,7 +221,7 @@ function buildPrevTotalFactMap(
   const map: Record<string, number> = {};
   for (let mi = 0; mi <= upToMonth; mi++) {
     (allData[mi] || []).forEach((row) => {
-      if (row.num) {
+      if (!row._deleted && row.num) {
         map[row.num] = (map[row.num] || 0) + evalExpr(row.factH);
       }
     });

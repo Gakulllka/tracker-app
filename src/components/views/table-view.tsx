@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -24,11 +24,11 @@ import {
   FileSpreadsheet, Upload, ArrowRight, Check,
   ArrowUpDown, Save, FolderOpen, FileText,
   Package, MessageSquare, Ruler, Timer, Wallet,
-  ExternalLink,
+  ExternalLink, LayoutGrid, ChevronDown, Lightbulb, Play,
 } from "lucide-react";
 import {
   MONTHS, STATUSES, PRIORITIES, PCOL, scolText,
-  type Status, type Priority, type Task, STATUS_ORDER, PRIO_START,
+  type Status, type Priority, type Task, STATUS_ORDER,
   PHASE_COLORS, getPhaseForStatus,
 } from "@/lib/types";
 import {
@@ -188,7 +188,48 @@ export function TableView({
   /* ---- Drag & Drop state ---- */
   const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
-  const [dropGroupPriority, setDropGroupPriority] = useState<Priority | null>(null);
+  const [dropGroupKey, setDropGroupKey] = useState<string | null>(null);
+  const [groupingMode, setGroupingMode] = useState<"status" | "priority" | "none">("priority");
+  const [ideasOpen, setIdeasOpen] = useState(false);
+  const ideaRows = useMemo(() => {
+    const seenIds = new Set<string>();
+    const seenNums = new Set<string>();
+    const result: Array<{ task: Task; sourceMonth: number }> = [];
+    Object.entries(allData).forEach(([monthIndex, monthTasks]) => {
+      monthTasks.forEach((task) => {
+        if (task._deleted || task.status !== STATUSES.IDEA) return;
+        // Дедупликация и по id, и по num (чтобы не показывать две записи с одним номером)
+        if (seenIds.has(task.id)) return;
+        const numKey = (task.num || "").trim();
+        if (numKey && seenNums.has(numKey)) return;
+        seenIds.add(task.id);
+        if (numKey) seenNums.add(numKey);
+        result.push({ task, sourceMonth: Number(monthIndex) });
+      });
+    });
+    return result.sort((a, b) => (b.task._ts || 0) - (a.task._ts || 0));
+  }, [allData]);
+  const workRows = useMemo(() => rows.filter((task) => task.status !== STATUSES.IDEA), [rows]);
+  useEffect(() => setIdeasOpen(false), [month]);
+  const promoteIdea = useCallback((sourceMonth: number, task: Task) => {
+    useTaskStore.getState().snapshot();
+    const state = useTaskStore.getState();
+    const source = (state.allData[sourceMonth] || []).filter((row) => row.id !== task.id);
+    // Также удаляем из target на случай, если sourceMonth === month
+    const target = (state.allData[month] || []).filter((row) => row.id !== task.id);
+    const promoted = { ...task, status: STATUSES.NEW, _ts: Date.now() };
+    state.setAllData({ ...state.allData, [sourceMonth]: source, [month]: [...target, promoted] });
+  }, [month]);
+  useEffect(() => {
+    const saved = window.localStorage.getItem("tracker-task-grouping");
+    if (saved === "status" || saved === "priority" || saved === "none") {
+      setGroupingMode(saved);
+    }
+  }, []);
+  const applyGroupingMode = useCallback((mode: "status" | "priority" | "none") => {
+    setGroupingMode(mode);
+    window.localStorage.setItem("tracker-task-grouping", mode);
+  }, []);
 
   /* ---- Delete confirmation ---- */
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; taskId: string; taskName: string }>({ open: false, taskId: "", taskName: "" });
@@ -205,7 +246,7 @@ export function TableView({
     e.stopPropagation();
     e.dataTransfer.dropEffect = "move";
     setDropTargetId(rowId);
-    setDropGroupPriority(null);
+    setDropGroupKey(null);
   }, []);
 
   const handleRowDrop = useCallback((e: React.DragEvent, targetId: string) => {
@@ -217,60 +258,39 @@ export function TableView({
     }
     setDragRowId(null);
     setDropTargetId(null);
-    setDropGroupPriority(null);
+    setDropGroupKey(null);
   }, [month, reorderTask]);
 
-  const handleGroupDragOver = useCallback((e: React.DragEvent, priority: Priority) => {
+  const handleGroupDragOver = useCallback((e: React.DragEvent, groupKey: string) => {
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = "move";
-    setDropGroupPriority(priority);
+    setDropGroupKey(groupKey);
     setDropTargetId(null);
   }, []);
 
-  const handleGroupDrop = useCallback((e: React.DragEvent, targetPriority: Priority) => {
+  const handleGroupDrop = useCallback((e: React.DragEvent, groupKey: string) => {
     e.preventDefault();
     e.stopPropagation();
     const fromId = e.dataTransfer.getData("application/task-row");
-    if (fromId) {
-      const task = rows.find(t => t.id === fromId);
-      if (task && task.priority !== targetPriority) {
+    const task = rows.find(t => t.id === fromId);
+    if (task && groupingMode !== "none") {
+      const field = groupingMode === "status" ? "status" : "priority";
+      if (task[field] !== groupKey) {
         useTaskStore.getState().snapshot();
-        updateTask(month, fromId, "priority", targetPriority);
-        const prioNum = PRIO_START[targetPriority] ?? 50;
-        const fromPrioNum = PRIO_START[task.priority] ?? 50;
-        const movingDown = prioNum > fromPrioNum;
-        const allIds = rows.map(t => t.id);
-        const targetIds = allIds.filter(id => id !== fromId);
-        const targetTasks = rows.filter(t => t.id !== fromId);
-        if (movingDown) {
-          const firstInGroup = targetTasks.findIndex(t => t.priority === targetPriority);
-          if (firstInGroup >= 0) {
-            const anchorId = targetTasks[firstInGroup].id;
-            setTimeout(() => reorderTask(month, fromId, anchorId), 0);
-          }
-        } else {
-          const lastInGroup = [...targetTasks].reverse().findIndex(t => t.priority === targetPriority);
-          if (lastInGroup >= 0) {
-            const idx = targetTasks.length - 1 - lastInGroup;
-            const nextTask = targetTasks[idx + 1];
-            if (nextTask) {
-              setTimeout(() => reorderTask(month, fromId, nextTask.id), 0);
-            }
-          }
-        }
+        updateTask(month, fromId, field, groupKey);
       }
     }
     setDragRowId(null);
     setDropTargetId(null);
-    setDropGroupPriority(null);
-  }, [month, rows, updateTask, reorderTask]);
+    setDropGroupKey(null);
+  }, [groupingMode, month, rows, updateTask]);
 
   const handleDragEnd = useCallback((e: React.DragEvent) => {
     e.stopPropagation();
     setDragRowId(null);
     setDropTargetId(null);
-    setDropGroupPriority(null);
+    setDropGroupKey(null);
   }, []);
 
   return (
@@ -580,7 +600,7 @@ export function TableView({
             <p className="empty-state-hint">Добавьте первую задачу кнопкой ниже — или перенесите из другого месяца</p>
           </div>
         ) : (
-          rows.map((task) => {
+          workRows.map((task) => {
             const metrics = getTaskMetrics(task, totalFactMap);
             const pct = metrics.totalH > 0 && evalExpr(task.planH) > 0
               ? Math.min(100, (metrics.totalH / evalExpr(task.planH)) * 100)
@@ -664,6 +684,208 @@ export function TableView({
             </svg>
           </button>
         )}
+      </div>
+
+      {ideaRows.length > 0 && (
+        <div className="rounded-2xl border" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+          <button type="button" onClick={() => setIdeasOpen(v => !v)} className="w-full flex items-center gap-2 px-4 py-3 text-left cursor-pointer select-none hover:bg-black/5 transition-colors">
+            <Lightbulb className="size-4" style={{ color: "#fbbf24" }} />
+            <span className="font-semibold text-sm">Идеи</span>
+            <span className="text-xs rounded-full px-2 py-0.5" style={{ background: "rgba(251,191,36,.14)", color: "#b45309" }}>{ideaRows.length}</span>
+            <ChevronDown className={`size-4 ml-auto transition-transform ${ideasOpen ? "rotate-180" : ""}`} />
+          </button>
+          {ideasOpen && <div className="task-card-grid p-3 pt-0">
+            {ideaRows.map(({ task, sourceMonth }) => {
+              const metrics = getTaskMetrics(task, totalFactMap);
+              const accentColor = PHASE_COLORS[getPhaseForStatus(task.status)] || "var(--tracker-accent)";
+              return (
+              <TaskContextMenu key={task.id} task={task} month={sourceMonth} isDark={isDark} updateTask={updateTask} deleteTask={deleteTask} moveToBacklog={moveToBacklog} duplicateTask={duplicateTask} isGuest={isGuest}>
+                <div
+                  className="task-card cursor-pointer"
+                  style={{ "--card-accent-color": "#fbbf24" } as React.CSSProperties}
+                  onClick={(e) => {
+                    const tag = (e.target as HTMLElement)?.tagName;
+                    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON" || tag === "SELECT") return;
+                    if ((e.target as HTMLElement)?.closest("button, select, input, textarea, [role='combobox']")) return;
+                    onOpenTaskDetail?.(task, sourceMonth);
+                  }}
+                >
+                  {/* Строка 1: лампочка + номер + статус + приоритет */}
+                  <div className="flex items-start gap-2">
+                    <div className="shrink-0 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                      <Lightbulb className="size-4" style={{ color: "#fbbf24" }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        <span className="task-card-num">#{task.num || "—"}</span>
+                      </div>
+                      <p className="task-card-name">{task.name || "без названия"}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {/* Статус — дропдаун */}
+                      {!isExecutive && !isGuest ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity"
+                              style={{
+                                color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
+                                background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
+                              }}
+                            >
+                              {task.status}
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[280px] p-2" align="end" side="bottom">
+                            <div className="flex flex-col gap-1.5">
+                              {([
+                                { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW], color: PHASE_COLORS.new },
+                                { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS], color: PHASE_COLORS.in_progress },
+                                { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE], color: PHASE_COLORS.done },
+                                { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL], color: PHASE_COLORS.cancel },
+                              ]).map((group) => (
+                                <div key={group.label}>
+                                  <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: group.color }}>{group.label}</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {group.items.map((s) => (
+                                      <button
+                                        key={s}
+                                        onClick={() => { useTaskStore.getState().snapshot(); updateTask(sourceMonth, task.id, "status", s); }}
+                                        className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full transition-all ${task.status === s ? "ring-1 ring-offset-1" : "opacity-70 hover:opacity-100"}`}
+                                        style={{
+                                          color: scolText(s, isDark) || "#888",
+                                          background: (scolText(s, isDark) || "#888") + "20",
+                                          ...(task.status === s ? { ringColor: scolText(s, isDark) || "#888", outlineColor: scolText(s, isDark) || "#888" } : {}),
+                                        }}
+                                      >
+                                        {s}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span
+                          className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center justify-center"
+                          style={{
+                            color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
+                            background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
+                          }}
+                        >
+                          {task.status}
+                        </span>
+                      )}
+                      {/* Приоритет — дропдаун */}
+                      {!isExecutive && !isGuest ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1"
+                              style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
+                            >
+                              {task.priority}
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            {Object.values(PRIORITIES).map(p => (
+                              <DropdownMenuItem key={p} className="text-xs gap-2 cursor-pointer" onClick={() => {
+                                useTaskStore.getState().snapshot();
+                                updateTask(sourceMonth, task.id, "priority", p);
+                              }}>
+                                <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PCOL[p] }} />
+                                {p}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <span
+                          className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center gap-1"
+                          style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
+                        >
+                          {task.priority}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Прогресс */}
+                  <div className="flex items-center gap-1.5 mt-2 pl-5">
+                    <div className="task-card-progress flex-1">
+                      <div
+                        className="task-card-progress-fill"
+                        style={{
+                          width: `${Math.min(metrics.prog, 100)}%`,
+                          backgroundColor: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over),
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-semibold tabular-nums shrink-0" style={{ color: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over) }}>
+                      {metrics.prog}%
+                    </span>
+                  </div>
+
+                  {/* Часы: план / факт / итого */}
+                  <div className="flex items-center gap-2 mt-1.5 pl-5 text-[13px] delta-num text-[var(--tracker-text-main)] [&_svg]:opacity-45">
+                    <span className="flex items-center gap-1 w-[72px]">
+                      <Ruler className="size-3.5 shrink-0" /> {fmt2(metrics.plan)}<span className="text-[var(--tracker-text-muted)]">ч</span>
+                    </span>
+                    <span className={`flex items-center gap-1 w-[72px] ${metrics.fact > metrics.plan && metrics.plan > 0 ? "text-[var(--tracker-danger)] font-semibold" : ""}`}>
+                      <Timer className="size-3.5 shrink-0" /> {fmt2(metrics.fact)}<span className="text-[var(--tracker-text-muted)]">ч</span>
+                    </span>
+                    <span className="flex items-center gap-1 w-[72px]">
+                      <span className="opacity-60">Σ</span> {fmt2(metrics.totalH)}<span className="text-[var(--tracker-text-muted)]">ч</span>
+                    </span>
+                  </div>
+
+                  {/* Кнопки: В работу + В бэклог */}
+                  {!isExecutive && !isGuest && (
+                    <div className="flex items-center gap-0.5 shrink-0 mt-1.5 ml-5" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => promoteIdea(sourceMonth, task)} title="В работу">
+                        <Play className="size-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveToBacklog(sourceMonth, task.id)} title="В беклог">
+                        <Package className="size-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </TaskContextMenu>
+              );
+            })}
+          </div>}
+        </div>
+      )}
+
+      {/* ---- DESKTOP VIEW SETTINGS ---- */}
+      <div className="hidden md:flex items-center justify-between gap-3 rounded-lg border border-[var(--tracker-border)] bg-[var(--tracker-bg-card)] px-3 py-2">
+        <div className="flex items-center gap-2 text-xs text-[var(--tracker-text-muted)]">
+          <LayoutGrid className="size-3.5" />
+          Группировать карточки
+        </div>
+        <div className="inline-flex rounded-md border border-[var(--tracker-border)] p-0.5">
+          {([
+            ["status", "По статусу"],
+            ["priority", "По приоритету"],
+            ["none", "Без групп"],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => applyGroupingMode(value)}
+              className="rounded px-2.5 py-1 text-xs font-medium transition-colors"
+              style={{
+                background: groupingMode === value ? "var(--tracker-accent-bg)" : "transparent",
+                color: groupingMode === value ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ---- DESKTOP CARD LIST ---- */}
@@ -778,7 +1000,7 @@ export function TableView({
       })()}
 
       {/* Summary bar: Δ-полоса — суть продукта (разница план/факт) в метрике */}
-      {rows.length > 0 && (
+      {workRows.length > 0 && (
         <div
           className="hidden md:flex items-stretch gap-6 px-5 py-3 rounded-[var(--radius-card,14px)] border bg-[var(--tracker-bg-card)]"
           style={{ borderColor: "var(--tracker-border)", boxShadow: "var(--shadow-card)" }}
@@ -810,7 +1032,7 @@ export function TableView({
       )}
 
       <div className="hidden md:block">
-        {rows.length === 0 ? (
+        {workRows.length === 0 ? (
           <EmptyState
             type={totalRows.length === 0 ? "table" : "filter"}
             onAction={totalRows.length === 0 ? () => onOpenNewTaskDialog(month) : undefined}
@@ -819,39 +1041,52 @@ export function TableView({
           <div className="space-y-1 stagger">
             {(() => {
               const priorityOrder: Priority[] = ["Наивысший", "Высокий", "Средний", "Низкий", "Очередь"];
-              const grouped = priorityOrder.map(p => ({
-                priority: p,
-                color: PCOL[p],
-                tasks: rows.filter(t => t.priority === p),
-              }));
+              const statusOrder = Object.values(STATUSES).sort((a, b) => STATUS_ORDER[a] - STATUS_ORDER[b]);
+              const grouped = groupingMode === "status"
+                ? statusOrder.map(status => ({
+                    key: status,
+                    label: status,
+                    color: scolText(status, isDark) || PHASE_COLORS[getPhaseForStatus(status)],
+                    tasks: workRows.filter(t => t.status === status),
+                  }))
+                : groupingMode === "priority"
+                  ? priorityOrder.map(priority => ({
+                      key: priority,
+                      label: priority,
+                      color: PCOL[priority],
+                      tasks: workRows.filter(t => t.priority === priority),
+                    }))
+                  : [{ key: "all", label: "Все задачи", color: accentHex, tasks: workRows }];
 
               return grouped.map((group) => (
-                <div key={group.priority} className="priority-group">
+                <div key={group.key} className="priority-group">
+                  {groupingMode !== "none" && (
+                    <div
+                      className={`priority-group-header transition-all duration-200 ${dropGroupKey === group.key ? "ring-2 ring-offset-1" : ""}`}
+                      style={{
+                        background: group.color + "18",
+                        color: group.color,
+                        ...(dropGroupKey === group.key ? { borderColor: group.color } : {}),
+                      }}
+                      onDragOver={(e) => handleGroupDragOver(e, group.key)}
+                      onDrop={(e) => handleGroupDrop(e, group.key)}
+                    >
+                      <span style={{ width: 3, height: 16, borderRadius: 2, background: group.color, flexShrink: 0 }} />
+                      <span>{group.label}</span>
+                      <span className="priority-group-count">{group.tasks.length} {group.tasks.length === 1 ? "задача" : group.tasks.length < 5 ? "задачи" : "задач"}</span>
+                    </div>
+                  )}
                   <div
-                    className={`priority-group-header transition-all duration-200 ${dropGroupPriority === group.priority ? "ring-2 ring-offset-1" : ""}`}
-                    style={{
-                      background: group.color + "18",
-                      color: group.color,
-                      ...(dropGroupPriority === group.priority ? { ringColor: group.color, borderColor: group.color } : {}),
-                    }}
-                    onDragOver={(e) => handleGroupDragOver(e, group.priority)}
-                    onDrop={(e) => handleGroupDrop(e, group.priority)}
+                    className={`task-card-grid ${group.tasks.length === 0 && dropGroupKey === group.key ? "min-h-[48px]" : ""}`}
+                    onDragOver={groupingMode !== "none" && group.tasks.length === 0 ? (e) => handleGroupDragOver(e, group.key) : undefined}
+                    onDrop={groupingMode !== "none" && group.tasks.length === 0 ? (e) => handleGroupDrop(e, group.key) : undefined}
                   >
-                    <span style={{ width: 3, height: 16, borderRadius: 2, background: group.color, flexShrink: 0 }} />
-                    <span>{group.priority}</span>
-                    <span className="priority-group-count">{group.tasks.length} {group.tasks.length === 1 ? "задача" : group.tasks.length < 5 ? "задачи" : "задач"}</span>
-                  </div>
-                  <div
-                    className={`task-card-grid ${group.tasks.length === 0 && dropGroupPriority === group.priority ? "min-h-[48px]" : ""}`}
-                    onDragOver={group.tasks.length === 0 ? (e) => handleGroupDragOver(e, group.priority) : undefined}
-                    onDrop={group.tasks.length === 0 ? (e) => handleGroupDrop(e, group.priority) : undefined}
-                  >
-                    {group.tasks.length === 0 && (
+                    {groupingMode !== "none" && group.tasks.length === 0 && (
                       <div
-                        className={`flex items-center justify-center rounded-lg border-2 border-dashed py-3 text-[10px] transition-all duration-200 ${dropGroupPriority === group.priority ? "opacity-100" : "opacity-30"}`}
+                        className={`flex items-center justify-center rounded-lg border-2 border-dashed py-3 text-[10px] transition-all duration-200 ${dropGroupKey === group.key ? "opacity-100" : "opacity-30"}`}
                         style={{ borderColor: group.color, color: group.color, gridColumn: "1 / -1" }}
                       >
-                        {dropGroupPriority === group.priority ? "Отпустите здесь" : "Перетащите задачу сюда"}
+                        {dropGroupKey === group.key ? "Отпустите здесь" : "Перетащите задачу сюда"}
                       </div>
                     )}
                     {group.tasks.map((task) => {
@@ -1016,6 +1251,37 @@ export function TableView({
                                     </div>
                                   </PopoverContent>
                                 </Popover>
+                              )}
+                              {/* Приоритет — дропдаун */}
+                              {!isExecutive && !isGuest ? (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button
+                                      className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1"
+                                      style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
+                                    >
+                                      {task.priority}
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent>
+                                    {Object.values(PRIORITIES).map(p => (
+                                      <DropdownMenuItem key={p} className="text-xs gap-2 cursor-pointer" onClick={() => {
+                                        useTaskStore.getState().snapshot();
+                                        updateTask(month, task.id, "priority", p);
+                                      }}>
+                                        <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PCOL[p] }} />
+                                        {p}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              ) : (
+                                <span
+                                  className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center gap-1"
+                                  style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
+                                >
+                                  {task.priority}
+                                </span>
                               )}
                             </div>
                           </div>

@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -9,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ChevronLeft, ChevronRight, Download, Maximize2,
   Sparkles, Loader2, KeyRound, Check, X, Trash2,
-  Presentation, FileText, Layers, Brain,
+  Presentation, FileText, Layers, Brain, RotateCcw, Save,
 } from "lucide-react";
 import {
   PresentationSlide, PresentationBgLayer, buildTheme,
@@ -18,6 +19,7 @@ import {
 import type { PresBgSettings } from "@/lib/store";
 import type { AiInsightShape } from "@/lib/ai-insights-client";
 import { MONTHS } from "@/lib/types";
+import { fetchPresentationSnapshot, updatePresentationSnapshot, rollbackPresentationSnapshot, type SnapshotResponse } from "@/lib/presentation-snapshots-client";
 
 type AiConclusionShape = Pick<AiInsightShape, "achievements" | "risks" | "inProgress"> & { summary: string[] } & Partial<Pick<AiInsightShape, "dataHash" | "source" | "updatedAt">>;
 
@@ -67,6 +69,11 @@ export interface SlidesViewProps {
   currentYear: number;
   /** Гость — только просмотр. */
   isGuest?: boolean;
+  authToken: string;
+  activeDomainId: string;
+  monthKey: string;
+  snapshot: SnapshotResponse | null;
+  onSnapshotChange: (v: SnapshotResponse | null) => void;
 }
 
 const AI_SECTION_LABELS: Record<string, string> = {
@@ -109,7 +116,24 @@ export function SlidesView({
   currentMonth,
   currentYear,
   isGuest,
+  authToken, activeDomainId, monthKey, snapshot, onSnapshotChange,
 }: SlidesViewProps) {
+  const [snapshotEdit, setSnapshotEdit] = useState({ monthlyTasksCount: 0, backlogCount: 0, ideasCount: 0 });
+  const [snapshotBusy, setSnapshotBusy] = useState(false);
+
+  useEffect(() => {
+    if (snapshot?.active) setSnapshotEdit({ monthlyTasksCount: snapshot.active.monthlyTasksCount, backlogCount: snapshot.active.backlogCount, ideasCount: snapshot.active.ideasCount });
+  }, [snapshot]);
+
+  const refreshSnapshot = async () => onSnapshotChange(await fetchPresentationSnapshot(activeDomainId, monthKey));
+  const saveSnapshot = async () => {
+    setSnapshotBusy(true);
+    try { await updatePresentationSnapshot(authToken, activeDomainId, monthKey, snapshotEdit); await refreshSnapshot(); } finally { setSnapshotBusy(false); }
+  };
+  const rollbackSnapshot = async (versionId: string) => {
+    setSnapshotBusy(true);
+    try { await rollbackPresentationSnapshot(authToken, activeDomainId, monthKey, versionId); await refreshSnapshot(); } finally { setSnapshotBusy(false); }
+  };
 
   /* Sub-tabs header — общий для всех трёх режимов */
   const subTabsHeader = (
@@ -117,7 +141,7 @@ export function SlidesView({
       style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
       {([
         { key: "slides", icon: Layers, label: "Слайды" },
-        { key: "ai",     icon: Brain, label: "AI-инсайты" + (aiConclusion || aiDraft ? " ·" : "") },
+        { key: "ai",     icon: Brain, label: "Настройки презентации" + (aiConclusion || aiDraft ? " ·" : "") },
       ] as const).map(t => {
         const active = presSubTab === t.key;
         const Icon = t.icon;
@@ -257,6 +281,44 @@ export function SlidesView({
   return (
     <div className="space-y-4">
       {subTabsHeader}
+
+      <div className="rounded-2xl border p-4 space-y-4" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+        <div>
+          <h3 className="text-sm font-semibold">Исторический снимок</h3>
+          <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>{MONTHS[currentMonth]} {currentYear} · данные только текущего домена</p>
+        </div>
+        {snapshot?.active ? (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {([['monthlyTasksCount','Задачи месяца'],['backlogCount','Бэклог'],['ideasCount','Идеи']] as const).map(([key,label]) => (
+                <label key={key} className="space-y-1 text-xs">
+                  <span style={{ color: "var(--tracker-text-muted)" }}>{label}</span>
+                  <Input type="number" min={0} value={snapshotEdit[key]} disabled={!snapshot.closed || snapshotBusy}
+                    onChange={(e) => setSnapshotEdit(v => ({ ...v, [key]: Math.max(0, Number(e.target.value) || 0) }))} />
+                </label>
+              ))}
+              <div className="space-y-1 text-xs"><span style={{ color: "var(--tracker-text-muted)" }}>Всего</span><div className="h-10 rounded-md border px-3 flex items-center font-semibold" style={{ borderColor: "var(--tracker-border)" }}>{snapshotEdit.monthlyTasksCount + snapshotEdit.backlogCount + snapshotEdit.ideasCount}</div></div>
+            </div>
+            {snapshot.closed && <Button size="sm" className="gap-2" disabled={snapshotBusy} onClick={saveSnapshot}><Save className="size-4" />Сохранить новую версию</Button>}
+            {!snapshot.closed && <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Текущий месяц рассчитывается автоматически. Редактирование станет доступно после закрытия месяца.</p>}
+            {snapshot.closed && snapshot.versions.length > 0 && <div className="space-y-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--tracker-text-muted)" }}>История версий</h4>
+              {snapshot.versions.map((v, index) => {
+                const prev = snapshot.versions[index + 1];
+                const typeLabel = v.versionType === 'system' ? 'Системная версия' : v.versionType === 'rollback' ? 'Откат' : 'Ручное изменение';
+                return <div key={v.id} className="rounded-xl border p-3 flex items-center gap-3 flex-wrap" style={{ borderColor: v.active ? 'var(--tracker-accent)' : 'var(--tracker-border)' }}>
+                  <div className="flex-1 min-w-[260px]">
+                    <div className="text-xs font-semibold">v{v.versionNumber} · {typeLabel}{v.active ? ' · активная' : ''}</div>
+                    <div className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>Задачи {prev ? `${prev.monthlyTasksCount} → ` : ''}{v.monthlyTasksCount} · Бэклог {prev ? `${prev.backlogCount} → ` : ''}{v.backlogCount} · Идеи {prev ? `${prev.ideasCount} → ` : ''}{v.ideasCount} · Всего {v.total}</div>
+                    <div className="text-[11px] mt-1" style={{ color: "var(--tracker-text-muted)" }}>{v.createdByUsername || 'Система'} · {new Date(v.createdAt).toLocaleString('ru-RU')}</div>
+                  </div>
+                  {!v.active && <Button variant="outline" size="sm" disabled={snapshotBusy} onClick={() => rollbackSnapshot(v.id)}><RotateCcw className="size-3.5 mr-1.5" />Откатить</Button>}
+                </div>;
+              })}
+            </div>}
+          </>
+        ) : <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Данные снимка загружаются…</p>}
+      </div>
 
       {/* Phase 7.3: AI control bar — ключ + модель + кнопки. Идентичен чату. */}
       <div className="rounded-xl border p-3 flex items-center justify-between flex-wrap gap-2"

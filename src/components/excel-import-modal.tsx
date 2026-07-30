@@ -1076,7 +1076,7 @@ export function ExcelImportModal({
   return (
     <Dialog open={isOpen} onOpenChange={(o) => !o && close()}>
       <DialogContent
-        className="p-0 gap-0 flex flex-col"
+        className="p-0 gap-0 flex min-h-0 flex-col"
         style={{
           maxWidth: 960,
           width: "96vw",
@@ -1359,7 +1359,7 @@ export function ExcelImportModal({
 
           {/* Rows list */}
           {hasLoaded && (
-            <ScrollArea style={{ flex: 1, minHeight: 0 }}>
+            <ScrollArea className="min-h-0 flex-1 overflow-hidden" style={{ height: 0 }}>
               <div
                 style={{
                   padding: "10px 22px 18px",

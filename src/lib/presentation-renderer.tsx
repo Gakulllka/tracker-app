@@ -282,6 +282,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     const month = String(c.month || "");
     const total = Number(c.total || 0);
     const completed = Number(c.completed || 0);
+    const secondaryTotal = Number(c.secondaryTotal || 0);
     const pct = Number(c.pct || 0);
     const circ = 2 * Math.PI * 38;
     const dash = circ * (1 - pct / 100);
@@ -305,7 +306,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
         <div style={{ width: "120px", height: "5px", background: acA, borderRadius: "3px", margin: "0 auto 36px" }} />
         <div style={{ display: "flex", gap: "48px", justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ textAlign: "center" }}>
-            <p style={{ fontFamily: F, fontSize: "64px", fontWeight: 900, color: acA, lineHeight: 1 }}>{total}</p>
+            <p style={{ fontFamily: F, fontSize: "64px", fontWeight: 900, color: acA, lineHeight: 1 }}>{total}{secondaryTotal > 0 ? ` (${secondaryTotal})` : ""}</p>
             <p style={{ fontFamily: F, fontSize: "18px", color: mutedColor, marginTop: "6px" }}>Всего задач</p>
           </div>
           <div style={{ textAlign: "center" }}>
@@ -341,6 +342,9 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     const compPctPrev = Number(c.compPctPrev) || 0;
     const currentUncompleted = Number(c.currentUncompleted) || 0;
     const prevUncompleted = Number(c.prevUncompleted) || 0;
+    const backlogCount = Number(c.backlogCount) || 0;
+    const ideasCount = Number(c.ideasCount) || 0;
+    const totalAll = Number(c.totalAll) || total;
 
     const deltaHours = factN - planN;
     const deltaOverPct = overPct - prevOverPct;
@@ -381,28 +385,25 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
           ))}
         </div>
 
-        {(totalPrev > 0 || completedPrev > 0) && (
+        {(totalPrev > 0 || completedPrev > 0 || totalAll > 0) && (
           <div style={{
-            display: "inline-flex", gap: "40px", marginTop: "20px", flexWrap: "wrap", justifyContent: "center",
-            padding: "16px 36px", borderRadius: "20px", background: cardColors[1], border: BDR,
+            display: "flex", gap: "28px", marginTop: "20px", flexWrap: "nowrap", justifyContent: "center",
+            padding: "16px 28px", borderRadius: "20px", background: cardColors[1], border: BDR,
           }}>
-            <div style={{ textAlign: "center" }}>
-              <p style={{ fontFamily: F, fontSize: "16px", color: mutedColor }}>Невыполнено</p>
-              <p style={{ fontFamily: F, fontSize: "32px", fontWeight: 900, color: currentUncompleted > prevUncompleted ? "#fb7185" : currentUncompleted < prevUncompleted ? "#34d399" : acA, lineHeight: 1.2 }}>{currentUncompleted}</p>
-              <p style={{ fontFamily: F, fontSize: "14px", color: deltaUncompleted > 0 ? "#fb7185" : deltaUncompleted < 0 ? "#34d399" : mutedColor, fontWeight: 600 }}>{deltaUncompleted > 0 ? `+${deltaUncompleted}` : deltaUncompleted < 0 ? `${deltaUncompleted}` : "—"}</p>
-            </div>
-            <div style={{ width: "1px", background: `rgba(${r},${g},${b},.20)` }} />
-            <div style={{ textAlign: "center" }}>
-              <p style={{ fontFamily: F, fontSize: "16px", color: mutedColor }}>Всего</p>
-              <p style={{ fontFamily: F, fontSize: "32px", fontWeight: 900, color: acA, lineHeight: 1.2 }}>{total}</p>
-              <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>{totalPrev > 0 ? `было ${totalPrev}` : "—"}</p>
-            </div>
-            <div style={{ width: "1px", background: `rgba(${r},${g},${b},.20)` }} />
-            <div style={{ textAlign: "center" }}>
-              <p style={{ fontFamily: F, fontSize: "16px", color: mutedColor }}>Завершено</p>
-              <p style={{ fontFamily: F, fontSize: "32px", fontWeight: 900, color: "#34d399", lineHeight: 1.2 }}>{completed}</p>
-              <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>{completedPrev > 0 ? `было ${completedPrev}` : "—"}</p>
-            </div>
+            {[
+              { label: "Всего", value: totalAll, note: totalPrev > 0 ? `было ${totalPrev}` : "—", color: acA },
+              ...(backlogCount > 0 ? [{ label: "Бэклог", value: backlogCount, note: "", color: "#60a5fa" }] : []),
+              ...(ideasCount > 0 ? [{ label: "Идеи", value: ideasCount, note: "", color: "#fbbf24" }] : []),
+              { label: "Невыполнено", value: currentUncompleted, note: deltaUncompleted > 0 ? `+${deltaUncompleted}` : deltaUncompleted < 0 ? `${deltaUncompleted}` : "—", color: currentUncompleted > prevUncompleted ? "#fb7185" : currentUncompleted < prevUncompleted ? "#34d399" : acA },
+              { label: "Завершено", value: completed, note: completedPrev > 0 ? `было ${completedPrev}` : "—", color: "#34d399" },
+            ].map((item, index, all) => <React.Fragment key={item.label}>
+              <div style={{ textAlign: "center", minWidth: "110px" }}>
+                <p style={{ fontFamily: F, fontSize: "16px", color: mutedColor }}>{item.label}</p>
+                <p style={{ fontFamily: F, fontSize: "32px", fontWeight: 900, color: item.color, lineHeight: 1.2 }}>{item.value}</p>
+                <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>{item.note || " "}</p>
+              </div>
+              {index < all.length - 1 && <div style={{ width: "1px", background: `rgba(${r},${g},${b},.20)` }} />}
+            </React.Fragment>)}
           </div>
         )}
       </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { DatabaseConfigurationError, prisma } from "@/lib/prisma";
 import { verifyPassword, generateSessionToken } from "@/lib/password";
 import { getClientIp, logActivity, publicUser } from "@/lib/auth";
 import { loginBlockedFor, recordLoginFail, recordLoginSuccess } from "@/lib/rate-limit";
@@ -79,7 +79,17 @@ export async function POST(req: NextRequest) {
       workspaceId: "global",
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (error instanceof DatabaseConfigurationError) {
+      return NextResponse.json(
+        { error: "Локальный сервер запущен без подключения к базе данных. Проверьте конфигурацию сервера." },
+        { status: 503 },
+      );
+    }
+
+    console.error("Login failed", error);
+    return NextResponse.json(
+      { error: "Не удалось выполнить вход. Попробуйте ещё раз." },
+      { status: 500 },
+    );
   }
 }
