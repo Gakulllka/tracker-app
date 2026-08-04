@@ -15,10 +15,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, Plus, Trash2, Archive, ArchiveRestore, Pencil, Loader2, KeyRound, RotateCcw, RefreshCw, Palette, FolderOpen, Settings } from "lucide-react";
+import { Check, Plus, Trash2, Archive, ArchiveRestore, Pencil, Loader2, KeyRound, RotateCcw, RefreshCw, FolderOpen, Settings } from "lucide-react";
 
 export interface SettingsDomain {
   id: string;
@@ -31,12 +30,7 @@ interface SettingsDialogProps {
   onClose: () => void;
   /** Вкладка, на которой открыть диалог (например, "account"). */
   initialTab?: string;
-  // Theme
-  themeId: string;
-  customColor: string;
   customDark: boolean;
-  onSetTheme: (hex: string) => void;
-  onSetCustomColor: (hex: string, dark: boolean) => void;
   // Domains
   token: string;
   isAdmin: boolean;
@@ -49,24 +43,14 @@ interface SettingsDialogProps {
   toast: (opts: { title: string; description?: string }) => void;
 }
 
-const QUICK_COLORS = [
-  { hex: "#5B9BD5", label: "Небо" },     { hex: "#4DB6AC", label: "Бирюза" },
-  { hex: "#4FC3F7", label: "Океан" },    { hex: "#66BB6A", label: "Трава" },
-  { hex: "#9CCC65", label: "Мята" },     { hex: "#D4A017", label: "Мёд" },
-  { hex: "#E8813A", label: "Закат" },    { hex: "#E86B6B", label: "Коралл" },
-  { hex: "#E07BAD", label: "Фуксия" },   { hex: "#9B72CF", label: "Сирень" },
-  { hex: "#7986CB", label: "Лаванда" },  { hex: "#C49A6C", label: "Песок" },
-];
-
 export function SettingsDialog({
   open, onClose, initialTab,
-  themeId, customColor, customDark, onSetTheme, onSetCustomColor,
+  customDark,
   token, isAdmin, userRole,
   domains, activeDomainId, onSetActiveDomain, onDomainsChanged,
   toast,
 }: SettingsDialogProps) {
   const [tab, setTab] = useState("domains");
-  const [colorInput, setColorInput] = useState(customColor || themeId || "#9B72CF");
   const [newDomainName, setNewDomainName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -254,43 +238,6 @@ export function SettingsDialog({
             )}
             <TabsTrigger value="trash" className="flex-1 gap-1.5" onClick={() => loadTrash()}><Trash2 className="size-3.5" /> Корзина</TabsTrigger>
           </TabsList>
-
-          {/* ── Theme ── */}
-          <TabsContent value="theme" className="space-y-4 pt-2">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Цвет акцента</label>
-              <div className="grid grid-cols-6 gap-2">
-                {QUICK_COLORS.map(c => (
-                  <button key={c.hex} title={c.label} onClick={() => onSetTheme(c.hex)}
-                    className={`relative h-9 w-9 rounded-lg border-2 transition-all hover:scale-110 ${themeId === c.hex && !customColor ? "border-foreground ring-2 ring-foreground/20" : "border-transparent"}`}
-                    style={{ backgroundColor: c.hex }}>
-                    {themeId === c.hex && !customColor && <Check className="size-3.5 text-white absolute inset-0 m-auto drop-shadow-sm" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <Separator />
-            <div>
-              <label className="text-sm font-medium mb-2 block">Свой цвет</label>
-              <div className="flex items-center gap-2">
-                <input type="color" value={colorInput}
-                  onChange={e => { setColorInput(e.target.value); onSetCustomColor(e.target.value, false); }}
-                  className="h-9 w-12 rounded-lg border cursor-pointer bg-transparent" />
-                <Input value={colorInput}
-                  onChange={e => { setColorInput(e.target.value); if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) onSetCustomColor(e.target.value, false); }}
-                  className="h-9 w-28 font-mono text-sm" placeholder="#RRGGBB" maxLength={7} />
-              </div>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium">Тёмный режим</label>
-                <p className="text-xs text-muted-foreground mt-0.5">Переключить тему оформления</p>
-              </div>
-              <Switch checked={customDark}
-                onCheckedChange={checked => onSetCustomColor(customColor || themeId || "#5B9BD5", checked)} />
-            </div>
-          </TabsContent>
 
           {/* ── Domains ── */}
           <TabsContent value="domains" className="space-y-4 pt-2">

@@ -16,8 +16,6 @@ interface UseExportParams {
   currentMonth: number;
   totalFactMap: Record<string, number>;
   accentHex: string;
-  themeId: string;
-  customColor: string;
   domains: Domain[];
   activeDomainId: string;
   activeDomainName: string | undefined;
@@ -27,8 +25,6 @@ interface UseExportParams {
   storeSetBacklog: (bl: Task[]) => void;
   storeSetDomains: (d: Domain[]) => void;
   storeSetActiveDomainId: (id: string) => void;
-  storeSetThemeId: (id: string) => void;
-  storeSetCustomColor: (c: string, dark: boolean) => void;
   storeSetPresBg?: (bg: unknown) => void;
   setQuestions?: (q: unknown[]) => void;
   toast: (opts: { title: string; description?: string; variant?: "destructive" }) => void;
@@ -36,10 +32,10 @@ interface UseExportParams {
 
 export function useExport({
   allData, backlog, currentMonth, totalFactMap, accentHex,
-  themeId, customColor, domains, activeDomainId, activeDomainName,
+  domains, activeDomainId, activeDomainName,
   questions, presBg,
   storeSetAllData, storeSetBacklog, storeSetDomains,
-  storeSetActiveDomainId, storeSetThemeId, storeSetCustomColor,
+  storeSetActiveDomainId,
   storeSetPresBg, setQuestions,
   toast,
 }: UseExportParams) {
@@ -52,9 +48,9 @@ export function useExport({
   const [dragOverlay, setDragOverlay]     = useState(false);
 
   const handleExportJSON = useCallback(() => {
-    exportJSON(allData, backlog, themeId, customColor, domains, activeDomainId, activeDomainName, questions, presBg);
+    exportJSON(allData, backlog, "", "", domains, activeDomainId, activeDomainName, questions, presBg);
     toast({ title: "Экспорт готов", description: "JSON-файл сохранён" });
-  }, [allData, backlog, themeId, customColor, domains, activeDomainId, activeDomainName, questions, presBg, toast]);
+  }, [allData, backlog, domains, activeDomainId, activeDomainName, questions, presBg, toast]);
 
   const handleExportMonthXLSX = useCallback(async () => {
     const monthRows = (allData[currentMonth] || []).filter(r => r.name || r.num);
@@ -103,8 +99,6 @@ export function useExport({
       storeSetBacklog(result.backlog);
       storeSetDomains(result.domains);
       storeSetActiveDomainId(result.activeDomainId);
-      storeSetThemeId(result.themeId);
-      storeSetCustomColor(result.customColor || "", false);
       if (result.presBg && storeSetPresBg) storeSetPresBg(result.presBg);
       if (result.questions && setQuestions) setQuestions(result.questions);
       toast({ title: "Импорт завершён", description: "Данные загружены из JSON" });
@@ -117,7 +111,7 @@ export function useExport({
     }
     setImportConfirm({ open: false, type: "json", file: null });
   }, [importConfirm, storeSetAllData, storeSetBacklog, storeSetDomains,
-      storeSetActiveDomainId, storeSetThemeId, storeSetCustomColor,
+      storeSetActiveDomainId,
       storeSetPresBg, setQuestions, toast]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {

@@ -8,7 +8,7 @@ import React, {
   useRef,
 } from "react";
 import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, undoStore } from "@/lib/store";
-import { createTheme, applyTheme, THEME_TO_PRES } from "@/lib/theme";
+import { createTheme, applyTheme } from "@/lib/theme";
 import { useServerSync } from "@/hooks/useServerSync";
 import { useAuth } from "@/hooks/useAuth";
 import type { AuthData } from "@/hooks/useAuth";
@@ -16,6 +16,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useQuestions } from "@/hooks/useQuestions";
 import { useExport } from "@/hooks/useExport";
 import { usePresentation } from "@/hooks/usePresentation";
+import { useProtocols } from "@/hooks/useProtocols";
 import {
   fetchInsight,
   hashTasks,
@@ -101,9 +102,9 @@ import {
   Package,
   HelpCircle,
   BarChart3,
-  Palette,
   Share2,
   Users,
+  FileText,
   Check,
 } from "lucide-react";
 import AuthScreen from "@/components/auth-screen";
@@ -112,10 +113,10 @@ import { DashboardDelta } from "@/components/dashboard-delta";
 import { ExecSignalsPanel } from "@/components/exec-signals-panel";
 import { QuestionsView } from "@/components/views/questions-view";
 import { ChatView } from "@/components/views/chat-view";
-import { DesignView } from "@/components/views/design-view";
 import { TableView } from "@/components/views/table-view";
 import { BacklogView } from "@/components/views/backlog-view";
 import { SlidesView } from "@/components/views/slides-view";
+import { ProtocolsView } from "@/components/views/protocols-view";
 import { TotalHDialog } from "@/components/dialogs/total-h-dialog";
 import { CommentArchiveDialog } from "@/components/dialogs/comment-archive-dialog";
 import { TransferDialog } from "@/components/dialogs/transfer-dialog";
@@ -156,9 +157,6 @@ function AppWithAuth() {
   return <TaskTrackerInner authData={authData} onLogout={handleLogout} switchWorkspace={switchWorkspace} refreshAuth={refreshAuth} />;
 }
 
-//  DesignView — theme picker with named themes and live preview
-// ──────────────────────────────────────────────────────────────────
-
 function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: { authData: AuthData; onLogout: () => void; switchWorkspace: (id: string) => void; refreshAuth: () => Promise<void> | void }) {
   /* ---- Auth-provided workspace ---- */
   const workspaceId = authData.workspaceId;
@@ -197,12 +195,8 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   const getAvailableYears = useTaskStore((s) => s.getAvailableYears);
   const view = useTaskStore((s) => s.view);
   const clientMode = useTaskStore((s) => s.clientMode);
-  const themeId = useTaskStore((s) => s.themeId);
-  const customColor = useTaskStore((s) => s.customColor);
   const customDark = useTaskStore((s) => s.customDark);
-  const storeSetCustomColor = useTaskStore((s) => s.setCustomColor);
   const storeSetCustomDark = useTaskStore((s) => s.setCustomDark);
-  const storeSetTheme = useTaskStore((s) => s.setTheme);
   const presBg = useTaskStore((s) => s.presBg);
   const storeSetPresBg = useTaskStore((s) => s.setPresBg);
   const presSubTab = useTaskStore((s) => s.presSubTab);
@@ -248,13 +242,11 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   const storeSetBacklog = useTaskStore((s) => s.setBacklog);
   const storeSetDomains = useTaskStore((s) => s.setDomains);
   const storeSetActiveDomainId = useTaskStore((s) => s.setActiveDomainId);
-  const storeSetThemeId = useTaskStore((s) => s.setThemeId);
   const storeAddTasksToMonth = useTaskStore((s) => s.addTasksToMonth);
   const storeTransferIncomplete = useTaskStore((s) => s.transferIncompleteTasks);
   const storeUndo = useTaskStore((s) => s.undo);
   const storeRedo = useTaskStore((s) => s.redo);
   const undoVersion = useTaskStore((s) => s.undoVersion);
-  const storeTheme = useTaskStore((s) => s.setTheme);
   const storeSetActiveDomain = useTaskStore((s) => s.setActiveDomain);
 
   /* ---- Toast ---- */
@@ -297,6 +289,9 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     removeQuestion, answerQuestion, deleteAnswer,
     archiveQuestion, restoreQuestion,
   } = useQuestions(currentUsername, activeDomainId);
+
+  /* ---- Протоколы встреч ---- */
+  const protocolsHook = useProtocols(activeDomainId, authData);
 
   const [totalHDialog, setTotalHDialog] = useState<{
     taskNum: string;
@@ -434,14 +429,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
 
-  // Sync tracker color theme → presentation preset (emojis, pattern, animation)
-  useEffect(() => {
-    const hex = themeId;
-    if (!hex || customColor) return; // custom colors have no preset
-    const preset = THEME_TO_PRES[hex];
-    if (!preset) return;
-    storeSetPresBg({ emojis: preset.emojis, pattern: preset.pattern, emojiAnim: preset.emojiAnim, emojiCount: 20, emojiSpeed: 1, emojiOpacity: 25 });
-  }, [themeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
   // Chat state
@@ -459,9 +446,8 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   /* ---- Theme effect ---- */
   const initialThemeAppliedRef = useRef(false);
   useEffect(() => {
-    const hex = customColor || themeId || "#9B72CF";
     const isDark = customDark;
-    const th = createTheme(hex, isDark);
+    const th = createTheme("#17181C", isDark);
     applyTheme(th);
     // Toggle .dark class on <html> for shadcn components
     if (isDark) {
@@ -470,7 +456,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
       document.documentElement.classList.remove("dark");
     }
     initialThemeAppliedRef.current = true;
-  }, [themeId, customColor, customDark]);
+  }, [customDark]);
 
   /* ---- Server Sync (вынесено в хук) ---- */
   const { syncStatus } = useServerSync({
@@ -510,8 +496,8 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
 
   /* ---- Computed data ---- */
   const accentHex = useMemo(
-    () => customColor || themeId || "#5B9BD5",
-    [customColor, themeId]
+    () => "#17181C",
+    []
   );
 
   const activeDomain = useMemo(
@@ -565,7 +551,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     { key: "backlog", icon: Package, label: "Беклог" },
     ...(canSeeQuestions ? [{ key: "questions", icon: HelpCircle, label: "Вопросы", badge: openQuestionsCount }] : []),
     { key: "slides", icon: Presentation, label: "Презентация" },
-    { key: "design", icon: Palette, label: "Оформление", disabled: true },
+    { key: "protocols", icon: FileText, label: "Протоколы" },
     { key: "dashboard", icon: BarChart3, label: "Дашборд", disabled: true },
     { key: "chat", icon: MessageSquare, label: "Чат", disabled: true },
   ], [canSeeQuestions, openQuestionsCount]);
@@ -954,12 +940,11 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     handleDragOver, handleDragLeave, handleDrop,
   } = useExport({
     allData, backlog, currentMonth, totalFactMap, accentHex,
-    themeId, customColor, domains, activeDomainId,
+    domains, activeDomainId,
     activeDomainName: activeDomain?.name,
     questions, presBg,
     storeSetAllData, storeSetBacklog, storeSetDomains,
-    storeSetActiveDomainId, storeSetThemeId,
-    storeSetCustomColor: (c, d) => storeSetCustomColor(c, d),
+    storeSetActiveDomainId,
     storeSetPresBg: (bg) => storeSetPresBg(bg as Record<string, unknown>),
     setQuestions: setQuestions as (q: unknown[]) => void,
     toast,
@@ -1033,7 +1018,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         if (searchInput) searchInput.focus();
       } else if ((e.ctrlKey || e.metaKey) && e.key >= "1" && e.key <= "7") {
         e.preventDefault();
-        const viewKeys = ["table", "backlog", "questions", "dashboard", "design", "chat", "slides"] as const;
+        const viewKeys = ["table", "backlog", "questions", "dashboard", "chat", "slides", "protocols"] as const;
         const idx = parseInt(e.key) - 1;
         if (idx < viewKeys.length && (!allowedTabs || allowedTabs.has(viewKeys[idx]))) {
           setView(viewKeys[idx]);
@@ -1349,22 +1334,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
           </div>
         )}
 
-        {view === "design" && (
-          <div className="view-enter">
-          <DesignView
-            themeId={themeId}
-            customColor={customColor}
-            customDark={customDark}
-            accentHex={accentHex}
-            onSetTheme={storeTheme}
-            onSetCustomColor={storeSetCustomColor}
-            presBg={presBg}
-            onSetPresBg={storeSetPresBg}
-            toast={toast}
-          />
-          </div>
-        )}
-
         {view === "slides" && (
           <div className="view-enter">
           <SlidesView
@@ -1405,6 +1374,24 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             monthKey={insightMonthKey}
             snapshot={presentationSnapshot}
             onSnapshotChange={setPresentationSnapshot}
+          />
+          </div>
+        )}
+
+        {view === "protocols" && (
+          <div className="view-enter">
+          <ProtocolsView
+            protocols={protocolsHook.protocols}
+            loading={protocolsHook.loading}
+            uploading={protocolsHook.uploading}
+            fetchProtocols={protocolsHook.fetchProtocols}
+            uploadProtocol={protocolsHook.uploadProtocol}
+            deleteProtocol={protocolsHook.deleteProtocol}
+            downloadProtocol={protocolsHook.downloadProtocol}
+            getPreviewData={protocolsHook.getPreviewData}
+            currentUsername={protocolsHook.currentUsername}
+            isDark={customDark}
+            isGuest={isGuest}
           />
           </div>
         )}
@@ -1532,11 +1519,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         initialTab={settingsTab}
-        themeId={themeId}
-        customColor={customColor}
         customDark={customDark}
-        onSetTheme={storeTheme}
-        onSetCustomColor={storeSetCustomColor}
         token={authData.token}
         isAdmin={isAdmin}
         userRole={authData.user.role}

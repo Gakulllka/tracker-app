@@ -71,6 +71,7 @@ model Domain {
   questions    Question[]
   aiInsights   AiInsight[]
   monthlySnapshots DomainMonthlySnapshot[]
+  meetingProtocols MeetingProtocol[]
 }
 
 // Право редактирования домена. Наличие записи = может редактировать.
@@ -245,4 +246,24 @@ model DomainMonthlySnapshotVersion {
 
   @@unique([snapshotId, versionNumber])
   @@index([snapshotId, createdAt])
+}
+
+// Протоколы встреч. Файлы хранятся как base64 в поле fileData.
+model MeetingProtocol {
+  id           String   @id @default(cuid())
+  domainId     String
+  domain       Domain   @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  title        String
+  meetingDate  DateTime
+  fileName     String
+  fileType     String   // MIME: application/pdf, image/png, application/vnd.openxmlformats-officedocument.wordprocessingml.document и т.д.
+  fileSize     Int      // байты
+  fileData     String   // base64-encoded
+  author       String   @default("")
+  notes        String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([domainId])
+  @@index([createdAt])
 }
