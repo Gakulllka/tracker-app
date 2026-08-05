@@ -178,37 +178,8 @@ export function ExecSignalsPanel({
 
   // ── Bell button ───────────────────────────────────────────────────────────
 
-  const bellColor = rejectedCount > 0 ? "#ef4444" : pendingCount > 0 ? "#f59e0b" : undefined;
-
   return (
     <>
-      {/* ── Кнопка-колокол в шапке ── */}
-      <button
-        className="rail-iconbtn relative h-8 w-8 rounded-lg flex items-center justify-center transition-colors"
-        style={{
-          // Живёт на чёрной рельсе: бумажные цвета, независимо от темы
-          background: open || filterActive ? "rgba(250,250,248,0.12)" : "transparent",
-          color: bellColor ?? "rgba(250,250,248,0.68)",
-        }}
-        title={isAdmin
-          ? `Сигналы: ${pendingCount} pending, ${rejectedCount} отклонено`
-          : `Запросы руководителя: ${baSignals.length}`}
-        onClick={() => setOpen(true)}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
-          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
-        </svg>
-        {totalCount > 0 && (
-          <span
-            className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center px-0.5"
-            style={{ background: bellColor ?? "var(--tracker-accent)" }}
-          >
-            {totalCount > 99 ? "99+" : totalCount}
-          </span>
-        )}
-      </button>
-
       {/* ── Кнопка-фильтр для БА ── */}
       {!isAdmin && baSignals.length > 0 && (
         <button

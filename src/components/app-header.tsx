@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { ExecSignalsPanel } from "@/components/exec-signals-panel";
 import { PresenceAvatars } from "@/components/presence-avatars";
-import { NotificationsBell } from "@/components/notifications-bell";
 import { undoStore } from "@/lib/store";
 import type { Task, Domain } from "@/lib/types";
 import type { AuthData } from "@/hooks/useAuth";
@@ -223,13 +222,6 @@ export function AppHeader({
 
         {!isGuest && (
           <>
-            <NotificationsBell
-              token={authData.token}
-              currentUserId={authData.user.id}
-              toast={toast}
-              onResolved={() => { refreshAuth(); }}
-            />
-
             <Button variant="ghost" size="icon" className="size-8 rounded-lg text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] shrink-0" onClick={() => setShareDialogOpen(true)} title="Доступ к домену">
               <Share2 className="size-3.5" />
             </Button>

@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import {
   Check, Users, Undo2, Redo2, Sun, Moon, Share2, Settings, LogOut,
-  KeyRound, Shield, Eye, EyeOff, Plus, ChevronUp, Lock,
+  KeyRound, Shield, Eye, EyeOff, Plus, ChevronUp, Lock, LayoutGrid,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { MONTHS, MONTHS_SHORT } from "@/lib/types";
@@ -503,6 +503,18 @@ export function AppSidebar({
                 <Shield className="size-3.5" /> Админ-панель
               </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="gap-2 rounded-lg text-[13px] cursor-pointer"
+              onClick={() => {
+                // Очищаем флаг выбора домена и перезагружаем страницу
+                // чтобы показать экран выбора домена
+                localStorage.removeItem("domain_picker_chosen");
+                window.location.reload();
+              }}
+            >
+              <LayoutGrid className="size-3.5" /> Сменить домен
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2 rounded-lg text-[13px] cursor-pointer text-[var(--tracker-danger)] focus:text-[var(--tracker-danger)]" onClick={onLogout}>
               <LogOut className="size-3.5" /> Выйти

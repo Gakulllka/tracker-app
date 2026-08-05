@@ -190,6 +190,16 @@ export function TableView({
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [dropGroupKey, setDropGroupKey] = useState<string | null>(null);
   const [groupingMode, setGroupingMode] = useState<"status" | "priority" | "none">("priority");
+  const [hideEmptyGroups, setHideEmptyGroups] = useState(() => {
+    try { return window.localStorage.getItem("tracker-hide-empty-groups") === "true"; } catch { return false; }
+  });
+  const toggleHideEmptyGroups = useCallback(() => {
+    setHideEmptyGroups((prev) => {
+      const next = !prev;
+      window.localStorage.setItem("tracker-hide-empty-groups", String(next));
+      return next;
+    });
+  }, []);
   const [ideasOpen, setIdeasOpen] = useState(false);
   const ideaRows = useMemo(() => {
     const seenIds = new Set<string>();
@@ -866,25 +876,42 @@ export function TableView({
           <LayoutGrid className="size-3.5" />
           Группировать карточки
         </div>
-        <div className="inline-flex rounded-md border border-[var(--tracker-border)] p-0.5">
-          {([
-            ["status", "По статусу"],
-            ["priority", "По приоритету"],
-            ["none", "Без групп"],
-          ] as const).map(([value, label]) => (
+        <div className="inline-flex items-center gap-2">
+          <div className="inline-flex rounded-md border border-[var(--tracker-border)] p-0.5">
+            {([
+              ["status", "По статусу"],
+              ["priority", "По приоритету"],
+              ["none", "Без групп"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => applyGroupingMode(value)}
+                className="rounded px-2.5 py-1 text-xs font-medium transition-colors"
+                style={{
+                  background: groupingMode === value ? "var(--tracker-accent-bg)" : "transparent",
+                  color: groupingMode === value ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {groupingMode !== "none" && (
             <button
-              key={value}
               type="button"
-              onClick={() => applyGroupingMode(value)}
-              className="rounded px-2.5 py-1 text-xs font-medium transition-colors"
+              onClick={toggleHideEmptyGroups}
+              className="rounded px-2 py-1 text-xs font-medium transition-colors border"
               style={{
-                background: groupingMode === value ? "var(--tracker-accent-bg)" : "transparent",
-                color: groupingMode === value ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
+                background: hideEmptyGroups ? "var(--tracker-accent-bg)" : "transparent",
+                color: hideEmptyGroups ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
+                borderColor: hideEmptyGroups ? "var(--tracker-accent)" : "var(--tracker-border)",
               }}
+              title={hideEmptyGroups ? "Показать пустые категории" : "Скрыть пустые категории"}
             >
-              {label}
+              {hideEmptyGroups ? "✕ Пустые" : "Пустые"}
             </button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -1058,7 +1085,11 @@ export function TableView({
                     }))
                   : [{ key: "all", label: "Все задачи", color: accentHex, tasks: workRows }];
 
-              return grouped.map((group) => (
+              const visibleGroups = hideEmptyGroups
+                ? grouped.filter((g) => g.tasks.length > 0)
+                : grouped;
+
+              return visibleGroups.map((group) => (
                 <div key={group.key} className="priority-group">
                   {groupingMode !== "none" && (
                     <div

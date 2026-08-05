@@ -265,7 +265,7 @@ interface AppState {
   currentMonth: number;
   /** Phase 2: год активного «среза» allData. По умолчанию — текущий год. */
   currentYear: number;
-  view: "table" | "backlog" | "dashboard" | "slides" | "chat" | "design" | "questions";
+  view: "table" | "backlog" | "dashboard" | "slides" | "chat" | "design" | "questions" | "protocols";
   /** Phase 3: активный под-таб внутри Презентации. */
   presSubTab: "slides" | "ai";
   clientMode: boolean;

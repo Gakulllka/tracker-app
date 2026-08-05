@@ -129,6 +129,10 @@ import { PresenceAvatars } from "@/components/presence-avatars";
 import { CommandPalette } from "@/components/command-palette";
 import { AppSidebar } from "@/components/app-sidebar";
 import { BrandSplash } from "@/components/brand-splash";
+import { DomainPickerScreen } from "@/components/domain-picker";
+import { MobileActionSheet } from "@/components/mobile-action-sheet";
+import { MobileMonthPicker } from "@/components/mobile-month-picker";
+import { MobileDomainPicker } from "@/components/mobile-domain-picker";
 import type { SidebarTab } from "@/components/app-sidebar";
 import { calcMonthBudgetUsed } from "@/lib/metrics";
 import { computeFirstToCut } from "@/lib/cut-algorithm";
@@ -148,12 +152,118 @@ export default function TaskTrackerPage() {
 
 function AppWithAuth() {
   const { authData, authChecking, handleAuth, handleLogout, switchWorkspace, refreshAuth } = useAuth();
+  const [showDomainPicker, setShowDomainPicker] = useState(false);
+  const [pickerDomains, setPickerDomains] = useState<Array<{ id: string; name: string }>>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+
+  /** Загрузить домены для экрана выбора. */
+  const loadPickerDomains = useCallback(async (token: string) => {
+    setPickerLoading(true);
+    try {
+      const res = await fetch("/api/domains", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.domains)) {
+          setPickerDomains(data.domains.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name })));
+        }
+      }
+    } catch { /* silent */ }
+    setPickerLoading(false);
+  }, []);
+
+  /** Проверить, нужно ли показать экран выбора домена. */
+  useEffect(() => {
+    if (!authData) return;
+    // Показываем экран выбора, если у пользователя нет закэшированного выбора
+    const role = authData.user.role;
+    const hasChosenDomain = localStorage.getItem("domain_picker_chosen");
+    if (!hasChosenDomain) {
+      setShowDomainPicker(true);
+      loadPickerDomains(authData.token);
+    }
+  }, [authData, loadPickerDomains]);
+
+  /** Выбор домена на экране выбора. */
+  const handlePickerSelectDomain = useCallback((domainId: string) => {
+    localStorage.setItem("domain_picker_chosen", "true");
+    setShowDomainPicker(false);
+    // Переключаемся на выбранный домен
+    useTaskStore.getState().setActiveDomain(domainId);
+  }, []);
+
+  /** Создание домена из экрана выбора. */
+  const handlePickerCreateDomain = useCallback(async (name: string) => {
+    if (!authData) return;
+    const res = await fetch("/api/domains", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
+      body: JSON.stringify({ token: authData.token, name }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.domain) {
+      // Обновляем список доменов в экране выбора
+      setPickerDomains((prev) => [...prev, { id: data.domain.id, name: data.domain.name }]);
+      // Обновляем store
+      await refreshAuth();
+      useTaskStore.getState().setActiveDomain(data.domain.id);
+      // Обновляем список доменов в store
+      const domainsRes = await fetch("/api/domains", {
+        headers: { Authorization: `Bearer ${authData.token}` },
+      });
+      if (domainsRes.ok) {
+        const domainsData = await domainsRes.json();
+        if (Array.isArray(domainsData.domains)) {
+          useTaskStore.getState().setDomains(domainsData.domains.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name })));
+        }
+      }
+    } else {
+      throw new Error(data.error || "Не удалось создать домен");
+    }
+  }, [authData, refreshAuth]);
+
+  /** Запрос доступа к домену из экрана выбора. */
+  const handlePickerRequestAccess = useCallback(async (domainId: string) => {
+    if (!authData) return;
+    const res = await fetch("/api/domains/access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
+      body: JSON.stringify({ token: authData.token, domainId }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || "Ошибка запроса");
+    }
+  }, [authData]);
 
   if (authChecking) {
     return <BrandSplash visible label="Проверяем доступ..." />;
   }
 
   if (!authData) return <AuthScreen onAuth={handleAuth} />;
+
+  // Показать экран выбора домена
+  if (showDomainPicker) {
+    // Скрываем экран выбора, если нет доменов (пользователь создаст первый)
+    // или если загрузка ещё идёт
+    if (pickerLoading) {
+      return <BrandSplash visible label="Загружаем домены..." />;
+    }
+    return (
+      <DomainPickerScreen
+        domains={pickerDomains}
+        editableDomainIds={authData.editableDomainIds}
+        currentUser={authData.user}
+        token={authData.token}
+        onSelectDomain={handlePickerSelectDomain}
+        onCreateDomain={handlePickerCreateDomain}
+        onRequestAccess={handlePickerRequestAccess}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
   return <TaskTrackerInner authData={authData} onLogout={handleLogout} switchWorkspace={switchWorkspace} refreshAuth={refreshAuth} />;
 }
 
@@ -428,6 +538,11 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   // Share dialog
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
+  // Mobile sheets
+  const [mobileActionSheetOpen, setMobileActionSheetOpen] = useState(false);
+  const [mobileMonthPickerOpen, setMobileMonthPickerOpen] = useState(false);
+  const [mobileDomainPickerOpen, setMobileDomainPickerOpen] = useState(false);
+
 
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
@@ -471,11 +586,8 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     setIsInitialLoading,
     setQuestions,
     currentUsername: authData.user.username,
-    onRemoteChanges: (messages) => {
-      toast({
-        title: "Обновлено коллегами",
-        description: messages.join("; "),
-      });
+    onRemoteChanges: () => {
+      // Тосты об изменениях коллег отключены — данные обновляются автоматически через LWW-мерж
     },
     onSkippedDomains: (names) => {
       toast({
@@ -552,8 +664,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     ...(canSeeQuestions ? [{ key: "questions", icon: HelpCircle, label: "Вопросы", badge: openQuestionsCount }] : []),
     { key: "slides", icon: Presentation, label: "Презентация" },
     { key: "protocols", icon: FileText, label: "Протоколы" },
-    { key: "dashboard", icon: BarChart3, label: "Дашборд", disabled: true },
-    { key: "chat", icon: MessageSquare, label: "Чат", disabled: true },
   ], [canSeeQuestions, openQuestionsCount]);
 
 
@@ -1018,7 +1128,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         if (searchInput) searchInput.focus();
       } else if ((e.ctrlKey || e.metaKey) && e.key >= "1" && e.key <= "7") {
         e.preventDefault();
-        const viewKeys = ["table", "backlog", "questions", "dashboard", "chat", "slides", "protocols"] as const;
+        const viewKeys = ["table", "backlog", "questions", "slides", "protocols"] as const;
         const idx = parseInt(e.key) - 1;
         if (idx < viewKeys.length && (!allowedTabs || allowedTabs.has(viewKeys[idx]))) {
           setView(viewKeys[idx]);
@@ -1131,8 +1241,33 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             style={{ color: "#FAFAF8", letterSpacing: "0.3em", fontFamily: "var(--font-geist-mono, ui-monospace, monospace)" }}>
             Delta
           </span>
-          <span className="ml-auto text-[11px] font-medium truncate max-w-[40%]" style={{ color: "rgba(250,250,248,0.6)" }}>
-            {activeDomain?.name}
+          {/* Домен — тап для смены */}
+          <button
+            onClick={() => setMobileDomainPickerOpen(true)}
+            className="ml-1 text-[11px] font-medium truncate max-w-[35%] px-2 py-1 rounded-lg active:scale-[0.95] transition-transform"
+            style={{ color: "rgba(250,250,248,0.6)" }}
+          >
+            {activeDomain?.name || "Домен"}
+          </button>
+          <span className="ml-auto flex items-center gap-1">
+            {/* Месяц — тап для выбора */}
+            <button
+              onClick={() => setMobileMonthPickerOpen(true)}
+              className="text-[11px] font-medium px-2 py-1 rounded-lg active:scale-[0.95] transition-transform"
+              style={{ color: "rgba(250,250,248,0.6)" }}
+            >
+              {MONTHS_SHORT[currentMonth]}
+            </button>
+            {/* Еще — action sheet */}
+            <button
+              onClick={() => setMobileActionSheetOpen(true)}
+              className="size-7 flex items-center justify-center rounded-lg active:scale-[0.95] transition-transform"
+              style={{ color: "rgba(250,250,248,0.6)" }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
+              </svg>
+            </button>
           </span>
         </div>
 
@@ -1407,22 +1542,19 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
               { key: "backlog",   icon: Package,       label: "Беклог" },
               ...(canSeeQuestions ? [{ key: "questions" as const, icon: HelpCircle, label: "Вопросы" }] : []),
               { key: "slides",    icon: Presentation,  label: "Слайды" },
-              { key: "dashboard", icon: BarChart3,     label: "Дашборд", disabled: true },
-              { key: "chat",      icon: MessageSquare, label: "Чат", disabled: true },
+              { key: "protocols", icon: FileText,      label: "Протоколы" },
             ] as const
           )
             .filter((tab) => !allowedTabs || allowedTabs.has(tab.key))
             .map((tab) => {
-              const isDisabled = "disabled" in tab && tab.disabled;
               return (
                 <button
                   key={tab.key}
                   role="tab"
                   aria-selected={view === tab.key}
-                  aria-label={isDisabled ? `${tab.label} — в разработке` : tab.label}
-                  onClick={isDisabled ? undefined : () => setView(tab.key)}
-                  disabled={isDisabled}
-                  className={`mobile-bottom-nav-item ${view === tab.key ? "active" : ""} ${isDisabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                  aria-label={tab.label}
+                  onClick={() => setView(tab.key)}
+                  className={`mobile-bottom-nav-item ${view === tab.key ? "active" : ""}`}
                 >
                   <span className="mobile-bottom-nav-icon"><tab.icon className="size-[18px]" /></span>
                   <span className="mobile-bottom-nav-label">{tab.label}</span>
@@ -1595,6 +1727,70 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         currentMonth={currentMonth}
         onApplyChanges={handleSyncApply}
         initialFile={pendingXlsxFile}
+      />
+
+      {/* ---- MOBILE SHEETS ---- */}
+      <MobileActionSheet
+        open={mobileActionSheetOpen}
+        onOpenChange={setMobileActionSheetOpen}
+        canUndo={undoStore.canUndo()}
+        canRedo={undoStore.canRedo()}
+        onUndo={storeUndo}
+        onRedo={storeRedo}
+        onSwitchDomain={() => { setMobileDomainPickerOpen(true); }}
+        onSettings={() => openSettings(true)}
+        isDark={customDark}
+        onToggleTheme={() => storeSetCustomDark(!customDark)}
+        onExport={handleExportJSON}
+        onImport={() => setIsImportOpen(true)}
+      />
+
+      <MobileMonthPicker
+        open={mobileMonthPickerOpen}
+        onOpenChange={setMobileMonthPickerOpen}
+        currentMonth={currentMonth}
+        currentYear={currentYear}
+        onSelectMonth={setCurrentMonth}
+        monthHasData={monthHasData}
+      />
+
+      <MobileDomainPicker
+        open={mobileDomainPickerOpen}
+        onOpenChange={setMobileDomainPickerOpen}
+        domains={serverDomains.length > 0 ? serverDomains : domains}
+        activeDomainId={activeDomainId}
+        editableDomainIds={authData.editableDomainIds}
+        onSelectDomain={(id) => {
+          storeSetActiveDomain(id);
+          refreshAuth();
+        }}
+        onCreateDomain={async (name) => {
+          const res = await fetch("/api/domains", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
+            body: JSON.stringify({ token: authData.token, name }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.domain) {
+            toast({ title: "Домен создан", description: `«${data.domain.name}»` });
+            await refreshDomains();
+            await refreshAuth();
+            storeSetActiveDomain(data.domain.id);
+          } else {
+            throw new Error(data.error || "Не удалось создать домен");
+          }
+        }}
+        onRequestAccess={async (domainId) => {
+          const res = await fetch("/api/domains/access", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
+            body: JSON.stringify({ token: authData.token, domainId }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || "Ошибка запроса");
+          }
+        }}
       />
     </SidebarProvider>
     </>
