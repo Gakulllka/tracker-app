@@ -88,7 +88,14 @@ export function OwnerNotificationsPanel({ token, onOpenTask }: OwnerNotification
       if (!res.ok) return;
       const data = await res.json();
       const next: OwnerNotification[] = data.items || [];
-      setItems(prev => (before ? [...prev, ...next] : next));
+      setItems(prev => {
+        if (!before) return next;
+        // Dedup по id — на стыке страниц сервер может вернуть уже загруженный
+        // элемент (особенно вопросы: клиентский курсор answerDate/questionDate
+        // может не совпадать с серверным фильтром по createdAt).
+        const existing = new Set(prev.map(i => i.id));
+        return [...prev, ...next.filter(i => !existing.has(i.id))];
+      });
       setHasMore(Boolean(data.hasMore));
     } catch {
       /* сеть недоступна — лента просто не обновится */
