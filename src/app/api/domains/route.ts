@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { resolveSession, resolveSessionFromRequest, roleCanEverEdit, logActivity, getClientIp } from "@/lib/auth";
+import { resolveSession, resolveSessionFromRequest, roleCanEverEdit, canEditDomain, logActivity, getClientIp } from "@/lib/auth";
 
 /**
  * Домены глобальны: их видят все пользователи.
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
         name: true,
         archived: true,
         createdById: true,
-        editors: { select: { userId: true } },
+        editors: { select: { userId: true, role: true } },
       },
     });
 
@@ -35,6 +35,8 @@ export async function GET(req: NextRequest) {
         archived: d.archived,
         createdById: d.createdById,
         editorUserIds: d.editors.map((e) => e.userId),
+        // Пер-доменные роли: { userId → role } для UI прав
+        editorRoles: Object.fromEntries(d.editors.map((e) => [e.userId, e.role || "editor"])),
       })),
     });
   } catch (error: unknown) {
@@ -67,8 +69,8 @@ export async function POST(req: NextRequest) {
       data: {
         name: name.trim(),
         createdById: auth.user.id,
-        // Создатель автоматически становится редактором домена
-        editors: { create: { userId: auth.user.id, grantedBy: auth.user.username } },
+        // Создатель автоматически становится создателем домена (role='creator')
+        editors: { create: { userId: auth.user.id, role: "creator", grantedBy: auth.user.username } },
       },
     });
 
@@ -104,11 +106,11 @@ export async function PATCH(req: NextRequest) {
     const domain = await prisma.domain.findUnique({ where: { id: domainId } });
     if (!domain) return NextResponse.json({ error: "Домен не найден" }, { status: 404 });
 
-    // Архивация — только админ. Переименование — админ/редактор.
+    // Архивация — только админ. Переименование — creator/editor домена (+ admin).
     if (archived !== undefined && auth.user.role !== "admin") {
       return NextResponse.json({ error: "Архивировать домены может только администратор" }, { status: 403 });
     }
-    if (name !== undefined && !["admin", "editor"].includes(auth.user.role)) {
+    if (name !== undefined && !(await canEditDomain(auth.user.id, auth.user.role, domainId))) {
       return NextResponse.json({ error: "Недостаточно прав для переименования" }, { status: 403 });
     }
 

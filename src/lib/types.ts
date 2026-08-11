@@ -78,6 +78,8 @@ export interface CommentEntry {
   planH: string;
   factH: string;
   status: Status;
+  /** Автор комментария (username/displayName). Опционально — старые записи без автора. */
+  author?: string;
 }
 
 export interface TaskComment {

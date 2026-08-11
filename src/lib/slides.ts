@@ -4,7 +4,7 @@
  */
 
 import { Task, STATUSES, MONTHS, STATUS_ORDER } from "./types";
-import { evalExpr, fmt2 } from "./metrics";
+import { evalExpr, fmt2, buildTotalFactMap } from "./metrics";
 import { SlideData } from "./presentation-renderer";
 
 export function generateSlides(
@@ -17,6 +17,8 @@ export function generateSlides(
   backlog: Task[] = [],
   currentSnapshot?: { monthlyTasksCount: number; backlogCount: number; ideasCount: number } | null,
   previousSnapshot?: { monthlyTasksCount: number; backlogCount: number; ideasCount: number } | null,
+  /** Полная база по ключам "YYYY-MM" — для кумулятивного итога на конец прошлого месяца. */
+  dataByYearMonth: Record<string, Task[]> = {},
 ): SlideData[] {
   const monthRows = (allData[month] || []).filter((r) => !r._deleted && (r.name || r.num));
   const rows = monthRows.filter((r) => r.status !== STATUSES.IDEA);
@@ -51,10 +53,17 @@ export function generateSlides(
   const slides: SlideData[] = [];
 
   // ── Previous month data for dynamics ──
-  const prevMonth = month > 0 ? month - 1 : -1;
-  const prevRows = prevMonth >= 0
-    ? (allData[prevMonth] || []).filter((r) => !r._deleted && (r.name || r.num) && r.status !== STATUSES.IDEA)
-    : [];
+  // Переход через год: у января (month=0) прошлый = декабрь прошлого года.
+  const prevDate = new Date(year, month - 1, 1);
+  const prevYear = prevDate.getFullYear();
+  const prevMonth = prevDate.getMonth(); // 0..11, корректно для января → 11
+  const prevMonthKey = `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}`;
+  // Берём строки прошлого месяца из полной базы (для января — декабрь прошлого года).
+  const prevRows = (dataByYearMonth[prevMonthKey] || []).filter(
+    (r) => !r._deleted && (r.name || r.num) && r.status !== STATUSES.IDEA
+  );
+  // Кумулятивный итог по num на конец прошлого месяца (вечная задача).
+  const prevTotalFactMap = buildTotalFactMap(dataByYearMonth, prevYear, prevMonth);
   let prevCompleted = 0;
   let prevFactH = 0;
   let prevUncompleted = 0;
@@ -75,15 +84,10 @@ export function generateSlides(
   // ── Completed tasks: cumulative hours & per-task delta from previous month ──
   const completedWithDelta = completedTasks.map((t) => {
     const currentTotal = t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH);
-    let prevTotal = 0;
-    if (t.num && prevMonth >= 0) {
-      const prevTask = prevRows.find((p) => p.num === t.num);
-      if (prevTask) {
-        prevTotal = prevTask.num
-          ? (buildPrevTotalFactMap(allData, prevMonth)[prevTask.num] || 0)
-          : evalExpr(prevTask.factH);
-      }
-    }
+    const prevTask = t.num ? prevRows.find((p) => p.num === t.num) : undefined;
+    const prevTotal = prevTask
+      ? (prevTask.num ? (prevTotalFactMap[prevTask.num] || 0) : evalExpr(prevTask.factH))
+      : 0;
     const delta = currentTotal - prevTotal;
     return { task: t, currentTotal, prevTotal, delta };
   });
@@ -93,15 +97,10 @@ export function generateSlides(
   // ── In-progress tasks: cumulative hours & delta ──
   const inProgressWithDelta = inProgressTasks.map((t) => {
     const currentTotal = t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH);
-    let prevTotal = 0;
-    if (t.num && prevMonth >= 0) {
-      const prevTask = prevRows.find((p) => p.num === t.num);
-      if (prevTask) {
-        prevTotal = prevTask.num
-          ? (buildPrevTotalFactMap(allData, prevMonth)[prevTask.num] || 0)
-          : evalExpr(prevTask.factH);
-      }
-    }
+    const prevTask = t.num ? prevRows.find((p) => p.num === t.num) : undefined;
+    const prevTotal = prevTask
+      ? (prevTask.num ? (prevTotalFactMap[prevTask.num] || 0) : evalExpr(prevTask.factH))
+      : 0;
     const delta = currentTotal - prevTotal;
     return { task: t, currentTotal, prevTotal, delta };
   });
@@ -211,23 +210,4 @@ function sortRowsByStatus(rows: Task[]): Task[] {
     const orderB = STATUS_ORDER[b.status] ?? 99;
     return orderA - orderB;
   });
-}
-
-/** Строит totalFactMap для предыдущего месяца (кумулятивный по номеру задачи). */
-function buildPrevTotalFactMap(
-  allData: Record<number, Task[]>,
-  upToMonth: number,
-): Record<string, number> {
-  const map: Record<string, number> = {};
-  for (let mi = 0; mi <= upToMonth; mi++) {
-    (allData[mi] || []).forEach((row) => {
-      if (!row._deleted && row.num) {
-        map[row.num] = (map[row.num] || 0) + evalExpr(row.factH);
-      }
-    });
-  }
-  Object.keys(map).forEach((k) => {
-    map[k] = R2(map[k]);
-  });
-  return map;
 }

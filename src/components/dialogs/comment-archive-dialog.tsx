@@ -9,6 +9,8 @@ import { scolText, type Status } from "@/lib/types";
 export interface CommentLog {
   date: string; week: string; text: string;
   planH: string; factH: string; status: string;
+  /** Автор комментария (для старых записей может отсутствовать). */
+  author?: string;
 }
 
 export interface CommentArchiveDialogProps {
@@ -39,7 +41,7 @@ export function CommentArchiveDialog({ open, taskName, logs, isDark, onClose }: 
               <div key={idx} style={{ background: "var(--tracker-accent-bg)", border: "1px solid var(--tracker-border)", borderRadius: "8px", padding: "10px 12px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
                   <span style={{ fontSize: "11px", color: "var(--tracker-text-muted)", fontWeight: 600 }}>
-                    {log.date} · Неделя {log.week}
+                    {log.date} · Неделя {log.week}{log.author ? ` · ${log.author}` : ""}
                   </span>
                   <span style={{ fontSize: "10px", fontWeight: 500, color: scolText(log.status as Status, isDark) }}>
                     {log.status}

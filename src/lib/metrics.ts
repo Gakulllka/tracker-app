@@ -173,10 +173,37 @@ export const calcQueueMap = (rows: Task[]): Record<string, number> => {
   return map;
 };
 
-export const buildTotalFactMap = (allData: Record<number, Task[]>, upToMonth: number): Record<string, number> => {
+/**
+ * Кумулятивный итог по `num` задачи (вечной по номеру).
+ *
+ * Накапливает factH по `task.num` по ВСЕЙ истории из `dataByYearMonth`
+ * (ключи "YYYY-MM"): все прошлые годы целиком + в текущем году месяцы
+ * с 0 по upToMonth. Удалённые (tombstone) строки пропускаются.
+ *
+ * Возвращает Record<num, totalFact>. Подставляется в getTaskMetrics —
+ * там `totalH = totalFactMap[num]`, а `fact` остаётся фактом текущей строки.
+ * Таким образом «Итого» = накопление по задаче + факт этой строки.
+ *
+ * @param dataByYearMonth полная база, Record<"YYYY-MM", Task[]>
+ * @param currentYear год текущего просмотра (для отсечения «будущего»)
+ * @param upToMonth месяц текущего года (0..11) включительно, до которого копим
+ */
+export const buildTotalFactMap = (
+  dataByYearMonth: Record<string, Task[]>,
+  currentYear: number,
+  upToMonth: number,
+): Record<string, number> => {
   const map: Record<string, number> = {};
-  for (let mi = 0; mi <= upToMonth; mi++) {
-    (allData[mi] || []).forEach(row => {
+  for (const [key, rows] of Object.entries(dataByYearMonth)) {
+    const parsed = /^(\d{4})-(\d{2})$/.exec(key);
+    if (!parsed) continue;
+    const year = Number(parsed[1]);
+    const month = Number(parsed[2]) - 1; // 0..11
+    // Только прошлое: прошлые годы целиком, текущий год — до upToMonth.
+    if (year > currentYear) continue;
+    if (year === currentYear && month > upToMonth) continue;
+    (rows || []).forEach(row => {
+      if (row._deleted) return; // пропускаем tombstone
       if (row.num) map[row.num] = (map[row.num] || 0) + evalExpr(row.factH);
     });
   }

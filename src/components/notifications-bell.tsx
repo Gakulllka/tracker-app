@@ -56,16 +56,17 @@ interface QuestionNotification {
 interface NotificationsBellProps {
   token: string;
   currentUserId: string;
-  toast: (opts: { title: string; description?: string }) => void;
   onResolved?: () => void;
 }
 
-export function NotificationsBell({ token, currentUserId, toast, onResolved }: NotificationsBellProps) {
+export function NotificationsBell({ token, currentUserId, onResolved }: NotificationsBellProps) {
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
   const [questionNotifications, setQuestionNotifications] = useState<QuestionNotification[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"access" | "comments" | "questions">("access");
+  /** Ошибка обработки запроса доступа — показывается в меню (не toast). */
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -97,6 +98,7 @@ export function NotificationsBell({ token, currentUserId, toast, onResolved }: N
 
   const resolve = async (requestId: string, action: "approve" | "reject") => {
     setBusy(requestId);
+    setErrorText(null);
     try {
       const res = await fetch("/api/domains/access", {
         method: "PUT",
@@ -105,16 +107,13 @@ export function NotificationsBell({ token, currentUserId, toast, onResolved }: N
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast({
-          title: action === "approve" ? "Доступ выдан" : "Запрос отклонён",
-        });
         await load();
         if (action === "approve") onResolved?.();
       } else {
-        toast({ title: "Ошибка", description: data.error || "Не удалось обработать запрос" });
+        setErrorText(data.error || "Не удалось обработать запрос");
       }
     } catch {
-      toast({ title: "Ошибка", description: "Нет соединения с сервером" });
+      setErrorText("Нет соединения с сервером");
     } finally {
       setBusy(null);
     }
@@ -170,6 +169,12 @@ export function NotificationsBell({ token, currentUserId, toast, onResolved }: N
         )}
 
         <div className="p-3 space-y-3 max-h-[400px] overflow-y-auto">
+          {errorText && (
+            <div className="flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: "rgba(248,113,113,0.12)", color: "#fca5a5" }}>
+              <span className="flex-1">{errorText}</span>
+              <button type="button" className="shrink-0 opacity-70 hover:opacity-100" onClick={() => setErrorText(null)} aria-label="Закрыть">✕</button>
+            </div>
+          )}
           {/* ── Доступ ── */}
           {activeTab === "access" && (
             <>

@@ -7,7 +7,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AutoResizeTextarea } from "@/components/auto-resize-textarea";
 import { EmptyState } from "@/components/empty-state";
 import { TaskContextMenu } from "@/components/task-context-menu";
-import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -25,6 +24,7 @@ import {
   ArrowUpDown, Save, FolderOpen, FileText,
   Package, MessageSquare, Ruler, Timer, Wallet,
   ExternalLink, LayoutGrid, ChevronDown, Lightbulb, Play,
+  MoreHorizontal, Rows3, AlignJustify,
 } from "lucide-react";
 import {
   MONTHS, STATUSES, PRIORITIES, PCOL, scolText,
@@ -95,7 +95,7 @@ export interface TableViewProps {
   setCommentArchiveDialog: (v: {
     taskId: string;
     taskName: string;
-    logs: Array<{ date: string; week: string; text: string; planH: string; factH: string; status: string }>;
+    logs: Array<{ date: string; week: string; text: string; planH: string; factH: string; status: string; author?: string }>;
     open: boolean;
   }) => void;
   selectedRowId: string | null;
@@ -184,15 +184,20 @@ export function TableView({
   isExecutive,
   isGuest,
 }: TableViewProps) {
-  const { toast } = useToast();
   /* ---- Drag & Drop state ---- */
   const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [dropGroupKey, setDropGroupKey] = useState<string | null>(null);
   const [groupingMode, setGroupingMode] = useState<"status" | "priority" | "none">("priority");
+  // Режим интерфейса: simple (по умолчанию) или detailed.
+  const uiMode = useTaskStore((s) => s.uiMode);
+  const setUiMode = useTaskStore((s) => s.setUiMode);
+  const isDetailed = uiMode === "detailed";
   const [hideEmptyGroups, setHideEmptyGroups] = useState(() => {
     try { return window.localStorage.getItem("tracker-hide-empty-groups") === "true"; } catch { return false; }
   });
+  // В simple режиме пустые группы скрыты по умолчанию (если пользователь не задал явное предпочтение).
+  const effectiveHideEmpty = isDetailed ? hideEmptyGroups : (hideEmptyGroups || true);
   const toggleHideEmptyGroups = useCallback(() => {
     setHideEmptyGroups((prev) => {
       const next = !prev;
@@ -469,7 +474,8 @@ export function TableView({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* ── СОРТИРОВКА ───────────────────────────────────────── */}
+            {/* ── СОРТИРОВКА (только detailed) ─────────────────────── */}
+            {isDetailed && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className={btnClass + " !flex"}>
@@ -490,6 +496,7 @@ export function TableView({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
 
             <div className="flex-1" />
 
@@ -506,13 +513,16 @@ export function TableView({
               </Button>
             )}
 
-            {/* ── ПЕРЕНЕСТИ ────────────────────────────────────────── */}
-            <Button variant="outline" size="sm" className={btnClass} onClick={onOpenTransfer}>
-              <ArrowRight className="size-3.5" />
-              Перенести
-            </Button>
+            {/* ── ПЕРЕНЕСТИ (только detailed) ─────────────────────── */}
+            {isDetailed && (
+              <Button variant="outline" size="sm" className={btnClass} onClick={onOpenTransfer}>
+                <ArrowRight className="size-3.5" />
+                Перенести
+              </Button>
+            )}
 
-            {/* ── ФАЙЛЫ (Сохранить + Загрузить) ────────────────────── */}
+            {/* ── ФАЙЛЫ (только detailed) ─────────────────────────── */}
+            {isDetailed && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className={btnClass}>
@@ -552,6 +562,65 @@ export function TableView({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
+
+            {/* ── «ЕЩЁ» — редкие действия в simple режиме ─────────── */}
+            {!isDetailed && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-border)] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)]">
+                    <MoreHorizontal className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={onOpenTransfer} className="gap-2 cursor-pointer text-xs">
+                    <ArrowRight className="size-3.5" />
+                    Перенести на след. месяц
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => sortMonthTasks(month, "priority")} className="gap-2 cursor-pointer text-xs">
+                    <ArrowUpDown className="size-3.5" />
+                    Сортировать по приоритету
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => sortMonthTasks(month, "status")} className="gap-2 cursor-pointer text-xs">
+                    <ArrowUpDown className="size-3.5" />
+                    Сортировать по статусу
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs">Сохранить</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={onExportMonthXLSX} className="gap-2 cursor-pointer text-xs">
+                    <FileSpreadsheet className="size-3.5" /> Excel (месяц)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onExportAllXLSX} className="gap-2 cursor-pointer text-xs">
+                    <FileSpreadsheet className="size-3.5" /> Excel (все)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onExportJSON} className="gap-2 cursor-pointer text-xs">
+                    <Save className="size-3.5" /> JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onExportPDF} className="gap-2 cursor-pointer text-xs">
+                    <FileText className="size-3.5" /> PDF (печать)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs">Загрузить</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={onImportJSON} className="gap-2 cursor-pointer text-xs">
+                    <Upload className="size-3.5" /> JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onImportXLSX} className="gap-2 cursor-pointer text-xs">
+                    <Upload className="size-3.5" /> Excel (месяц)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* ── ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМА ────────────────────────────── */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hidden md:inline-flex h-8 gap-1.5 text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)]"
+              onClick={() => setUiMode(isDetailed ? "simple" : "detailed")}
+              title={isDetailed ? "Компактный режим" : "Подробный режим"}
+            >
+              {isDetailed ? <Rows3 className="size-3.5" /> : <AlignJustify className="size-3.5" />}
+            </Button>
 
           </div>
         );
@@ -592,6 +661,21 @@ export function TableView({
               </button>
             );
           })}
+          {Object.values(PRIORITIES).map((p) => {
+            const active = filterPriorities.has(p);
+            return (
+              <button key={p}
+                onClick={() => togglePriorityFilter(p)}
+                className="shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-full border transition-colors"
+                style={{
+                  borderColor: active ? PCOL[p] : "var(--tracker-border)",
+                  background: active ? PCOL[p] + "18" : "transparent",
+                  color: active ? PCOL[p] : "var(--tracker-text-muted)",
+                }}>
+                {p}
+              </button>
+            );
+          })}
           {(filterStatuses.size > 0 || filterPriorities.size > 0) && (
             <button onClick={clearFilters}
               className="shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-full border border-red-200 text-red-500">
@@ -616,12 +700,49 @@ export function TableView({
               ? Math.min(100, (metrics.totalH / evalExpr(task.planH)) * 100)
               : null;
             const isOver = pct !== null && pct > 100;
+            const isSelected = selectedTaskIds.has(task.id);
+            const inSelectMode = selectedTaskIds.size > 0;
             return (
               <div
                 key={task.id}
-                onClick={() => onOpenTaskDetail?.(task, month)}
-                className="mobile-task-card"
+                onClick={() => {
+                  if (inSelectMode) {
+                    toggleTaskSelection(task.id);
+                  } else {
+                    onOpenTaskDetail?.(task, month);
+                  }
+                }}
+                onTouchStart={(e) => {
+                  if (clientMode || isGuest) return;
+                  // Долгое нажатие (>500мс) → режим выбора (bulk-операции).
+                  (e.currentTarget as HTMLElement & { _longPressTimer?: number })._longPressTimer =
+                    window.setTimeout(() => {
+                      if (!selectedTaskIds.has(task.id)) toggleTaskSelection(task.id);
+                      // Тактильная обратная связь если доступна.
+                      if (navigator.vibrate) navigator.vibrate(15);
+                    }, 500);
+                }}
+                onTouchEnd={(e) => {
+                  const el = e.currentTarget as HTMLElement & { _longPressTimer?: number };
+                  if (el._longPressTimer) { clearTimeout(el._longPressTimer); el._longPressTimer = undefined; }
+                }}
+                onTouchMove={(e) => {
+                  const el = e.currentTarget as HTMLElement & { _longPressTimer?: number };
+                  if (el._longPressTimer) { clearTimeout(el._longPressTimer); el._longPressTimer = undefined; }
+                }}
+                className={`mobile-task-card ${isSelected ? "selected" : ""}`}
+                style={isSelected ? { borderColor: "var(--tracker-accent)", boxShadow: "0 0 0 2px color-mix(in srgb, var(--tracker-accent) 20%, transparent)" } : undefined}
               >
+                {/* Чекбокс выбора в режиме bulk */}
+                {inSelectMode && (
+                  <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                    style={{
+                      background: isSelected ? "var(--tracker-accent)" : "transparent",
+                      border: `2px solid ${isSelected ? "var(--tracker-accent)" : "var(--tracker-border)"}`,
+                    }}>
+                    {isSelected && <Check className="size-3" style={{ color: "var(--tracker-accent-contrast)" }} />}
+                  </div>
+                )}
                 {/* Top row: number + priority */}
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
@@ -870,7 +991,8 @@ export function TableView({
         </div>
       )}
 
-      {/* ---- DESKTOP VIEW SETTINGS ---- */}
+      {/* ---- DESKTOP VIEW SETTINGS (только detailed) ---- */}
+      {isDetailed && (
       <div className="hidden md:flex items-center justify-between gap-3 rounded-lg border border-[var(--tracker-border)] bg-[var(--tracker-bg-card)] px-3 py-2">
         <div className="flex items-center gap-2 text-xs text-[var(--tracker-text-muted)]">
           <LayoutGrid className="size-3.5" />
@@ -914,13 +1036,15 @@ export function TableView({
           )}
         </div>
       </div>
+      )}
 
       {/* ---- DESKTOP CARD LIST ---- */}
-      {/* Bulk actions bar (hidden for executives and guests — can't change statuses) */}
+      {/* Bulk actions bar: фиксированный снизу на мобиле, в потоке на десктопе. */}
       {!isExecutive && !isGuest && selectedTaskIds.size > 0 && (() => {
         const snapshot = useTaskStore.getState().snapshot;
         return (
-          <div className="flex items-center gap-2 p-2 rounded-lg border bg-[var(--tracker-accent-bg)]/60 border-[var(--tracker-accent)]/30">
+          <div className="md:relative fixed bottom-[57px] left-0 right-0 z-40 md:z-auto flex flex-wrap items-center gap-2 p-2 rounded-t-xl md:rounded-lg border bg-[var(--tracker-bg-card)] md:bg-[var(--tracker-accent-bg)]/60 border-[var(--tracker-accent)] md:border-[var(--tracker-accent)]/30 md:m-0"
+            style={{ boxShadow: "0 -4px 16px rgba(0,0,0,0.12)" }}>
             <span className="text-sm font-medium text-[var(--tracker-accent-fg)]">
               ✓ Выбрано: {selectedTaskIds.size}
             </span>
@@ -950,7 +1074,6 @@ export function TableView({
                               snapshot();
                               ids.forEach(id => bulkUpdateTasks(month, [id], "status", s));
                               clearSelection();
-                              toast({ title: "Статус обновлён", description: `${ids.length} задач → ${s}` });
                             }}
                             className="text-[9px] font-medium px-1.5 py-0.5 rounded-full transition-all opacity-70 hover:opacity-100"
                             style={{
@@ -981,7 +1104,6 @@ export function TableView({
                     snapshot();
                     ids.forEach(id => bulkUpdateTasks(month, [id], "priority", p));
                     clearSelection();
-                    toast({ title: "Приоритет обновлён", description: `${ids.length} задач → ${p}` });
                   }}>
                     <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PCOL[p] }} />
                     {p}
@@ -998,7 +1120,6 @@ export function TableView({
                 snapshot();
                 ids.forEach(id => moveToBacklog(month, id));
                 clearSelection();
-                toast({ title: "Перемещено в бэклог", description: `${ids.length} задач перемещено в беклог` });
               }}
             >
               В беклог
@@ -1012,7 +1133,6 @@ export function TableView({
                 snapshot();
                 ids.forEach(id => deleteTask(month, id));
                 clearSelection();
-                toast({ title: "Удалено", description: `${ids.length} задач удалено` });
               }}
             >
               Удалить
@@ -1058,6 +1178,35 @@ export function TableView({
         </div>
       )}
 
+      {/* Mobile compact summary bar — ключевая метрика продукта на мобиле */}
+      {workRows.length > 0 && (
+        <div
+          className="md:hidden sticky top-12 z-20 flex items-center gap-3 px-3 py-2 mx-1 rounded-xl border bg-[var(--tracker-bg-card)]/95 backdrop-blur"
+          style={{ borderColor: "var(--tracker-border)" }}
+        >
+          <div className="flex flex-col leading-tight">
+            <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>План</span>
+            <span className="delta-num text-[13px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{fmt2(rowsMetrics.totPlan)}ч</span>
+          </div>
+          <div className="w-px h-7 shrink-0" style={{ background: "var(--tracker-border)" }} />
+          <div className="flex flex-col leading-tight">
+            <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Факт</span>
+            <span className="delta-num text-[13px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{fmt2(rowsMetrics.totFact)}ч</span>
+          </div>
+          <div className="w-px h-7 shrink-0" style={{ background: "var(--tracker-border)" }} />
+          <div className="flex flex-col leading-tight">
+            <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Итого</span>
+            <span className="delta-num text-[13px] font-semibold" style={{ color: "var(--tracker-accent)" }}>{fmt2(rowsMetrics.totTotalH)}ч</span>
+          </div>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <div className="h-1.5 w-12 rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
+              <div className="h-full rounded-full" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: progColor(rowsMetrics.avgProg) }} />
+            </div>
+            <span className="delta-num text-[12px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{rowsMetrics.avgProg}%</span>
+          </div>
+        </div>
+      )}
+
       <div className="hidden md:block">
         {workRows.length === 0 ? (
           <EmptyState
@@ -1085,7 +1234,7 @@ export function TableView({
                     }))
                   : [{ key: "all", label: "Все задачи", color: accentHex, tasks: workRows }];
 
-              const visibleGroups = hideEmptyGroups
+              const visibleGroups = effectiveHideEmpty
                 ? grouped.filter((g) => g.tasks.length > 0)
                 : grouped;
 
@@ -1428,6 +1577,7 @@ export function TableView({
                                       logs: [...(task.commentLog || [])].reverse().map(entry => ({
                                         date: entry.date, week: entry.week, text: entry.text,
                                         planH: entry.planH, factH: entry.factH, status: entry.status,
+                                        author: entry.author,
                                       })),
                                       open: true,
                                     });
@@ -1522,7 +1672,6 @@ export function TableView({
               onClick={() => {
                 deleteTask(month, deleteConfirm.taskId);
                 setDeleteConfirm({ open: false, taskId: "", taskName: "" });
-                toast({ title: "Удалено", description: `Задача удалена` });
               }}
             >
               Удалить

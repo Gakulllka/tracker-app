@@ -40,7 +40,6 @@ interface SettingsDialogProps {
   onSetActiveDomain: (id: string) => void;
   /** Перезагрузить список доменов с сервера (обновляет store). */
   onDomainsChanged: () => Promise<void> | void;
-  toast: (opts: { title: string; description?: string }) => void;
 }
 
 export function SettingsDialog({
@@ -48,7 +47,6 @@ export function SettingsDialog({
   customDark,
   token, isAdmin, userRole,
   domains, activeDomainId, onSetActiveDomain, onDomainsChanged,
-  toast,
 }: SettingsDialogProps) {
   const [tab, setTab] = useState("domains");
   const [newDomainName, setNewDomainName] = useState("");
@@ -58,6 +56,8 @@ export function SettingsDialog({
   const [deleteConfirm, setDeleteConfirm] = useState<{
     id: string; name: string; stats?: { tasks: number; backlog: number; questions: number };
   } | null>(null);
+  /** Ошибка операции — показывается inline-баннером в активной вкладке (не toast). */
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   // ── Аккаунт: смена пароля ──
   const [curPassword, setCurPassword] = useState("");
@@ -91,6 +91,7 @@ export function SettingsDialog({
 
   const restoreItem = async (item: TrashItem) => {
     setRestoringId(item.id);
+    setErrorText(null);
     try {
       const res = await fetch("/api/trash", {
         method: "POST",
@@ -99,12 +100,11 @@ export function SettingsDialog({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast({ title: "Восстановлено", description: `${item.num ? `#${item.num} ` : ""}${item.name || ""} — появится после синхронизации` });
         setTrashItems(prev => prev.filter(t => t.id !== item.id));
       } else {
-        toast({ title: "Ошибка", description: data.error || "Не удалось восстановить" });
+        setErrorText(data.error || "Не удалось восстановить");
       }
-    } catch { toast({ title: "Ошибка", description: "Нет соединения" }); }
+    } catch { setErrorText("Нет соединения с сервером"); }
     setRestoringId(null);
   };
 
@@ -119,12 +119,13 @@ export function SettingsDialog({
   }, [open, initialTab, loadTrash]);
 
   const changePassword = async () => {
+    setErrorText(null);
     if (newPassword.length < 4) {
-      toast({ title: "Пароль слишком короткий", description: "Минимум 4 символа" });
+      setErrorText("Пароль слишком короткий — минимум 4 символа");
       return;
     }
     if (newPassword !== newPassword2) {
-      toast({ title: "Пароли не совпадают", description: "Проверьте повтор нового пароля" });
+      setErrorText("Пароли не совпадают — проверьте повтор нового пароля");
       return;
     }
     setPwBusy(true);
@@ -136,12 +137,11 @@ export function SettingsDialog({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast({ title: "Пароль изменён" });
         setCurPassword(""); setNewPassword(""); setNewPassword2("");
       } else {
-        toast({ title: "Не получилось", description: data.error || "Ошибка смены пароля" });
+        setErrorText(data.error || "Ошибка смены пароля");
       }
-    } catch { toast({ title: "Ошибка", description: "Нет соединения" }); }
+    } catch { setErrorText("Нет соединения с сервером"); }
     setPwBusy(false);
   };
 
@@ -153,9 +153,9 @@ export function SettingsDialog({
   const apiCall = useCallback(async (
     method: string,
     body: Record<string, unknown>,
-    okTitle: string,
   ): Promise<boolean> => {
     setBusy(true);
+    setErrorText(null);
     try {
       const res = await fetch("/api/domains", {
         method,
@@ -164,23 +164,22 @@ export function SettingsDialog({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast({ title: okTitle });
         await onDomainsChanged();
         setBusy(false);
         return true;
       }
-      toast({ title: "Ошибка", description: data.error || "Операция не выполнена" });
+      setErrorText(data.error || "Операция не выполнена");
     } catch {
-      toast({ title: "Ошибка", description: "Нет соединения с сервером" });
+      setErrorText("Нет соединения с сервером");
     }
     setBusy(false);
     return false;
-  }, [token, toast, onDomainsChanged]);
+  }, [token, onDomainsChanged]);
 
   const addDomain = async () => {
     const name = newDomainName.trim();
     if (!name) return;
-    const ok = await apiCall("POST", { name }, `Домен «${name}» создан`);
+    const ok = await apiCall("POST", { name });
     if (ok) setNewDomainName("");
   };
 
@@ -189,15 +188,11 @@ export function SettingsDialog({
     const domain = domains.find(d => d.id === id);
     setEditingId(null);
     if (!name || !domain || name === domain.name) return;
-    await apiCall("PATCH", { domainId: id, name }, "Домен переименован");
+    await apiCall("PATCH", { domainId: id, name });
   };
 
   const toggleArchive = async (d: SettingsDomain) => {
-    await apiCall(
-      "PATCH",
-      { domainId: d.id, archived: !d.archived },
-      d.archived ? `«${d.name}» возвращён из архива` : `«${d.name}» отправлен в архив`,
-    );
+    await apiCall("PATCH", { domainId: d.id, archived: !d.archived });
   };
 
   const askDelete = async (d: SettingsDomain) => {
@@ -216,7 +211,7 @@ export function SettingsDialog({
 
   const confirmDelete = async () => {
     if (!deleteConfirm) return;
-    const ok = await apiCall("DELETE", { domainId: deleteConfirm.id }, `Домен «${deleteConfirm.name}» удалён`);
+    const ok = await apiCall("DELETE", { domainId: deleteConfirm.id });
     if (ok) setDeleteConfirm(null);
   };
 
@@ -228,7 +223,19 @@ export function SettingsDialog({
           <DialogDescription>Настройка темы и доменов</DialogDescription>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={setTab}>
+        {errorText && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/8 px-3 py-2 text-xs text-destructive">
+            <span className="flex-1">{errorText}</span>
+            <button
+              type="button"
+              className="shrink-0 text-destructive/70 hover:text-destructive"
+              onClick={() => setErrorText(null)}
+              aria-label="Закрыть сообщение об ошибке"
+            >✕</button>
+          </div>
+        )}
+
+        <Tabs value={tab} onValueChange={(v) => { setTab(v); setErrorText(null); }}>
           <TabsList className="w-full">
             {/* Вкладка «Тема» скрыта: тема продукта зафиксирована («графит и бумага»),
                 режим свет/тьма переключается на рельсе. */}
@@ -262,7 +269,7 @@ export function SettingsDialog({
                       onBlur={() => commitRename(d.id)} />
                   ) : (
                     <button className="flex-1 text-left text-sm font-medium truncate"
-                      onClick={() => { if (d.id !== activeDomainId && !d.archived) { onSetActiveDomain(d.id); toast({ title: "Домен", description: `Переключено на «${d.name}»` }); } }}>
+                      onClick={() => { if (d.id !== activeDomainId && !d.archived) { onSetActiveDomain(d.id); } }}>
                       {d.name}
                       {d.archived && <span className="text-[10px] ml-1.5 px-1 py-0.5 rounded bg-muted text-muted-foreground align-middle">архив</span>}
                       {d.id === activeDomainId && <Check className="size-3 inline ml-1.5 text-[var(--tracker-accent-fg)]" />}

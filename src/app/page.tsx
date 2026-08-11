@@ -68,7 +68,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
 import {
   SidebarProvider,
   Sidebar,
@@ -124,7 +123,6 @@ import { ImportConfirmDialog } from "@/components/dialogs/import-confirm-dialog"
 import { NewTaskDialog } from "@/components/dialogs/new-task-dialog";
 import { SettingsDialog } from "@/components/dialogs/settings-dialog";
 import { DomainAccessDialog } from "@/components/dialogs/domain-access-dialog";
-import { NotificationsBell } from "@/components/notifications-bell";
 import { PresenceAvatars } from "@/components/presence-avatars";
 import { CommandPalette } from "@/components/command-palette";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -311,6 +309,11 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   const storeSetPresBg = useTaskStore((s) => s.setPresBg);
   const presSubTab = useTaskStore((s) => s.presSubTab);
   const setPresSubTab = useTaskStore((s) => s.setPresSubTab);
+  const setCurrentUsernameStore = useTaskStore((s) => s.setCurrentUsername);
+  // Фиксируем username в сторе — для подписи комментариев (CommentEntry.author).
+  useEffect(() => {
+    if (authData?.user?.username) setCurrentUsernameStore(authData.user.username);
+  }, [authData?.user?.username, setCurrentUsernameStore]);
   /* Phase 7.2: monthBudget удалён, заменён на monthlyPlanByYearMonth per-domain.
    * Подписываемся на текущий домен и подсчитываем план для текущего месяца+года. */
   const setMonthlyPlan = useTaskStore((s) => s.setMonthlyPlan);
@@ -359,8 +362,14 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   const undoVersion = useTaskStore((s) => s.undoVersion);
   const storeSetActiveDomain = useTaskStore((s) => s.setActiveDomain);
 
-  /* ---- Toast ---- */
-  const { toast } = useToast();
+  /* ---- Inline-ошибки действий (замена toast) ---- */
+  const [actionError, setActionError] = useState<string | null>(null);
+  // Автосброс через 8с, чтобы баннер не висел бесконечно.
+  useEffect(() => {
+    if (!actionError) return;
+    const t = setTimeout(() => setActionError(null), 8000);
+    return () => clearTimeout(t);
+  }, [actionError]);
 
   /* ---- Local state ---- */
   const [editingCell, setEditingCell] = useState<EditingCell | null>(
@@ -412,7 +421,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   const [commentArchiveDialog, setCommentArchiveDialog] = useState<{
     taskId: string;
     taskName: string;
-    logs: Array<{ date: string; week: string; text: string; planH: string; factH: string; status: string }>;
+    logs: Array<{ date: string; week: string; text: string; planH: string; factH: string; status: string; author?: string }>;
     open: boolean;
   }>({ taskId: "", taskName: "", logs: [], open: false });
 
@@ -511,11 +520,9 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     if (trulyNewCount) parts.push(`добавлено ${trulyNewCount}`);
     if (revivedCount) parts.push(`восстановлено ${revivedCount}`);
     if (updatedTasks.length) parts.push(`обновлено ${updatedTasks.length}`);
-    toast({
-      title: "Импорт применён",
-      description: parts.length ? parts.join(" · ") : "Изменений не было",
-    });
-  }, [allData, currentMonth, storeSetAllData, toast]);
+    // Резюме импорта доступно через колокольчик/ActivityLog; всплывашка убрана.
+    void parts;
+  }, [allData, currentMonth, storeSetAllData]);
 
   // Slide data — Phase 3: больше не state, а useMemo от данных.
   // Кнопка «Создать презентацию» убрана. Слайды всегда есть, если есть задачи.
@@ -589,13 +596,9 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     onRemoteChanges: () => {
       // Тосты об изменениях коллег отключены — данные обновляются автоматически через LWW-мерж
     },
-    onSkippedDomains: (names) => {
-      toast({
-        title: "Изменения не сохранены",
-        description: names.length > 0
-          ? `Нет прав на редактирование: ${names.join(", ")}. Запросите доступ у редактора домена.`
-          : "У вас нет прав на редактирование этого домена.",
-      });
+    onSkippedDomains: (_names) => {
+      // Ошибка прав отображается через индикатор синхронизации (SyncStatus: "denied").
+      // Всплывашка убрана; подробности — в колокольчике / запросе доступа.
     },
   });
 
@@ -706,20 +709,19 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.domain) {
-        toast({ title: "Домен создан", description: `«${data.domain.name}»` });
         await refreshDomains();
         await refreshAuth(); // создатель получил право редактирования
         storeSetActiveDomain(data.domain.id);
         setNewDomainDialog(false);
         setNewDomainName("");
       } else {
-        toast({ title: "Ошибка", description: data.error || "Не удалось создать домен" });
+        setActionError(data.error || "Не удалось создать домен");
       }
     } catch {
-      toast({ title: "Ошибка", description: "Нет соединения с сервером" });
+      setActionError("Нет соединения с сервером");
     }
     setCreatingDomain(false);
-  }, [newDomainName, authData.token, toast, refreshDomains, refreshAuth, storeSetActiveDomain]);
+  }, [newDomainName, authData.token, refreshDomains, refreshAuth, storeSetActiveDomain]);
 
   /** Глобальный поиск (Ctrl+K). */
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -736,19 +738,20 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast({ title: "Запрос отправлен", description: "Редактор домена увидит его в уведомлениях" });
+        // Успех виден по пропаданию кнопки запроса доступа (refreshAuth).
+        await refreshAuth?.();
       } else {
-        toast({ title: "Не получилось", description: data.error || "Ошибка запроса" });
+        setActionError(data.error || "Ошибка запроса доступа");
       }
     } catch {
-      toast({ title: "Ошибка", description: "Нет соединения с сервером" });
+      setActionError("Нет соединения с сервером");
     }
     setRequestingAccess(false);
-  }, [authData.token, activeDomainId, toast]);
+  }, [authData.token, activeDomainId, refreshAuth]);
 
   const totalFactMap = useMemo(
-    () => buildTotalFactMap(allData, currentMonth),
-    [allData, currentMonth]
+    () => buildTotalFactMap(activeDomainData?.dataByYearMonth || {}, currentYear, currentMonth),
+    [activeDomainData?.dataByYearMonth, currentYear, currentMonth]
   );
 
   const rows = useMemo(
@@ -1044,6 +1047,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     isImportOpen, setIsImportOpen,
     pendingXlsxFile, setPendingXlsxFile,
     dragOverlay,
+    exportError, clearExportError,
     handleExportJSON, handleExportMonthXLSX, handleExportAllXLSX,
     handleJSONFileSelect, handleXLSXFileSelect,
     handleConfirmImport,
@@ -1057,7 +1061,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     storeSetActiveDomainId,
     storeSetPresBg: (bg) => storeSetPresBg(bg as Record<string, unknown>),
     setQuestions: setQuestions as (q: unknown[]) => void,
-    toast,
   });
 
   /* ---- Presentation (вынесено в хук) ---- */
@@ -1075,8 +1078,9 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     snapshot: presentationSnapshot, setSnapshot: setPresentationSnapshot,
   } = usePresentation({
     allData, backlog, currentMonth, currentYear, accentHex, customDark,
-    totalFactMap, presBg, workspaceId, activeDomainId, insightMonthKey,
-    chatModel, apiKeyRef, setView: setView as (v: string) => void, setApiKeyDialogOpen, toast,
+    totalFactMap, dataByYearMonth: activeDomainData?.dataByYearMonth || {},
+    presBg, workspaceId, activeDomainId, insightMonthKey,
+    chatModel, apiKeyRef, setView: setView as (v: string) => void, setApiKeyDialogOpen,
     monthCapacity: monthlyPlan > 0 ? monthlyPlan : 240,
   });
 
@@ -1089,14 +1093,10 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
 
   const handleTransfer = useCallback(() => {
     if (transferTarget < 0 || transferTarget === currentMonth) return;
-    const count = storeTransferIncomplete(currentMonth, transferTarget);
-    toast({
-      title: "Перенос выполнен",
-      description: `${count} задач перенесено в ${MONTHS[transferTarget]}`,
-    });
+    storeTransferIncomplete(currentMonth, transferTarget);
     setTransferDialog(false);
     setTransferTarget(-1);
-  }, [currentMonth, transferTarget, storeTransferIncomplete, toast]);
+  }, [currentMonth, transferTarget, storeTransferIncomplete]);
 
   /* ---- Keyboard shortcuts ---- */
   useEffect(() => {
@@ -1190,7 +1190,25 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         setShareDialogOpen={setShareDialogOpen}
         setSettingsOpen={openSettings}
         refreshAuth={refreshAuth}
-        toast={toast}
+        onOpenTask={(domainId, monthKey, taskId) => {
+          // Переключаем домен и месяц/год, затем открываем детали задачи.
+          storeSetActiveDomain(domainId);
+          if (monthKey) {
+            const m = /^(\d{4})-(\d{2})$/.exec(monthKey);
+            if (m) {
+              const y = Number(m[1]);
+              const mo = Number(m[2]) - 1;
+              if (y !== currentYear) setCurrentYearStore(y);
+              if (mo !== currentMonth) useTaskStore.getState().setCurrentMonth(mo);
+            }
+          }
+          // Открываем задачу после обновления домена/месяца (через короткий таймер).
+          setTimeout(() => {
+            const t = (useTaskStore.getState().allData[useTaskStore.getState().currentMonth] || [])
+              .find(r => r.id === taskId && !r._deleted);
+            if (t) setTaskDetailTask({ task: t, month: useTaskStore.getState().currentMonth });
+          }, 150);
+        }}
         allData={allData}
         backlog={backlog}
         monthlyPlan={monthlyPlan}
@@ -1225,6 +1243,32 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
                 Поддерживаются файлы .json и .xlsx
               </p>
             </div>
+          </div>
+        )}
+
+        {/* ---- INLINE ОШИБКА ДЕЙСТВИЯ (замена toast) ---- */}
+        {actionError && (
+          <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[60] flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 backdrop-blur px-4 py-2.5 text-sm text-destructive shadow-lg max-w-md">
+            <span className="flex-1">{actionError}</span>
+            <button
+              type="button"
+              className="shrink-0 text-destructive/70 hover:text-destructive"
+              onClick={() => setActionError(null)}
+              aria-label="Закрыть сообщение об ошибке"
+            >✕</button>
+          </div>
+        )}
+
+        {/* ---- INLINE ОШИБКА ЭКСПОРТА/ИМПОРТА ---- */}
+        {exportError && (
+          <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[60] flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 backdrop-blur px-4 py-2.5 text-sm text-destructive shadow-lg max-w-md">
+            <span className="flex-1">{exportError}</span>
+            <button
+              type="button"
+              className="shrink-0 text-destructive/70 hover:text-destructive"
+              onClick={clearExportError}
+              aria-label="Закрыть сообщение об ошибке"
+            >✕</button>
           </div>
         )}
 
@@ -1659,7 +1703,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         activeDomainId={activeDomainId}
         onSetActiveDomain={storeSetActiveDomain}
         onDomainsChanged={refreshDomains}
-        toast={toast}
       />
 
       {/* ---- DOMAIN ACCESS ---- */}
@@ -1671,7 +1714,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         activeDomainId={activeDomainId}
         currentUser={{ id: authData.user.id, role: authData.user.role }}
         editableDomainIds={authData.editableDomainIds}
-        toast={toast}
         onChanged={() => { refreshAuth(); }}
       />
 
@@ -1772,7 +1814,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data.domain) {
-            toast({ title: "Домен создан", description: `«${data.domain.name}»` });
             await refreshDomains();
             await refreshAuth();
             storeSetActiveDomain(data.domain.id);

@@ -157,15 +157,16 @@ const PRES_STYLE_PRESETS: PresStylePreset[] = [
 ];
 
 export const DEFAULT_PRES_BG: PresBgSettings = {
-  emojis: "🚀 ✨ 💡 🎯 ⚡ 🎯 💼 📊",
-  emojiCount: 30,
+  // Эмодзи убраны по умолчанию (минимализм Delta). Пользователь может включить в настройках.
+  emojis: "",
+  emojiCount: 0,
   emojiMinSize: 12,
   emojiMaxSize: 32,
-  pattern: "grid",
+  pattern: "none",
   patternSize: 40,
   patternOpacity: 5,
   styleId: "dark",
-  emojiAnim: "fall",
+  emojiAnim: "off",
   emojiSpeed: 1,
   emojiOpacity: 25,
 };
@@ -268,6 +269,9 @@ interface AppState {
   view: "table" | "backlog" | "dashboard" | "slides" | "chat" | "design" | "questions" | "protocols";
   /** Phase 3: активный под-таб внутри Презентации. */
   presSubTab: "slides" | "ai";
+  /** Режим интерфейса вкладки «Задачи»: simple (по умолчанию — минимум кнопок)
+   *  или detailed (полный тулбар и настройки группировки). */
+  uiMode: "simple" | "detailed";
   clientMode: boolean;
 
   // Theme
@@ -288,6 +292,10 @@ interface AppState {
   sortDir: number;
   searchQuery: string;
 
+  /** Текущий пользователь (username) — для подписи комментариев и синхронизации.
+   *  Не персистится (sessionStorage-only): при логине выставляется из useAuth. */
+  currentUsername: string;
+
   // Undo version counter (triggers re-renders)
   undoVersion: number;
 
@@ -302,6 +310,10 @@ interface AppState {
   setView: (v: AppState["view"]) => void;
   /** Phase 3: переключение под-таба Презентации. */
   setPresSubTab: (v: AppState["presSubTab"]) => void;
+  /** Переключить режим интерфейса вкладки «Задачи» (simple/detailed). */
+  setUiMode: (v: "simple" | "detailed") => void;
+  /** Установить текущего пользователя (username) — для подписи комментариев. */
+  setCurrentUsername: (username: string) => void;
 
   // Task CRUD
   updateTask: (month: number, taskId: string, key: keyof Task, value: unknown) => void;
@@ -503,6 +515,7 @@ export const useTaskStore = create<AppState>()(
       currentYear: new Date().getFullYear(),
       view: "table" as const,
       presSubTab: "slides" as const,
+      uiMode: "simple" as const,
       clientMode: false,
       themeId: "#9B72CF",
       customColor: "",
@@ -513,6 +526,7 @@ export const useTaskStore = create<AppState>()(
       sortKey: "",
       sortDir: 1,
       searchQuery: "",
+      currentUsername: "",
       undoVersion: 0,
 
       setAllData: (data) => set(state => withDomainSync(state, { allData: data })),
@@ -634,6 +648,8 @@ export const useTaskStore = create<AppState>()(
 
       setView: (v) => set({ view: v }),
       setPresSubTab: (v) => set({ presSubTab: v }),
+      setUiMode: (v) => set({ uiMode: v }),
+      setCurrentUsername: (username) => set({ currentUsername: username }),
 
       updateTask: (month, taskId, key, value) => set(state => {
         const rows = state.allData[month] || [];
@@ -689,6 +705,7 @@ export const useTaskStore = create<AppState>()(
               planH: r.planH,
               factH: r.factH,
               status: r.status,
+              author: state.currentUsername || "",
             };
             return {
               ...r,
@@ -1238,6 +1255,7 @@ export const useTaskStore = create<AppState>()(
         currentMonth: state.currentMonth,
         currentYear: state.currentYear,
         presBg: state.presBg,
+        uiMode: state.uiMode,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

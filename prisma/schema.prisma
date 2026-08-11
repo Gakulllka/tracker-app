@@ -74,14 +74,20 @@ model Domain {
   meetingProtocols MeetingProtocol[]
 }
 
-// Право редактирования домена. Наличие записи = может редактировать.
-// Создатель домена получает запись автоматически.
+// Право доступа к домену (пер-доменная ролевая модель).
+// Создатель домена получает запись с role="creator" автоматически.
+// Роли: creator — полный доступ + управление правами + уведомления;
+//       editor  — редактирование домена;
+//       viewer  — только просмотр (запись фиксирует явный доступ).
+// Глобальный admin (User.role="admin") = creator-equivalent всех доменов
+// без отдельной записи здесь.
 model DomainEditor {
   id        String   @id @default(cuid())
   domainId  String
   domain    Domain   @relation(fields: [domainId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("editor") // creator | editor | viewer
   grantedBy String   @default("") // username выдавшего право
   createdAt DateTime @default(now())
 

@@ -52,7 +52,7 @@ export function PresenceAvatars({ token, currentUserId }: { token: string; curre
         <div
           key={u.id}
           className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-[#17181C] shrink-0"
-          style={{ background: "color-mix(in srgb, var(--tracker-accent, #9B72CF) 25%, #fff)" }}
+          style={{ background: "color-mix(in srgb, var(--tracker-accent, #17181C) 25%, #fff)" }}
           title={`${u.displayName || u.username} (${ROLE_LABEL[u.role] || u.role}) — онлайн`}
         >
           <span className="text-[9px] font-bold" style={{ color: "var(--tracker-accent-fg-dark, var(--tracker-accent))" }}>

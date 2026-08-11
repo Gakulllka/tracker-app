@@ -28,7 +28,7 @@ export interface BacklogViewProps {
   updateBacklogTask: (taskId: string, key: keyof Task, value: unknown) => void;
   deleteBacklogTask: (taskId: string) => void;
   reorderBacklog: (fromId: string, toId: string) => void;
-  setCommentArchiveDialog: (v: { taskId: string; taskName: string; logs: Array<{ date: string; week: string; text: string; planH: string; factH: string; status: string }>; open: boolean }) => void;
+  setCommentArchiveDialog: (v: { taskId: string; taskName: string; logs: Array<{ date: string; week: string; text: string; planH: string; factH: string; status: string; author?: string }>; open: boolean }) => void;
   isDark: boolean;
   isGuest?: boolean;
 }
@@ -120,6 +120,7 @@ export function BacklogView({
       open: true,
       logs: [...(task.commentLog || [])].reverse().map(e => ({
         date: e.date, week: e.week, text: e.text, planH: e.planH, factH: e.factH, status: e.status,
+        author: e.author,
       })),
     });
   }, [setCommentArchiveDialog]);
@@ -306,7 +307,7 @@ export function BacklogView({
         <Button
           size="sm"
           className="gap-1.5 bg-[var(--tracker-accent)] text-[var(--tracker-accent-contrast)] hover:bg-[var(--tracker-accent-hover)] shadow-md"
-          style={{ boxShadow: "0 2px 12px color-mix(in srgb, var(--tracker-accent, #9B72CF) 35%, transparent)" }}
+          style={{ boxShadow: "0 2px 12px color-mix(in srgb, var(--tracker-accent, #17181C) 35%, transparent)" }}
           onClick={handleAdd}
         >
           <Plus className="size-3.5" />

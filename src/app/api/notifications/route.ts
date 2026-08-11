@@ -106,6 +106,7 @@ export async function GET(req: NextRequest) {
             date?: string;
             text?: string;
             status?: string;
+            author?: string;
           }>;
           // Берём последние 5 записей
           const recent = logs.slice(-5);
@@ -123,7 +124,7 @@ export async function GET(req: NextRequest) {
               taskId: task.id,
               taskNum: task.num,
               taskName: task.name,
-              author: "", // commentLog не хранит author
+              author: log.author || "",
               text: log.text,
               date: log.date || "",
               type: "task_comment",

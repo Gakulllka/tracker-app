@@ -27,7 +27,6 @@ interface UseExportParams {
   storeSetActiveDomainId: (id: string) => void;
   storeSetPresBg?: (bg: unknown) => void;
   setQuestions?: (q: unknown[]) => void;
-  toast: (opts: { title: string; description?: string; variant?: "destructive" }) => void;
 }
 
 export function useExport({
@@ -37,7 +36,6 @@ export function useExport({
   storeSetAllData, storeSetBacklog, storeSetDomains,
   storeSetActiveDomainId,
   storeSetPresBg, setQuestions,
-  toast,
 }: UseExportParams) {
 
   const [importConfirm, setImportConfirm] = useState<{
@@ -46,34 +44,36 @@ export function useExport({
   const [isImportOpen, setIsImportOpen]   = useState(false);
   const [pendingXlsxFile, setPendingXlsxFile] = useState<File | null>(null);
   const [dragOverlay, setDragOverlay]     = useState(false);
+  /** Ошибка операции экспорта/импорта — показывается в контексте действия (вне toast). */
+  const [exportError, setExportError]     = useState<string | null>(null);
 
   const handleExportJSON = useCallback(() => {
+    setExportError(null);
     exportJSON(allData, backlog, "", "", domains, activeDomainId, activeDomainName, questions, presBg);
-    toast({ title: "Экспорт готов", description: "JSON-файл сохранён" });
-  }, [allData, backlog, domains, activeDomainId, activeDomainName, questions, presBg, toast]);
+  }, [allData, backlog, domains, activeDomainId, activeDomainName, questions, presBg]);
 
   const handleExportMonthXLSX = useCallback(async () => {
+    setExportError(null);
     const monthRows = (allData[currentMonth] || []).filter(r => r.name || r.num);
     if (!monthRows.length) {
-      toast({ title: "Нет данных", description: "Текущий месяц не содержит задач", variant: "destructive" });
+      setExportError("Текущий месяц не содержит задач");
       return;
     }
     try {
       await exportMonthXLSX(monthRows, currentMonth, totalFactMap, accentHex);
-      toast({ title: "Экспорт готов", description: "Excel-файл сохранён" });
     } catch (err) {
-      toast({ title: "Ошибка", description: String(err), variant: "destructive" });
+      setExportError(String(err));
     }
-  }, [allData, currentMonth, totalFactMap, accentHex, toast]);
+  }, [allData, currentMonth, totalFactMap, accentHex]);
 
   const handleExportAllXLSX = useCallback(async () => {
+    setExportError(null);
     try {
       await exportAllXLSX(allData, totalFactMap, accentHex);
-      toast({ title: "Экспорт готов", description: "Excel-файл со всеми месяцами сохранён" });
     } catch (err) {
-      toast({ title: "Ошибка", description: String(err), variant: "destructive" });
+      setExportError(String(err));
     }
-  }, [allData, totalFactMap, accentHex, toast]);
+  }, [allData, totalFactMap, accentHex]);
 
   const handleJSONFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -93,6 +93,7 @@ export function useExport({
   const handleConfirmImport = useCallback(async () => {
     const { file } = importConfirm;
     if (!file) return;
+    setExportError(null);
     try {
       const result = await importJSON(file);
       storeSetAllData(result.allData);
@@ -101,18 +102,13 @@ export function useExport({
       storeSetActiveDomainId(result.activeDomainId);
       if (result.presBg && storeSetPresBg) storeSetPresBg(result.presBg);
       if (result.questions && setQuestions) setQuestions(result.questions);
-      toast({ title: "Импорт завершён", description: "Данные загружены из JSON" });
     } catch (err) {
-      toast({
-        title: "Ошибка импорта",
-        description: err instanceof Error ? err.message : "Неизвестная ошибка",
-        variant: "destructive",
-      });
+      setExportError(err instanceof Error ? err.message : "Неизвестная ошибка импорта");
     }
     setImportConfirm({ open: false, type: "json", file: null });
   }, [importConfirm, storeSetAllData, storeSetBacklog, storeSetDomains,
       storeSetActiveDomainId,
-      storeSetPresBg, setQuestions, toast]);
+      storeSetPresBg, setQuestions]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     if (e.dataTransfer.types.includes("Files")) {
@@ -138,15 +134,16 @@ export function useExport({
       setPendingXlsxFile(file);
       setIsImportOpen(true);
     } else {
-      toast({ title: "Неподдерживаемый формат", description: "Поддерживаются только .json и .xlsx файлы", variant: "destructive" });
+      setExportError("Неподдерживаемый формат. Поддерживаются только .json и .xlsx");
     }
-  }, [toast]);
+  }, []);
 
   return {
     importConfirm, setImportConfirm,
     isImportOpen, setIsImportOpen,
     pendingXlsxFile, setPendingXlsxFile,
     dragOverlay,
+    exportError, clearExportError: () => setExportError(null),
     handleExportJSON, handleExportMonthXLSX, handleExportAllXLSX,
     handleJSONFileSelect, handleXLSXFileSelect,
     handleConfirmImport,

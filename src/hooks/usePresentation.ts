@@ -22,6 +22,8 @@ interface UsePresentationParams {
   accentHex: string;
   customDark: boolean;
   totalFactMap: Record<string, number>;
+  /** Полная база по ключам "YYYY-MM" — для кумулятивного итога в слайдах. */
+  dataByYearMonth: Record<string, Task[]>;
   presBg: PresBgSettings;
   workspaceId: string;
   activeDomainId: string;
@@ -30,15 +32,14 @@ interface UsePresentationParams {
   apiKeyRef: React.MutableRefObject<string>;
   setView: (v: string) => void;
   setApiKeyDialogOpen: (v: boolean) => void;
-  toast: (opts: { title: string; description?: string; variant?: "destructive" }) => void;
   /** План часов на месяц (из Дашборда). */
   monthCapacity: number;
 }
 
 export function usePresentation({
   allData, backlog, currentMonth, currentYear, accentHex, customDark,
-  totalFactMap, presBg, workspaceId, activeDomainId, insightMonthKey,
-  chatModel, apiKeyRef, setView, setApiKeyDialogOpen, toast,
+  totalFactMap, dataByYearMonth, presBg, workspaceId, activeDomainId, insightMonthKey,
+  chatModel, apiKeyRef, setView, setApiKeyDialogOpen,
   monthCapacity,
 }: UsePresentationParams) {
 
@@ -64,7 +65,8 @@ export function usePresentation({
 
   const slides: SlideData[] = generateSlides(
     currentMonth, currentYear, allData, accentHex, totalFactMap, monthCapacity, backlog,
-    snapshot?.closed ? snapshot.active : null, previousSnapshot?.active ?? null
+    snapshot?.closed ? snapshot.active : null, previousSnapshot?.active ?? null,
+    dataByYearMonth,
   );
 
   const openPresentation = useCallback(() => setView("slides"), [setView]);
@@ -96,8 +98,7 @@ export function usePresentation({
     a.download = `presentation_${currentYear}-${String(currentMonth + 1).padStart(2, "0")}.html`;
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
-    toast({ title: "Презентация скачана", description: "Презентация сохранена как HTML" });
-  }, [slides, currentMonth, currentYear, presBg, aiConclusion, readTrackerTokens, toast]);
+  }, [slides, currentMonth, currentYear, presBg, aiConclusion, readTrackerTokens]);
 
   const handleExportPDF = useCallback(() => {
     if (!slides.length) return;
@@ -120,8 +121,7 @@ export function usePresentation({
       } catch { cleanup(); }
     };
     iframe.srcdoc = html;
-    toast({ title: "Экспорт в PDF", description: "Откроется диалог печати — выберите «Сохранить как PDF»" });
-  }, [slides, presBg, aiConclusion, readTrackerTokens, toast]);
+  }, [slides, presBg, aiConclusion, readTrackerTokens]);
 
   const handleEnterFullscreen = useCallback(() => {
     const el = fullscreenContainerRef.current as HTMLElement & { webkitRequestFullscreen?: () => void };
@@ -145,26 +145,23 @@ export function usePresentation({
       if (data.error) throw new Error(data.error);
       const parsed = JSON.parse((data.text || "").replace(/```json|```/g, "").trim());
       setAiDraft(parsed);
-      toast({ title: "Черновик AI готов", description: "Проверьте тезисы и нажмите «Применить в презентацию»" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
       setAiAnalysisError(msg);
-      toast({ title: "Ошибка AI анализа", description: msg, variant: "destructive" });
     } finally { setAiConclusionBusy(false); }
-  }, [allData, currentMonth, currentYear, apiKeyRef, chatModel, setApiKeyDialogOpen, toast]);
+  }, [allData, currentMonth, currentYear, apiKeyRef, chatModel, setApiKeyDialogOpen]);
 
   const handleApproveDraft = useCallback(async () => {
     if (!aiDraft) return;
     const source: "ai" | "manual" | "edited" = aiConclusion ? "edited" : "ai";
     const newConclusion: AiInsightShape = { ...aiDraft, dataHash: currentDataHash, source, updatedAt: new Date().toISOString() };
     setAiConclusion(newConclusion); setAiDraft(null);
-    toast({ title: "Анализ применён", description: "Тезисы добавлены в слайд «Итоги»" });
     if (workspaceId) {
       saveInsight(workspaceId, activeDomainId, insightMonthKey, { ...aiDraft, dataHash: currentDataHash, source }).catch(err =>
-        toast({ title: "Не удалось сохранить инсайт", description: err instanceof Error ? err.message : "Сетевая ошибка", variant: "destructive" })
+        setAiAnalysisError(err instanceof Error ? err.message : "Не удалось сохранить инсайт")
       );
     }
-  }, [aiDraft, aiConclusion, currentDataHash, workspaceId, activeDomainId, insightMonthKey, toast]);
+  }, [aiDraft, aiConclusion, currentDataHash, workspaceId, activeDomainId, insightMonthKey]);
 
   const handleDiscardDraft    = useCallback(() => setAiDraft(null), []);
 
@@ -172,10 +169,10 @@ export function usePresentation({
     setAiConclusion(null);
     if (workspaceId) {
       deleteInsight(workspaceId, activeDomainId, insightMonthKey).catch(err =>
-        toast({ title: "Не удалось удалить инсайт", description: err instanceof Error ? err.message : "Сетевая ошибка", variant: "destructive" })
+        setAiAnalysisError(err instanceof Error ? err.message : "Не удалось удалить инсайт")
       );
     }
-  }, [workspaceId, activeDomainId, insightMonthKey, toast]);
+  }, [workspaceId, activeDomainId, insightMonthKey]);
 
   return {
     slides, currentSlide, setCurrentSlide,

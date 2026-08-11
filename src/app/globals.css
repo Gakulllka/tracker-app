@@ -45,74 +45,79 @@
 }
 
 :root {
+  /* Токены DNA «Графит и бумага» (§4.5, §12.1) — только hex (§13.2) */
   --radius: 0.75rem;
-  --background: oklch(0.985 0.008 270);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(0.995 0.004 270);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.36 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.91 0.012 270);
-  --input: oklch(0.91 0.012 270);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: #FAFAF8;
+  --foreground: #17181C;
+  --card: #FFFFFF;
+  --card-foreground: #17181C;
+  --popover: #FFFFFF;
+  --popover-foreground: #17181C;
+  --primary: #17181C;
+  --primary-foreground: #FFFFFF;
+  --secondary: #FAFAF8;
+  --secondary-foreground: #17181C;
+  --muted: #FAFAF8;
+  --muted-foreground: #5D5D57;
+  --accent: rgba(23, 24, 28, 0.08);
+  --accent-foreground: #17181C;
+  --destructive: #C6453F;
+  --destructive-foreground: #FFFFFF;
+  --border: #DEDDD6;
+  --input: #DEDDD6;
+  --ring: #17181C;
+  /* Графики — сдержанные тона из семантики (§12.2) */
+  --chart-1: #3B82F6;
+  --chart-2: #3F9E6E;
+  --chart-3: #C08A2D;
+  --chart-4: #C6453F;
+  --chart-5: #5D5D57;
+  /* Сайдбар (shadcn) — рельса всегда графитовая (см. .ink-rail ниже) */
+  --sidebar: #FAFAF8;
+  --sidebar-foreground: #17181C;
+  --sidebar-primary: #17181C;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #FAFAF8;
+  --sidebar-accent-foreground: #17181C;
+  --sidebar-border: #DEDDD6;
+  --sidebar-ring: #17181C;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.83 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Токены DNA «Графит и бумага» (§4.5, §12.1) — только hex (§13.2) */
+  --background: #131418;
+  --foreground: #F5F5F2;
+  --card: #1A1B20;
+  --card-foreground: #F5F5F2;
+  --popover: #1C1D22;
+  --popover-foreground: #F5F5F2;
+  --primary: #F5F5F2;
+  --primary-foreground: #17181C;
+  --secondary: #131418;
+  --secondary-foreground: #F5F5F2;
+  --muted: #1A1B20;
+  --muted-foreground: #ABABA5;
+  --accent: rgba(250, 250, 248, 0.10);
+  --accent-foreground: #F5F5F2;
+  --destructive: #E0706A;
+  --destructive-foreground: #FFFFFF;
+  --border: #34353C;
+  --input: #34353C;
+  --ring: #F5F5F2;
+  /* Графики — те же сдержанные тона из семантики */
+  --chart-1: #3B82F6;
+  --chart-2: #3F9E6E;
+  --chart-3: #C08A2D;
+  --chart-4: #C6453F;
+  --chart-5: #5D5D57;
+  --sidebar: #1A1B20;
+  --sidebar-foreground: #F5F5F2;
+  --sidebar-primary: #F5F5F2;
+  --sidebar-primary-foreground: #17181C;
+  --sidebar-accent: #1A1B20;
+  --sidebar-accent-foreground: #F5F5F2;
+  --sidebar-border: #34353C;
+  --sidebar-ring: #F5F5F2;
 }
 
 @layer base {
@@ -122,37 +127,6 @@
   body {
     @apply bg-background text-foreground;
   }
-}
-
-/* ================================================================ */
-/*  Scrollbar — theme-aware, slim, subtle                           */
-/* ================================================================ */
-
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--tracker-border, #ccc);
-  border-radius: 9999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--tracker-text-muted, #999);
-  background-clip: padding-box;
-}
-::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-/* Firefox */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--tracker-border, #ccc) transparent;
 }
 
 /* ================================================================ */
@@ -178,7 +152,7 @@
   top: 0;
   bottom: 0;
   width: 0;
-  background: var(--card-accent-color, var(--tracker-accent, #9B72CF));
+  background: var(--card-accent-color, var(--tracker-accent, #17181C));
   border-radius: 16px 0 0 16px;
   transition: width 0.2s ease;
 }
@@ -186,7 +160,7 @@
 .task-card:hover {
   box-shadow: var(--shadow-raise);
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 28%, var(--tracker-border, #e8e0f5));
+  border-color: color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #17181C)) 28%, var(--tracker-border, #e8e0f5));
 }
 
 .task-card:hover::before {
@@ -198,10 +172,10 @@
 }
 
 .task-card.selected {
-  border-color: var(--card-accent-color, var(--tracker-accent, #9B72CF));
+  border-color: var(--card-accent-color, var(--tracker-accent, #17181C));
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 14%, transparent),
-    0 4px 16px color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 12%, transparent);
+    0 0 0 3px color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #17181C)) 14%, transparent),
+    0 4px 16px color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #17181C)) 12%, transparent);
 }
 
 .task-card.selected::before {
@@ -209,8 +183,8 @@
 }
 
 .task-card.drag-over {
-  border-color: var(--card-accent-color, var(--tracker-accent, #9B72CF));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #9B72CF)) 20%, transparent);
+  border-color: var(--card-accent-color, var(--tracker-accent, #17181C));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--card-accent-color, var(--tracker-accent, #17181C)) 20%, transparent);
 }
 
 .task-card[draggable="true"] {
@@ -342,14 +316,14 @@ select.field-input {
   background: var(--tracker-accent-soft, rgba(155,114,207,0.11)) !important;
   color: var(--tracker-accent-fg-dark, #3d2264) !important;
   font-weight: 600;
-  border-left-color: var(--tracker-accent, #9B72CF);
+  border-left-color: var(--tracker-accent, #17181C);
 }
 
 /* Hover state */
 [data-slot="sidebar"] [data-slot="sidebar-menu-button"]:hover:not([data-active="true"]) {
-  background: color-mix(in srgb, var(--tracker-accent, #9B72CF) 8%, transparent);
+  background: color-mix(in srgb, var(--tracker-accent, #17181C) 8%, transparent);
   color: var(--tracker-text-main, #1a1a2e);
-  border-left-color: color-mix(in srgb, var(--tracker-accent, #9B72CF) 40%, transparent);
+  border-left-color: color-mix(in srgb, var(--tracker-accent, #17181C) 40%, transparent);
 }
 
 /* Sidebar separator */
@@ -391,17 +365,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Nicer focus rings */
-:focus-visible {
-  outline-offset: 2px;
-}
-
 /* table header style handled above */
-
-/* Pastel scrollbar */
-::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--tracker-border, #ccc) 70%, var(--tracker-accent, #9B72CF) 30%);
-}
 
 /* Card hover glow */
 .rounded-xl, .rounded-2xl {
@@ -415,13 +379,6 @@ a:not([disabled]):active {
 }
 button[data-slot="button"]:active:not([disabled]) {
   transform: scale(0.98);
-}
-
-/* ── Focus visible — consistent accent ring ── */
-:focus-visible {
-  outline: 2px solid var(--tracker-accent, #9B72CF);
-  outline-offset: 2px;
-  border-radius: 8px;
 }
 
 /* ================================================================ */
@@ -445,13 +402,13 @@ input, textarea, select {
 }
 
 input:focus, textarea:focus {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tracker-accent, #9B72CF) 14%, transparent);
-  border-color: color-mix(in srgb, var(--tracker-accent, #9B72CF) 55%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tracker-accent, #17181C) 14%, transparent);
+  border-color: color-mix(in srgb, var(--tracker-accent, #17181C) 55%, transparent) !important;
 }
 
 select:focus {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tracker-accent, #9B72CF) 14%, transparent);
-  border-color: color-mix(in srgb, var(--tracker-accent, #9B72CF) 55%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tracker-accent, #17181C) 14%, transparent);
+  border-color: color-mix(in srgb, var(--tracker-accent, #17181C) 55%, transparent) !important;
 }
 
 /* ── Accent divider between header and content ── */
@@ -462,7 +419,7 @@ select:focus {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--tracker-accent, #9B72CF), transparent);
+  background: linear-gradient(90deg, transparent, var(--tracker-accent, #17181C), transparent);
   opacity: 0.3;
 }
 
@@ -471,48 +428,25 @@ select:focus {
 /* Primary button — slightly translucent accent layer on top for shine */
 button[data-slot="button"][class*="bg-[var(--tracker-accent)]"],
 a[class*="bg-[var(--tracker-accent)]"] {
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--tracker-accent, #9B72CF) 28%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--tracker-accent, #17181C) 28%, transparent);
   transition: box-shadow 0.2s ease, opacity 0.15s ease, transform 0.1s ease;
 }
 
 button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:hover {
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--tracker-accent, #9B72CF) 36%, transparent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--tracker-accent, #17181C) 36%, transparent);
   transform: translateY(-1px);
 }
 
 button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
   transform: translateY(0px);
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--tracker-accent, #9B72CF) 20%, transparent);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--tracker-accent, #17181C) 20%, transparent);
 }
 
 /* ── Badges / status pills ──────────────────────────────────────── */
 
 /* Slightly rounded badges inherit accent tones naturally */
 
-/* ── Scrollbar — even thinner ───────────────────────────────────── */
 
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--tracker-accent, #9B72CF) 22%, var(--tracker-border, #ddd));
-  border-radius: 9999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--tracker-accent, #9B72CF) 40%, var(--tracker-border, #ccc));
-}
-
-
-
-/* ── Selection highlight ─────────────────────────────────────────── */
-
-::selection {
-  background: color-mix(in srgb, var(--tracker-accent, #9B72CF) 22%, transparent);
-  color: inherit;
-}
 
 /* ================================================================ */
 /*  Mobile UI — Bottom Nav, Task Cards, FAB                         */
@@ -575,7 +509,7 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
   width: 16px;
   height: 2px;
   border-radius: 9999px;
-  background: var(--tracker-accent, #9B72CF);
+  background: var(--tracker-accent, #17181C);
 }
 
 .mobile-bottom-nav-item {
@@ -585,6 +519,7 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
 /* ── Task Cards (mobile list) ───────────────────────────────────── */
 
 .mobile-task-card {
+  position: relative;
   background: var(--tracker-bg-card, #fff);
   border: 1px solid var(--tracker-border, #e8e0f5);
   border-radius: 16px;
@@ -602,9 +537,9 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
 }
 
 .mobile-task-card.selected {
-  border-color: var(--tracker-accent, #9B72CF);
+  border-color: var(--tracker-accent, #17181C);
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--tracker-accent, #9B72CF) 14%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--tracker-accent, #17181C) 14%, transparent),
     0 1px 4px rgba(0,0,0,0.04);
 }
 
@@ -649,13 +584,13 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: var(--tracker-accent, #9B72CF);
+  background: var(--tracker-accent, #17181C);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 4px 16px color-mix(in srgb, var(--tracker-accent, #9B72CF) 40%, transparent),
+    0 4px 16px color-mix(in srgb, var(--tracker-accent, #17181C) 40%, transparent),
     0 2px 6px rgba(0,0,0,0.12);
   transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
   z-index: 39;
@@ -667,7 +602,7 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
 
 .mobile-fab:active {
   transform: scale(0.92);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--tracker-accent, #9B72CF) 30%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--tracker-accent, #17181C) 30%, transparent);
 }
 
 /* ── Mobile month bar – full width pills ────────────────────────── */
@@ -883,9 +818,10 @@ html, body {
   --shadow-raise: 0 6px 20px -4px rgba(0, 0, 0, 0.38), 0 2px 6px rgba(0, 0, 0, 0.24);
 }
 
-/* Выделение текста — в цвет темы */
+/* Выделение текста — в цвет темы (DNA §8.8: 22%) */
 ::selection {
-  background: color-mix(in srgb, var(--tracker-accent, #9B72CF) 24%, transparent);
+  background: color-mix(in srgb, var(--tracker-accent, #17181C) 22%, transparent);
+  color: inherit;
 }
 
 /* Тонкие тёплые скроллбары */
@@ -906,9 +842,9 @@ html, body {
   background-clip: content-box;
 }
 
-/* Единый видимый фокус с клавиатуры */
+/* Единый видимый фокус с клавиатуры (DNA §7.2, §15: сплошное 2px без прозрачности) */
 :focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--tracker-accent, #9B72CF) 60%, transparent);
+  outline: 2px solid var(--tracker-accent, #17181C);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -930,7 +866,7 @@ html, body {
   align-items: center;
   justify-content: center;
   background: var(--tracker-accent-bg, #f3eefb);
-  color: var(--tracker-accent, #9B72CF);
+  color: var(--tracker-accent, #17181C);
   margin-bottom: 14px;
 }
 .empty-state-title {
@@ -1131,7 +1067,8 @@ kbd {
 }
 .view-enter { animation: view-enter 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-/* Каскад дочерних элементов: строки таблицы, карточки */
+/* Каскад дочерних элементов: строки таблицы, карточки.
+   Каскад до 7-го ребёнка, задержки 0.02→0.20с (DNA §7.3, Расхождения). */
 .stagger > * { animation: view-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .stagger > *:nth-child(1)  { animation-delay: 0.02s; }
 .stagger > *:nth-child(2)  { animation-delay: 0.05s; }
@@ -1140,8 +1077,7 @@ kbd {
 .stagger > *:nth-child(5)  { animation-delay: 0.14s; }
 .stagger > *:nth-child(6)  { animation-delay: 0.17s; }
 .stagger > *:nth-child(7)  { animation-delay: 0.20s; }
-.stagger > *:nth-child(8)  { animation-delay: 0.23s; }
-.stagger > *:nth-child(n+9) { animation-delay: 0.26s; }
+.stagger > *:nth-child(n+8) { animation-delay: 0.20s; }
 
 
 

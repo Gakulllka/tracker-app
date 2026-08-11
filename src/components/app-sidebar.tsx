@@ -32,7 +32,7 @@ import type { SyncStatus } from "@/hooks/useServerSync";
 import { undoStore } from "@/lib/store";
 import { ExecSignalsPanel } from "@/components/exec-signals-panel";
 import { PresenceAvatars } from "@/components/presence-avatars";
-import { NotificationsBell } from "@/components/notifications-bell";
+import { OwnerNotificationsPanel } from "@/components/owner-notifications-panel";
 
 export interface SidebarTab {
   key: string;
@@ -118,7 +118,8 @@ interface AppSidebarProps {
   setShareDialogOpen: (v: boolean) => void;
   setSettingsOpen: (v: boolean, tab?: string) => void;
   refreshAuth: () => Promise<void> | void;
-  toast: (opts: { title: string; description?: string }) => void;
+  /** Открыть задачу из уведомления (domainId, monthKey "YYYY-MM", taskId). */
+  onOpenTask?: (domainId: string, monthKey: string | null, taskId: string) => void;
   // ── Exec-сигналы ──
   allData: Record<number, Task[]>;
   backlog: Task[];
@@ -146,7 +147,7 @@ export function AppSidebar({
   activeDomainId, visibleDomains, storeSetActiveDomain, setNewDomainDialog, canCreateDomain,
   isReadOnlyDomain, requestingAccess, requestAccessToActive,
   storeUndo, storeRedo, customDark, storeSetCustomDark,
-  setShareDialogOpen, setSettingsOpen, refreshAuth, toast,
+  setShareDialogOpen, setSettingsOpen, refreshAuth, onOpenTask,
   allData, backlog, monthlyPlan, updateTask, addLinkedQuestion,
   signalsFilterActive, setSignalsFilterActive,
   isGuest, isAdmin, clientMode, toggleClientMode, onLogout,
@@ -435,11 +436,9 @@ export function AppSidebar({
           </a>
           {!isGuest && (
             <>
-              <NotificationsBell
+              <OwnerNotificationsPanel
                 token={authData.token}
-                currentUserId={authData.user.id}
-                toast={toast}
-                onResolved={() => { refreshAuth(); }}
+                onOpenTask={onOpenTask}
               />
               <RailIcon title="Доступ к домену" onClick={() => setShareDialogOpen(true)}>
                 <Share2 className="size-3.5" />

@@ -63,3 +63,5 @@ upload/
 
 # Skills directory
 /skills/
+# Backup dumps (содержат данные пользователей — не коммитить)
+/backup/

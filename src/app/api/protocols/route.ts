@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { resolveSession, resolveSessionFromRequest, roleCanEverEdit } from "@/lib/auth";
+import { resolveSession, resolveSessionFromRequest, roleCanEverEdit, canEditDomain } from "@/lib/auth";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 МБ
 
@@ -74,15 +74,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Домен не найден" }, { status: 404 });
     }
 
-    // Проверяем права на домен
-    const isGlobalEditor = auth.user.role === "admin" || auth.user.role === "editor";
-    if (!isGlobalEditor) {
-      const domainEditor = await prisma.domainEditor.findUnique({
-        where: { domainId_userId: { domainId, userId: auth.user.id } },
-      });
-      if (!domainEditor) {
-        return NextResponse.json({ error: "Нет прав на редактирование этого домена" }, { status: 403 });
-      }
+    // Проверяем права на домен (creator/editor через пер-доменную роль)
+    if (!(await canEditDomain(auth.user.id, auth.user.role, domainId))) {
+      return NextResponse.json({ error: "Нет прав на редактирование этого домена" }, { status: 403 });
     }
 
     const protocol = await prisma.meetingProtocol.create({
@@ -145,15 +139,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Протокол не найден" }, { status: 404 });
     }
 
-    // Проверяем права на домен
-    const isGlobalEditor = auth.user.role === "admin" || auth.user.role === "editor";
-    if (!isGlobalEditor) {
-      const domainEditor = await prisma.domainEditor.findUnique({
-        where: { domainId_userId: { domainId: existing.domainId, userId: auth.user.id } },
-      });
-      if (!domainEditor) {
-        return NextResponse.json({ error: "Нет прав на удаление в этом домене" }, { status: 403 });
-      }
+    // Проверяем права на домен (creator/editor)
+    if (!(await canEditDomain(auth.user.id, auth.user.role, existing.domainId))) {
+      return NextResponse.json({ error: "Нет прав на удаление в этом домене" }, { status: 403 });
     }
 
     await prisma.meetingProtocol.delete({ where: { id } });

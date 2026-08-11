@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import type { Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
 import { ErrorBoundary } from "@/components/error-boundary";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -15,8 +14,8 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8fffe" },
-    { media: "(prefers-color-scheme: dark)", color: "#0d0d1a" },
+    { media: "(prefers-color-scheme: light)", color: "#FAFAF8" },
+    { media: "(prefers-color-scheme: dark)", color: "#131418" },
   ],
 };
 
@@ -45,7 +44,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ErrorBoundary>
           {children}
         </ErrorBoundary>
-        <Toaster />
       </body>
     </html>
   );

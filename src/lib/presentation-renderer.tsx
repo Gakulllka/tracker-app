@@ -125,26 +125,28 @@ function isHexDark(color: string): boolean {
   return ((0.299 * r + 0.587 * g + 0.114 * b) / 255) < 0.5;
 }
 
-const STATUS_COLS: Record<string, string> = {
-  "Завершено": "#34d399", "Завершенная": "#34d399", "Выполнено": "#34d399", "Выполненная": "#34d399",
-  "Тестирование": "#38bdf8", "Разработка": "#fbbf24", "В очереди на разработку": "#22d3ee",
-  "Анализ": "#a78bfa", "В работе": "#60a5fa", "Согласование": "#fb923c",
-  "В релиз": "#f472b6", "Документация": "#f9a8d4", "Контроль на прод": "#bef264",
-  "Отложенная": "#94a3b8", "Отменено": "#94a3b8", "Идея": "#fbbf24", "Новая": "#60a5fa",
-};
-
+/**
+ * Цвет статуса — из единой палитры фаз приложения (PHASE_COLORS).
+ * Раньше был хардкод STATUS_COLS из 16 ярких hex, дублирующий scolText.
+ * Теперь: new → синий, in_progress → янтарь, done → зелёный, cancel → красный.
+ * Fallback — акцент темы (чернила/бумага).
+ */
 function statusColor(status: string, theme: PresentationTheme): string {
-  return STATUS_COLS[status] || `rgba(${theme.rgb[0]},${theme.rgb[1]},${theme.rgb[2]},.8)`;
+  const phase = getPhaseForStatus(status as Task["status"]);
+  return PHASE_COLORS[phase] || `rgba(${theme.rgb[0]},${theme.rgb[1]},${theme.rgb[2]},.8)`;
 }
 
 /* ================================================================ *
- *  Шрифт Inter + background layer                                 *
+ *  Шрифт Geist + background layer                                  *
  * ================================================================ */
 
-const FONT_FAMILY = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+// Geist + Geist Mono загружаются глобально в layout.tsx (next/font/google).
+// Для standalone-экспорта HTML подключаем Geist с Google Fonts.
+const FONT_FAMILY = "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+const FONT_MONO = "'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace";
 
 const FONT_STYLE = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600;700&display=swap');
 `;
 
 export function PresentationBgLayer({ theme }: { theme: PresentationTheme }) {
@@ -292,7 +294,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
         <div style={{
           display: "inline-flex", alignItems: "center", gap: "12px",
           background: acC, border: `1px solid rgba(${r},${g},${b},.7)`,
-          color: acA, padding: "14px 42px", borderRadius: "32px",
+          color: acA, padding: "14px 42px", borderRadius: "14px",
           fontSize: "24px", fontWeight: 600, marginBottom: "36px", fontFamily: F,
         }}>
           <span style={{ width: "12px", height: "12px", borderRadius: "50%", background: acA, display: "inline-block" }} />
@@ -352,15 +354,15 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     const deltaUncompleted = currentUncompleted - prevUncompleted;
 
     const kpiItems = [
-      { i: "📝", l: "План, ч", v: String(planN), col: acA, sub: `${total} задач` },
-      { i: "⏱", l: "Факт, ч", v: fmt2(factN), col: factCol,
+      { l: "План, ч", v: String(planN), col: acA, sub: `${total} задач` },
+      { l: "Факт, ч", v: fmt2(factN), col: factCol,
         sub: deltaHours !== 0 ? `${deltaHours > 0 ? "+" : ""}${fmt2(deltaHours)}ч к плану` : "в рамках плана",
         subCol: deltaHours > 0 ? "#fb7185" : deltaHours < 0 ? "#4ade80" : mutedColor },
-      { i: overPct > 0 ? "🔴" : "🟢", l: "Загрузка", v: `${Math.abs(overPct)}%`,
+      { l: "Загрузка", v: `${Math.abs(overPct)}%`,
         col: overPct > 0 ? "#fb7185" : "#4ade80",
         sub: deltaOverPct !== 0 ? `${deltaOverPct > 0 ? "↑" : "↓"}${Math.abs(deltaOverPct)}% к прошлому` : "как в прошлом месяце",
         subCol: deltaOverPct > 0 ? "#fb7185" : deltaOverPct < 0 ? "#4ade80" : mutedColor },
-      { i: "✅", l: "Выполнение", v: `${compPct}%`,
+      { l: "Выполнение", v: `${compPct}%`,
         col: compPct >= 70 ? "#34d399" : compPct >= 40 ? "#fbbf24" : "#fb7185",
         sub: deltaCompPct !== 0 ? `${deltaCompPct > 0 ? "↑" : "↓"}${Math.abs(deltaCompPct)}% к прошлому` : "как в прошлом месяце",
         subCol: deltaCompPct > 0 ? "#34d399" : deltaCompPct < 0 ? "#fb7185" : mutedColor,
@@ -373,13 +375,12 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
         <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "20px" }}>
           {kpiItems.map((k, i) => (
             <div key={i} style={{
-              borderRadius: "28px", padding: "30px 36px", minWidth: "240px", maxWidth: "320px", flex: "1 1 240px",
+              borderRadius: "14px", padding: "30px 36px", minWidth: "240px", maxWidth: "320px", flex: "1 1 240px",
               background: cardColors[i % cardColors.length], border: BDR, textAlign: "center",
             }}>
-              <div style={{ fontSize: "42px", marginBottom: "10px" }}>{k.i}</div>
-              <p style={{ fontFamily: F, fontSize: "48px", fontWeight: 900, letterSpacing: "-1.5px", color: k.col, lineHeight: 1 }}>{k.v}</p>
-              <p style={{ fontFamily: F, fontSize: "20px", color: mutedColor, marginTop: "10px" }}>{k.l}</p>
-              {k.sub && <p style={{ fontFamily: F, fontSize: "16px", color: k.subCol || mutedColor, marginTop: "8px", fontWeight: 600 }}>{k.sub}</p>}
+              <p style={{ fontFamily: F, fontSize: "20px", color: mutedColor, marginTop: 0, marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase", fontWeight: 600 }}>{k.l}</p>
+              <p style={{ fontFamily: FONT_MONO, fontSize: "48px", fontWeight: 700, letterSpacing: "-1.5px", color: k.col, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{k.v}</p>
+              {k.sub && <p style={{ fontFamily: F, fontSize: "16px", color: k.subCol || mutedColor, marginTop: "10px", fontWeight: 600 }}>{k.sub}</p>}
               {k.extra && <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor, marginTop: "4px" }}>{k.extra}</p>}
             </div>
           ))}
@@ -388,7 +389,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
         {(totalPrev > 0 || completedPrev > 0 || totalAll > 0) && (
           <div style={{
             display: "flex", gap: "28px", marginTop: "20px", flexWrap: "nowrap", justifyContent: "center",
-            padding: "16px 28px", borderRadius: "20px", background: cardColors[1], border: BDR,
+            padding: "16px 28px", borderRadius: "14px", background: cardColors[1], border: BDR,
           }}>
             {[
               { label: "Всего", value: totalAll, note: totalPrev > 0 ? `было ${totalPrev}` : "—", color: acA },
@@ -420,7 +421,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     return (
       <div style={{ ...shell, textAlign: "center", maxWidth: "1100px", margin: "auto" }}>
         {sectionH2(title)}
-        <div style={{ display: "inline-flex", gap: "30px", marginBottom: "20px", padding: "14px 36px", borderRadius: "20px", background: cardColors[1], border: BDR, flexWrap: "wrap", justifyContent: "center" }}>
+        <div style={{ display: "inline-flex", gap: "30px", marginBottom: "20px", padding: "14px 36px", borderRadius: "14px", background: cardColors[1], border: BDR, flexWrap: "wrap", justifyContent: "center" }}>
           <div style={{ textAlign: "center" }}>
             <p style={{ fontFamily: F, fontSize: "30px", fontWeight: 900, color: acA, lineHeight: 1.2 }}>{totalTasks}</p>
             <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>задач</p>
@@ -442,7 +443,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
             const col = statusColor(t.status, theme);
             return (
               <div key={t.id} style={{
-                width: "100%", borderRadius: "18px", padding: "16px 20px",
+                width: "100%", borderRadius: "12px", padding: "16px 20px",
                 background: cardColors[0], border: BDR,
                 display: "flex", flexDirection: "column", gap: "8px",
               }}>
@@ -495,7 +496,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     return (
       <div style={{ ...shell, textAlign: "center", maxWidth: "1100px", margin: "auto", display: "flex", flexDirection: "column", height: "100%" }}>
         {sectionH2("Полный список задач")}
-        <div style={{ display: "inline-flex", gap: "28px", marginBottom: "16px", padding: "14px 36px", borderRadius: "20px", background: cardColors[1], border: BDR, flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
+        <div style={{ display: "inline-flex", gap: "28px", marginBottom: "16px", padding: "14px 36px", borderRadius: "14px", background: cardColors[1], border: BDR, flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
           <div style={{ textAlign: "center" }}>
             <p style={{ fontFamily: F, fontSize: "30px", fontWeight: 900, color: acA, lineHeight: 1.2 }}>{total}</p>
             <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>задач</p>
@@ -525,7 +526,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
           </div>
         </div>
 
-        <div style={{ flex: "1 1 auto", overflowX: "hidden", overflowY: "auto", borderRadius: "20px", border: BDR, textAlign: "left", background: cardColors[2] }}>
+        <div style={{ flex: "1 1 auto", overflowX: "hidden", overflowY: "auto", borderRadius: "14px", border: BDR, textAlign: "left", background: cardColors[2] }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "18px", fontFamily: F }}>
             <thead>
               <tr style={{ background: cardColors[0], position: "sticky", top: 0, zIndex: 2 }}>
@@ -610,10 +611,10 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     };
 
     const sections = [
-      { key: "achievements" as const, icon: "✅", label: "Достижения", col: "#34d399", items: con.achievements },
-      { key: "risks" as const, icon: "⚠️", label: "Риски", col: "#fb7185", items: con.risks },
-      { key: "inProgress" as const, icon: "⚙️", label: "В процессе", col: "#fbbf24", items: con.inProgress },
-      { key: "summary" as const, icon: "📊", label: "Выводы", col: "#a78bfa", items: con.summary },
+      { key: "achievements" as const, label: "Достижения", col: "#34d399", items: con.achievements },
+      { key: "risks" as const, label: "Риски", col: "#fb7185", items: con.risks },
+      { key: "inProgress" as const, label: "В процессе", col: "#fbbf24", items: con.inProgress },
+      { key: "summary" as const, label: "Выводы", col: "#a78bfa", items: con.summary },
     ].filter((s) => s.items && s.items.length > 0);
 
     return (
@@ -622,13 +623,17 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
         <div style={{ display: "grid", gridTemplateColumns: sections.length > 2 ? "1fr 1fr" : "1fr", gap: "20px", textAlign: "left" }}>
           {sections.map((s) => (
             <div key={s.key} style={{
-              borderRadius: "24px", padding: "24px 28px",
+              borderRadius: "14px", padding: "24px 28px",
               background: cardColors[0], border: `1px solid ${s.col}40`,
             }}>
               <h4 style={{
-                fontFamily: F, fontSize: "18px", fontWeight: 700, textTransform: "uppercase",
-                letterSpacing: ".8px", color: s.col, marginBottom: "14px",
-              }}>{s.icon} {s.label}</h4>
+                fontFamily: F, fontSize: "13px", fontWeight: 700, textTransform: "uppercase",
+                letterSpacing: ".12em", color: s.col, marginBottom: "14px",
+                display: "flex", alignItems: "center", gap: "8px",
+              }}>
+                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: s.col, display: "inline-block", flexShrink: 0 }} />
+                {s.label}
+              </h4>
               <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
                 {(s.items || []).map((item, i) => (
                   <li key={i} style={{

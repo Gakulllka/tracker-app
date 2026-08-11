@@ -24,6 +24,7 @@ interface AccessRight {
   userId: string;
   username: string;
   displayName: string;
+  role: string; // creator | editor | viewer
   grantedBy: string;
 }
 
@@ -53,14 +54,13 @@ interface DomainAccessDialogProps {
   activeDomainId: string;
   currentUser: { id: string; role: string };
   editableDomainIds: "all" | string[];
-  toast: (opts: { title: string; description?: string }) => void;
   /** После изменения прав (обновить editableDomainIds и т.п.) */
   onChanged?: () => void;
 }
 
 export function DomainAccessDialog({
   open, onClose, token, domains, activeDomainId,
-  currentUser, editableDomainIds, toast, onChanged,
+  currentUser, editableDomainIds, onChanged,
 }: DomainAccessDialogProps) {
   const [domainId, setDomainId] = useState(activeDomainId);
   const [rights, setRights] = useState<AccessRight[]>([]);
@@ -69,6 +69,8 @@ export function DomainAccessDialog({
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
+  /** Ошибка операции — показывается inline-баннером в диалоге (не toast). */
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   const authHeaders = useMemo(
     () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }),
@@ -110,26 +112,29 @@ export function DomainAccessDialog({
   const domainRights = rights.filter((r) => r.domainId === domainId);
   const domainRequests = requests.filter((r) => r.domainId === domainId && r.status === "pending");
 
+  // Управление доступом — только создатель домена (creator) или admin.
   const canManage =
     currentUser.role === "admin" ||
-    currentUser.role === "editor" ||
-    domainRights.some((r) => r.userId === currentUser.id);
+    domainRights.some((r) => r.userId === currentUser.id && (r.role || "editor") === "creator");
 
   const canEditThisDomain =
     editableDomainIds === "all" || editableDomainIds.includes(domainId);
 
   const myPendingRequest = domainRequests.find((r) => r.userId === currentUser.id);
 
-  // Кандидаты на выдачу прав: активные не-readonly пользователи без прав на домен
+  // Кандидаты на выдачу прав: активные пользователи без прав на домен
+  // (гостевые аккаунты исключаются). Глобальная роль больше не ограничивает —
+  // права per-domain.
   const candidates = users.filter(
     (u) =>
-      !["viewer", "guest"].includes(u.role) &&
+      u.role !== "guest" &&
       u.role !== "admin" && u.role !== "editor" && // им права не нужны — редактируют всё
       !domainRights.some((r) => r.userId === u.id)
   );
 
   const grant = async (userId: string) => {
     setBusy(true);
+    setErrorText(null);
     try {
       const res = await fetch("/api/domains/access", {
         method: "PUT",
@@ -138,19 +143,19 @@ export function DomainAccessDialog({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast({ title: "Доступ выдан" });
         setSelectedUserId("");
         await load();
         onChanged?.();
       } else {
-        toast({ title: "Ошибка", description: data.error || "Не удалось выдать доступ" });
+        setErrorText(data.error || "Не удалось выдать доступ");
       }
-    } catch { toast({ title: "Ошибка", description: "Нет соединения" }); }
+    } catch { setErrorText("Нет соединения с сервером"); }
     setBusy(false);
   };
 
   const revoke = async (userId: string) => {
     setBusy(true);
+    setErrorText(null);
     try {
       const res = await fetch("/api/domains/access", {
         method: "PUT",
@@ -159,18 +164,18 @@ export function DomainAccessDialog({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast({ title: "Доступ отозван" });
         await load();
         onChanged?.();
       } else {
-        toast({ title: "Ошибка", description: data.error || "Не удалось отозвать доступ" });
+        setErrorText(data.error || "Не удалось отозвать доступ");
       }
-    } catch { toast({ title: "Ошибка", description: "Нет соединения" }); }
+    } catch { setErrorText("Нет соединения с сервером"); }
     setBusy(false);
   };
 
   const resolve = async (requestId: string, action: "approve" | "reject") => {
     setBusy(true);
+    setErrorText(null);
     try {
       const res = await fetch("/api/domains/access", {
         method: "PUT",
@@ -179,18 +184,18 @@ export function DomainAccessDialog({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast({ title: action === "approve" ? "Доступ выдан" : "Запрос отклонён" });
         await load();
         onChanged?.();
       } else {
-        toast({ title: "Ошибка", description: data.error || "Не удалось обработать запрос" });
+        setErrorText(data.error || "Не удалось обработать запрос");
       }
-    } catch { toast({ title: "Ошибка", description: "Нет соединения" }); }
+    } catch { setErrorText("Нет соединения с сервером"); }
     setBusy(false);
   };
 
   const requestAccess = async () => {
     setBusy(true);
+    setErrorText(null);
     try {
       const res = await fetch("/api/domains/access", {
         method: "POST",
@@ -199,12 +204,32 @@ export function DomainAccessDialog({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast({ title: "Запрос отправлен", description: "Редактор домена увидит его в уведомлениях" });
         await load();
       } else {
-        toast({ title: "Не получилось", description: data.error || "Ошибка запроса" });
+        setErrorText(data.error || "Ошибка запроса доступа");
       }
-    } catch { toast({ title: "Ошибка", description: "Нет соединения" }); }
+    } catch { setErrorText("Нет соединения с сервером"); }
+    setBusy(false);
+  };
+
+  /** Сменить пер-доменную роль пользователя (creator может передавать создательство). */
+  const changeRole = async (userId: string, newRole: "creator" | "editor" | "viewer") => {
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const res = await fetch("/api/domains/access", {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({ token, action: "grant", domainId, userId, role: newRole }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await load();
+        onChanged?.();
+      } else {
+        setErrorText(data.error || "Не удалось сменить роль");
+      }
+    } catch { setErrorText("Нет соединения с сервером"); }
     setBusy(false);
   };
 
@@ -223,8 +248,20 @@ export function DomainAccessDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {errorText && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/8 px-3 py-2 text-xs text-destructive">
+            <span className="flex-1">{errorText}</span>
+            <button
+              type="button"
+              className="shrink-0 text-destructive/70 hover:text-destructive"
+              onClick={() => setErrorText(null)}
+              aria-label="Закрыть сообщение об ошибке"
+            >✕</button>
+          </div>
+        )}
+
         {/* Выбор домена */}
-        <Select value={domainId} onValueChange={setDomainId}>
+        <Select value={domainId} onValueChange={(v) => { setDomainId(v); setErrorText(null); }}>
           <SelectTrigger className="h-9 text-sm">
             <SelectValue />
           </SelectTrigger>
@@ -246,10 +283,13 @@ export function DomainAccessDialog({
               </p>
               {domainRights.length === 0 && (
                 <p className="text-xs text-[var(--tracker-text-muted)]">
-                  Пока никто. Админ и глобальные редакторы могут редактировать любой домен без записи здесь.
+                  Пока никто. Создатель домена и администратор могут редактировать без записи здесь.
                 </p>
               )}
-              {domainRights.map((r) => (
+              {domainRights.map((r) => {
+                const rRole = (r.role || "editor") as "creator" | "editor" | "viewer";
+                const roleLabel = rRole === "creator" ? "Создатель" : rRole === "viewer" ? "Просмотр" : "Редактор";
+                return (
                 <div key={r.userId} className="flex items-center gap-2 text-xs py-0.5">
                   <div className="w-5 h-5 rounded-full bg-[var(--tracker-accent-bg)] flex items-center justify-center shrink-0">
                     <span className="text-[9px] font-bold text-[var(--tracker-accent-fg-dark)]">
@@ -257,17 +297,29 @@ export function DomainAccessDialog({
                     </span>
                   </div>
                   <span className="flex-1 truncate">{userLabel(r)}</span>
-                  {r.grantedBy && (
-                    <span className="text-[10px] text-[var(--tracker-text-muted)] hidden sm:inline">выдал: {r.grantedBy}</span>
+                  {canManage && r.userId !== currentUser.id ? (
+                    <Select value={rRole} onValueChange={(v) => changeRole(r.userId, v as "creator" | "editor" | "viewer")} disabled={busy}>
+                      <SelectTrigger className="h-6 w-[110px] text-[10px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="creator" className="text-xs">Создатель</SelectItem>
+                        <SelectItem value="editor" className="text-xs">Редактор</SelectItem>
+                        <SelectItem value="viewer" className="text-xs">Просмотр</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{roleLabel}</span>
                   )}
-                  {canManage && (
+                  {canManage && r.userId !== currentUser.id && (
                     <Button size="icon" variant="ghost" className="size-6 text-red-400 hover:text-red-600"
                       disabled={busy} onClick={() => revoke(r.userId)} title="Отозвать доступ">
                       <Trash2 className="size-3" />
                     </Button>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Выдать доступ */}

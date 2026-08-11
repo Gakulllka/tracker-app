@@ -32,15 +32,17 @@ export async function GET(req: NextRequest) {
 
     const rights = await prisma.domainEditor.findMany({
       include: { user: { select: { username: true, displayName: true } } },
+      // role выбирается автоматически (скалярное поле модели)
     });
 
-    // Домены, запросами к которым может управлять текущий пользователь
+    // Домены, запросами к которым может управлять текущий пользователь (creator + admin)
     let manageableDomainIds: string[] | "all" = [];
-    if (auth.user.role === "admin" || auth.user.role === "editor") {
+    if (auth.user.role === "admin") {
       manageableDomainIds = "all";
-    } else if (roleCanEverEdit(auth.user.role)) {
+    } else {
+      // creator доменов может управлять доступом
       manageableDomainIds = rights
-        .filter((r) => r.userId === auth.user.id)
+        .filter((r) => r.userId === auth.user.id && r.role === "creator")
         .map((r) => r.domainId);
     }
 
@@ -69,6 +71,7 @@ export async function GET(req: NextRequest) {
         userId: r.userId,
         username: r.user.username,
         displayName: r.user.displayName,
+        role: r.role || "editor",
         grantedBy: r.grantedBy,
       })),
       requests: pending.map((r) => ({
@@ -189,6 +192,7 @@ export async function PUT(req: NextRequest) {
           create: {
             domainId: request.domainId,
             userId: request.userId,
+            role: "editor", // одобренный запрос → редактор
             grantedBy: auth.user.username,
           },
           update: {},
@@ -210,21 +214,27 @@ export async function PUT(req: NextRequest) {
 
     // ── grant / revoke напрямую ──────────────────────────────────────────
     if (action === "grant" || action === "revoke") {
-      const { domainId, userId } = body as { domainId?: string; userId?: string };
+      const { domainId, userId, role: grantRole } = body as {
+        domainId?: string; userId?: string; role?: string;
+      };
       if (!domainId || !userId) {
         return NextResponse.json({ error: "Missing domainId or userId" }, { status: 400 });
       }
+      // Валидация пер-доменной роли
+      const validRoles = ["creator", "editor", "viewer"];
+      const newRole = validRoles.includes(grantRole as string) ? (grantRole as string) : "editor";
 
       const allowed = await canManageDomainAccess(auth.user.id, auth.user.role, domainId);
       if (!allowed) {
-        return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
+        return NextResponse.json({ error: "Недостаточно прав. Управление доступом — только для создателя домена" }, { status: 403 });
       }
 
       const target = await prisma.user.findUnique({ where: { id: userId } });
       if (!target) return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
-      if (action === "grant" && !roleCanEverEdit(target.role)) {
+      // guest-аккаунту права не выдаются
+      if (action === "grant" && target.role === "guest") {
         return NextResponse.json(
-          { error: "Этой роли нельзя выдать права редактирования" },
+          { error: "Гостевому аккаунту нельзя выдать права" },
           { status: 400 }
         );
       }
@@ -232,8 +242,8 @@ export async function PUT(req: NextRequest) {
       if (action === "grant") {
         await prisma.domainEditor.upsert({
           where: { domainId_userId: { domainId, userId } },
-          create: { domainId, userId, grantedBy: auth.user.username },
-          update: {},
+          create: { domainId, userId, role: newRole, grantedBy: auth.user.username },
+          update: { role: newRole, grantedBy: auth.user.username },
         });
       } else {
         await prisma.domainEditor.deleteMany({ where: { domainId, userId } });

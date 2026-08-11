@@ -3,18 +3,35 @@ import { prisma } from "@/lib/prisma";
 /**
  * Единая библиотека авторизации и прав доступа.
  *
- * Роли (User.role):
- *   admin  — полный доступ + админ-панель (первый зарегистрированный)
- *   editor — редактирует ВСЕ домены, без админ-панели
- *   viewer — видит все домены, ничего не редактирует
- *   member — редактирует только домены, где есть запись DomainEditor
- *   guest  — общий гостевой аккаунт, только просмотр
+ * ДВУХУРОВНЕВАЯ МОДЕЛЬ ПРАВ:
+ *
+ * 1. Глобальная роль (User.role):
+ *      admin  — полный доступ + админ-панель (первый зарегистрированный).
+ *               admin = creator-equivalent ВСЕХ доменов: может редактировать
+ *               любой домен и управлять его правами без записи в DomainEditor.
+ *      guest  — общий гостевой аккаунт, только просмотр, права не выдаются.
+ *
+ *    (editor/viewer/member как ГЛОБАЛЬНЫЕ права к доменам больше не действуют —
+ *     только пер-доменно через DomainEditor.role ниже. User.role хранится для
+ *     обратной совместимости и /admin-панели.)
+ *
+ * 2. Пер-доменная роль (DomainEditor.role):
+ *      creator — полный доступ к домену + управление правами + уведомления.
+ *                Может быть несколько создателей (право передаётся).
+ *      editor  — редактирование домена.
+ *      viewer  — только просмотр (запись фиксирует явный доступ).
+ *
+ * Уведомления владельца (/api/owner-notifications) получают creator'ы домена
+ * (+ admin как creator-equivalent).
  */
 
 export type UserRole = "admin" | "editor" | "viewer" | "member" | "guest";
+/** Пер-доменная роль (DomainEditor.role). */
+export type DomainRole = "creator" | "editor" | "viewer";
 
 export const READONLY_ROLES: UserRole[] = ["viewer", "guest"];
-export const GLOBAL_EDIT_ROLES: UserRole[] = ["admin", "editor"];
+/** Глобальные роли, которые дают creator-equivalent доступ ко всем доменам. */
+export const GLOBAL_OWNER_ROLES: UserRole[] = ["admin"];
 
 export interface AuthUser {
   id: string;
@@ -91,46 +108,94 @@ export function getClientIp(req: { headers: { get(name: string): string | null }
   return req.headers.get("x-real-ip") || "";
 }
 
-/** Роль умеет редактировать хоть что-то? (админ/редактор — всё, member — по доменам) */
+/** Глобальная роль даёт creator-equivalent доступ ко всем доменам? (admin) */
+export function isGlobalOwner(role: string): boolean {
+  return GLOBAL_OWNER_ROLES.includes(role as UserRole);
+}
+
+/** Глобальная роль — только просмотр без пер-доменных прав? (viewer/guest) */
+export function isReadonlyRole(role: string): boolean {
+  return READONLY_ROLES.includes(role as UserRole);
+}
+
+/**
+ * Роль потенциально позволяет редактировать (грубый фильтр).
+ * Точную пер-доменную проверку делает canEditDomain/canManageDomainAccess.
+ * admin/editor/member — могут (по DomainEditor); viewer/guest — нет.
+ * Сохранено для обратной совместимости с API-routes.
+ */
 export function roleCanEverEdit(role: string): boolean {
-  return !READONLY_ROLES.includes(role as UserRole);
+  return !isReadonlyRole(role);
 }
 
-/** Роль редактирует все домены без проверок DomainEditor? */
+/**
+ * @deprecated Используйте isGlobalOwner. Старое имя для обратной совместимости.
+ * Теперь True только для admin (раньше admin+editor, но editor больше
+ * не глобальный редактор — его права определяются пер-доменно).
+ */
 export function isGlobalEditor(role: string): boolean {
-  return GLOBAL_EDIT_ROLES.includes(role as UserRole);
+  return isGlobalOwner(role);
 }
 
-/** ID доменов, которые пользователь может редактировать (для member). */
+/**
+ * Пер-доменная роль пользователя для конкретного домена.
+ * admin → 'creator' (без записи в DomainEditor).
+ * Иначе — DomainEditor.role или null (нет записи = нет доступа на редактирование,
+ * только просмотр как у любого зарегистрированного).
+ */
+export async function getDomainRole(userId: string, role: string, domainId: string): Promise<DomainRole | null> {
+  if (isGlobalOwner(role)) return "creator";
+  const right = await prisma.domainEditor.findUnique({
+    where: { domainId_userId: { domainId, userId } },
+    select: { role: true },
+  });
+  if (!right) return null;
+  return (right.role as DomainRole) || "editor"; // на случай legacy-записей без role
+}
+
+/** Может ли пользователь редактировать конкретный домен (creator/editor). */
+export async function canEditDomain(userId: string, role: string, domainId: string): Promise<boolean> {
+  const dr = await getDomainRole(userId, role, domainId);
+  return dr === "creator" || dr === "editor";
+}
+
+/** ID доменов, которые пользователь может редактировать. "all" для admin. */
 export async function getEditableDomainIds(userId: string, role: string): Promise<string[] | "all"> {
-  if (isGlobalEditor(role)) return "all";
-  if (!roleCanEverEdit(role)) return [];
+  if (isGlobalOwner(role)) return "all";
   const rights = await prisma.domainEditor.findMany({
-    where: { userId },
+    where: {
+      userId,
+      role: { in: ["creator", "editor"] },
+    },
     select: { domainId: true },
   });
   return rights.map((r) => r.domainId);
 }
 
-/** Может ли пользователь редактировать конкретный домен. */
-export async function canEditDomain(userId: string, role: string, domainId: string): Promise<boolean> {
-  if (isGlobalEditor(role)) return true;
-  if (!roleCanEverEdit(role)) return false;
-  const right = await prisma.domainEditor.findUnique({
-    where: { domainId_userId: { domainId, userId } },
-  });
-  return !!right;
+/**
+ * Может ли пользователь управлять доступом к домену (выдавать права,
+ * одобрять запросы, передавать создательство). Только creator (+ admin).
+ */
+export async function canManageDomainAccess(userId: string, role: string, domainId: string): Promise<boolean> {
+  const dr = await getDomainRole(userId, role, domainId);
+  return dr === "creator";
 }
 
-/** Может ли пользователь управлять доступом к домену (выдавать права, одобрять запросы). */
-export async function canManageDomainAccess(userId: string, role: string, domainId: string): Promise<boolean> {
-  if (role === "admin" || role === "editor") return true;
-  if (!roleCanEverEdit(role)) return false;
-  // Редактор конкретного домена тоже может выдавать доступ к нему
-  const right = await prisma.domainEditor.findUnique({
-    where: { domainId_userId: { domainId, userId } },
+/**
+ * Является ли пользователь создателем домена (для уведомлений).
+ * admin → true для всех доменов. Иначе — DomainEditor.role === 'creator'
+ * или Domain.createdById === userId (legacy-совместимость).
+ */
+export async function isDomainOwner(userId: string, role: string, domainId: string): Promise<boolean> {
+  if (isGlobalOwner(role)) return true;
+  const dr = await getDomainRole(userId, role, domainId);
+  if (dr === "creator") return true;
+  // Legacy: домены, где createdById заполнен, но creator-запись ещё не создана.
+  const domain = await prisma.domain.findUnique({
+    where: { id: domainId },
+    select: { createdById: true },
   });
-  return !!right;
+  return !!domain && domain.createdById === userId;
 }
 
 /** Запись в лог активности. Ошибки глотает — лог не должен ломать основную операцию. */
@@ -166,11 +231,14 @@ export async function logActivity(data: {
 
 /**
  * rolePermissions в формате, который ожидает фронтенд (usePermissions).
- * Для member canEditTasks=true — точную пер-доменную проверку делает сервер,
- * а клиент дополнительно получает editableDomainIds.
+ * canEditTasks=true если роль потенциально позволяет редактировать (точная
+ * пер-доменная проверка делает сервер, клиент дополнительно получает
+ * editableDomainIds). admin — полный доступ.
  */
 export function buildRolePermissions(role: string) {
-  const canEdit = roleCanEverEdit(role);
+  const isOwner = isGlobalOwner(role);
+  const isReadonly = isReadonlyRole(role);
+  const canEdit = isOwner || !isReadonly; // member/editor потенциально редактируют по DomainEditor
   return {
     canViewTasks: true,
     canEditTasks: canEdit,

@@ -257,14 +257,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, updatedAt: new Date().toISOString() });
     }
 
-    // Домены, куда пользователь имеет право писать
+    // Домены, куда пользователь имеет право писать.
+    // admin (global owner) → все. Иначе — creator/editor через DomainEditor.
     const globalEditor = isGlobalEditor(auth.user.role);
     const editableIds = globalEditor
       ? null // все
       : new Set(
           (
             await prisma.domainEditor.findMany({
-              where: { userId: auth.user.id },
+              where: { userId: auth.user.id, role: { in: ["creator", "editor"] } },
               select: { domainId: true },
             })
           ).map((r) => r.domainId),

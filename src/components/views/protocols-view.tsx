@@ -435,6 +435,7 @@ function ProtocolUploadDialog({
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+      e.stopPropagation(); // не всплывать к глобальному drop на <SidebarInset> (импорт задач)
       setDragOver(false);
       const droppedFile = e.dataTransfer.files[0];
       if (droppedFile) handleFileSelect(droppedFile);
@@ -490,9 +491,10 @@ function ProtocolUploadDialog({
           <div
             onDragOver={(e) => {
               e.preventDefault();
+              e.stopPropagation(); // не всплывать к глобальному drop на <SidebarInset>
               setDragOver(true);
             }}
-            onDragLeave={() => setDragOver(false)}
+            onDragLeave={(e) => { e.stopPropagation(); setDragOver(false); }}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
             className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${

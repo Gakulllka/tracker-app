@@ -9,7 +9,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import {
   Check,
@@ -687,11 +686,13 @@ function DropZone({ onFile, loading }: { onFile: (f: File) => void; loading: boo
     <div
       onDragOver={(e) => {
         e.preventDefault();
+        e.stopPropagation(); // изоляция от глобального drop на <SidebarInset>
         setDrag(true);
       }}
-      onDragLeave={() => setDrag(false)}
+      onDragLeave={(e) => { e.stopPropagation(); setDrag(false); }}
       onDrop={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         setDrag(false);
         const f = e.dataTransfer.files[0];
         if (f) onFile(f);
@@ -891,6 +892,9 @@ export function ExcelImportModal({
   const [parsedCount, setParsedCount] = useState(0);
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
+  /** Progressive rendering: показываем displayCount строк, догружая при скролле.
+   *  Решает тормоза на 500+ строк без тяжёлой виртуализации. */
+  const [displayCount, setDisplayCount] = useState(60);
 
   const reset = useCallback(() => {
     setFileName("");
@@ -931,6 +935,8 @@ export function ExcelImportModal({
   // ref-guard, чтобы не плодить лишние setState и не триггерить linter
   // (react-hooks/set-state-in-effect).
   const lastAutoParsedRef = useRef<File | null>(null);
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!isOpen) {
       lastAutoParsedRef.current = null;
@@ -1027,6 +1033,23 @@ export function ExcelImportModal({
         );
       });
   }, [rows, filter, search]);
+
+  // Сброс progressive-счётчика при смене фильтра/поиска/данных.
+  useEffect(() => { setDisplayCount(60); }, [filter, search, fileName]);
+
+  // Progressive rendering: догрузка при достижении дна списка.
+  useEffect(() => {
+    const root = listScrollRef.current;
+    const node = sentinelRef.current;
+    if (!root || !node) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some(e => e.isIntersecting)) {
+        setDisplayCount(prev => prev + 60);
+      }
+    }, { root, rootMargin: "200px" });
+    io.observe(node);
+    return () => io.disconnect();
+  }, [displayCount, visibleRows.length, parsedCount, parseError, loading]);
 
   /* ── Apply ─────────────────────────────────────────────────────────── */
   const apply = useCallback(async () => {
@@ -1359,7 +1382,11 @@ export function ExcelImportModal({
 
           {/* Rows list */}
           {hasLoaded && (
-            <ScrollArea className="min-h-0 flex-1 overflow-hidden" style={{ height: 0 }}>
+            <div
+              ref={listScrollRef}
+              className="min-h-0 flex-1"
+              style={{ overflowY: "auto", overflowX: "hidden" }}
+            >
               <div
                 style={{
                   padding: "10px 22px 18px",
@@ -1380,17 +1407,27 @@ export function ExcelImportModal({
                     Ничего не нашлось по этим условиям. Сбросьте фильтр или поиск.
                   </div>
                 ) : (
-                  visibleRows.map(({ row, idx }) => (
-                    <TaskRow
-                      key={row.imported.num ? `n_${row.imported.num}` : `r_${idx}_${row.imported.rowIndex}`}
-                      row={row}
-                      onToggle={() => toggleRow(idx)}
-                      onToggleChange={(j) => toggleChange(idx, j)}
-                    />
-                  ))
+                  <>
+                    {visibleRows.slice(0, displayCount).map(({ row, idx }) => (
+                      <TaskRow
+                        key={row.imported.num ? `n_${row.imported.num}` : `r_${idx}_${row.imported.rowIndex}`}
+                        row={row}
+                        onToggle={() => toggleRow(idx)}
+                        onToggleChange={(j) => toggleChange(idx, j)}
+                      />
+                    ))}
+                    {visibleRows.length > displayCount && (
+                      <div ref={sentinelRef} style={{ height: 1 }} />
+                    )}
+                    {visibleRows.length > displayCount && (
+                      <div style={{ padding: "8px 0", textAlign: "center", fontSize: 11, color: "var(--tracker-text-muted)" }}>
+                        Показано {displayCount} из {visibleRows.length} · прокрутите для загрузки
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
-            </ScrollArea>
+            </div>
           )}
         </div>
 
