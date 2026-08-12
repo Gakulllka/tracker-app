@@ -33,7 +33,7 @@ async function main() {
     console.log(`  Пользователей: ${dump.counts.user}, Доменов: ${dump.counts.domain}, Прав: ${dump.counts.domainEditor}, Запросов: ${dump.counts.editRequest}`);
 
     // Сводка создателей (для проверки миграции).
-    const dArr = domains as Array<{ name: string; createdById: string }>;
+    const dArr = domains as Array<{ id: string; name: string; createdById: string }>;
     const eArr = editors as Array<{ domainId: string; userId: string }>;
     console.log("\nСводка создателей (до миграции):");
     dArr.forEach(d => {

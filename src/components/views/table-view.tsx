@@ -474,29 +474,8 @@ export function TableView({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* ── СОРТИРОВКА (только detailed) ─────────────────────── */}
-            {isDetailed && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className={btnClass + " !flex"}>
-                  <ArrowUpDown className="size-3.5" />
-                  Сортировка
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuLabel className="text-xs">Переставить задачи</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => sortMonthTasks(month, "priority")} className="gap-2 cursor-pointer text-xs">
-                  <ArrowUpDown className="size-3.5" />
-                  По приоритету
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => sortMonthTasks(month, "status")} className="gap-2 cursor-pointer text-xs">
-                  <ArrowUpDown className="size-3.5" />
-                  По статусу
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            )}
+            {/* Сортировка удалена: при группировке задачи автоматически
+                упорядочиваются по нумерации внутри группы. */}
 
             <div className="flex-1" />
 
@@ -576,14 +555,6 @@ export function TableView({
                   <DropdownMenuItem onClick={onOpenTransfer} className="gap-2 cursor-pointer text-xs">
                     <ArrowRight className="size-3.5" />
                     Перенести на след. месяц
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => sortMonthTasks(month, "priority")} className="gap-2 cursor-pointer text-xs">
-                    <ArrowUpDown className="size-3.5" />
-                    Сортировать по приоритету
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => sortMonthTasks(month, "status")} className="gap-2 cursor-pointer text-xs">
-                    <ArrowUpDown className="size-3.5" />
-                    Сортировать по статусу
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel className="text-xs">Сохранить</DropdownMenuLabel>
@@ -1218,19 +1189,35 @@ export function TableView({
             {(() => {
               const priorityOrder: Priority[] = ["Наивысший", "Высокий", "Средний", "Низкий", "Очередь"];
               const statusOrder = Object.values(STATUSES).sort((a, b) => STATUS_ORDER[a] - STATUS_ORDER[b]);
+              // Компаратор по номеру задачи (num): численно если число,
+              // иначе лексически; пустые номера — в конец группы.
+              const byNum = (a: Task, b: Task) => {
+                const na = (a.num || "").trim();
+                const nb = (b.num || "").trim();
+                if (!na && !nb) return 0;
+                if (!na) return 1;
+                if (!nb) return -1;
+                const nda = Number(na);
+                const ndb = Number(nb);
+                if (!isNaN(nda) && !isNaN(ndb)) return nda - ndb;
+                return na.localeCompare(nb, "ru", { numeric: true });
+              };
+
               const grouped = groupingMode === "status"
                 ? statusOrder.map(status => ({
                     key: status,
                     label: status,
                     color: scolText(status, isDark) || PHASE_COLORS[getPhaseForStatus(status)],
-                    tasks: workRows.filter(t => t.status === status),
+                    // Внутри группы статусов — по нумерации задачи.
+                    tasks: workRows.filter(t => t.status === status).sort(byNum),
                   }))
                 : groupingMode === "priority"
                   ? priorityOrder.map(priority => ({
                       key: priority,
                       label: priority,
                       color: PCOL[priority],
-                      tasks: workRows.filter(t => t.priority === priority),
+                      // Внутри группы приоритетов — по нумерации задачи.
+                      tasks: workRows.filter(t => t.priority === priority).sort(byNum),
                     }))
                   : [{ key: "all", label: "Все задачи", color: accentHex, tasks: workRows }];
 
