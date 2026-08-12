@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import {
   MONTHS, STATUSES, PRIORITIES, PCOL, scolText,
-  type Status, type Priority, type Task, STATUS_ORDER,
+  type Status, type Priority, type Task, STATUS_ORDER, PRIO_START,
   PHASE_COLORS, getPhaseForStatus,
 } from "@/lib/types";
 import {
@@ -225,6 +225,22 @@ export function TableView({
     return result.sort((a, b) => (b.task._ts || 0) - (a.task._ts || 0));
   }, [allData]);
   const workRows = useMemo(() => rows.filter((task) => task.status !== STATUSES.IDEA), [rows]);
+
+  // Порядковая нумерация (бейдж 1,2,3 на карточке) строится относительно
+  // выбранной группировки: «По статусу» — по порядку статусов (STATUS_ORDER),
+  // «По приоритету» / «Без групп» — по приоритетам (PRIO_START, как раньше).
+  const localQMap = useMemo(() => {
+    const sorted = [...workRows].sort((a, b) => {
+      if (groupingMode === "status") {
+        return (STATUS_ORDER[a.status] ?? 999) - (STATUS_ORDER[b.status] ?? 999);
+      }
+      return (PRIO_START[a.priority] ?? 999) - (PRIO_START[b.priority] ?? 999);
+    });
+    const map: Record<string, number> = {};
+    sorted.forEach((t, i) => { map[t.id] = i + 1; });
+    return map;
+  }, [workRows, groupingMode]);
+
   useEffect(() => setIdeasOpen(false), [month]);
   const promoteIdea = useCallback((sourceMonth: number, task: Task) => {
     useTaskStore.getState().snapshot();
@@ -1189,35 +1205,19 @@ export function TableView({
             {(() => {
               const priorityOrder: Priority[] = ["Наивысший", "Высокий", "Средний", "Низкий", "Очередь"];
               const statusOrder = Object.values(STATUSES).sort((a, b) => STATUS_ORDER[a] - STATUS_ORDER[b]);
-              // Компаратор по номеру задачи (num): численно если число,
-              // иначе лексически; пустые номера — в конец группы.
-              const byNum = (a: Task, b: Task) => {
-                const na = (a.num || "").trim();
-                const nb = (b.num || "").trim();
-                if (!na && !nb) return 0;
-                if (!na) return 1;
-                if (!nb) return -1;
-                const nda = Number(na);
-                const ndb = Number(nb);
-                if (!isNaN(nda) && !isNaN(ndb)) return nda - ndb;
-                return na.localeCompare(nb, "ru", { numeric: true });
-              };
-
               const grouped = groupingMode === "status"
                 ? statusOrder.map(status => ({
                     key: status,
                     label: status,
                     color: scolText(status, isDark) || PHASE_COLORS[getPhaseForStatus(status)],
-                    // Внутри группы статусов — по нумерации задачи.
-                    tasks: workRows.filter(t => t.status === status).sort(byNum),
+                    tasks: workRows.filter(t => t.status === status),
                   }))
                 : groupingMode === "priority"
                   ? priorityOrder.map(priority => ({
                       key: priority,
                       label: priority,
                       color: PCOL[priority],
-                      // Внутри группы приоритетов — по нумерации задачи.
-                      tasks: workRows.filter(t => t.priority === priority).sort(byNum),
+                      tasks: workRows.filter(t => t.priority === priority),
                     }))
                   : [{ key: "all", label: "Все задачи", color: accentHex, tasks: workRows }];
 
@@ -1263,7 +1263,7 @@ export function TableView({
                         : null;
                       const isOver = pct !== null && pct > 100;
                       const accentColor = PHASE_COLORS[getPhaseForStatus(task.status)] || "var(--tracker-accent)";
-                      const queueNum = qMap[task.id];
+                      const queueNum = localQMap[task.id];
                       const phase = getPhaseForStatus(task.status);
                       return (
                         <TaskContextMenu
