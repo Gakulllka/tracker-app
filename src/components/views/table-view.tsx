@@ -1330,7 +1330,7 @@ export function TableView({
                                 {queueNum !== undefined && (
                                   <span
                                     className="inline-flex items-center justify-center text-[9px] font-bold w-5 h-5 rounded-full text-white"
-                                    style={{ background: accentColor, boxShadow: `0 1px 4px ${accentColor}55` }}
+                                    style={{ background: "#17181C" }}
                                   >
                                     {queueNum}
                                   </span>
@@ -1367,10 +1367,7 @@ export function TableView({
                                 /* Executive: status badge is read-only */
                                 <span
                                   className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center justify-center"
-                                  style={{
-                                    color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
-                                    background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
-                                  }}
+                                  style={{ color: "#FFFFFF", background: "#17181C" }}
                                 >
                                   {task.status}
                                 </span>
@@ -1379,10 +1376,7 @@ export function TableView({
                                   <PopoverTrigger asChild>
                                     <button
                                       className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity"
-                                      style={{
-                                        color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
-                                        background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
-                                      }}
+                                      style={{ color: "#FFFFFF", background: "#17181C" }}
                                     >
                                       {task.status}
                                     </button>
@@ -1425,7 +1419,7 @@ export function TableView({
                                   <DropdownMenuTrigger asChild>
                                     <button
                                       className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1"
-                                      style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
+                                      style={{ color: "#FFFFFF", background: "#17181C" }}
                                     >
                                       {task.priority}
                                     </button>
@@ -1445,7 +1439,7 @@ export function TableView({
                               ) : (
                                 <span
                                   className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center gap-1"
-                                  style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
+                                  style={{ color: "#FFFFFF", background: "#17181C" }}
                                 >
                                   {task.priority}
                                 </span>

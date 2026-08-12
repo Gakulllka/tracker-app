@@ -246,6 +246,9 @@
   font-weight: 500;
   color: var(--tracker-text-main, #1a1a2e);
   line-height: 1.4;
+  /* Резервируем место под 2 строки — низ карточек (прогресс, часы)
+     выровнен по одной линии независимо от длины названия. */
+  min-height: 2.8em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
