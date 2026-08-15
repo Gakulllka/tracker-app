@@ -705,7 +705,7 @@ function DropZone({ onFile, loading }: { onFile: (f: File) => void; loading: boo
         borderRadius: 12,
         cursor: "pointer",
         transition: "all .18s",
-        border: `2px dashed ${drag ? "var(--tracker-accent)" : "var(--tracker-border)"}`,
+        border: `2px dashed ${drag ? "var(--tracker-accent)" : "#17181C"}`,
         background: drag ? "var(--tracker-accent-bg)" : "transparent",
       }}
     >

@@ -333,7 +333,7 @@ export function TableView({
           placeholder="Поиск задач по номеру, названию, статусу..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="h-9 pl-9 pr-4 text-sm bg-[var(--tracker-bg-card)] border-[var(--tracker-border)]"
+          className="h-9 pl-9 pr-4 text-sm bg-[var(--tracker-bg-card)] border-[#17181C]"
         />
         {searchQuery && (
           <button
@@ -348,7 +348,7 @@ export function TableView({
       {/* ---- TOOLBAR ---- */}
       {!clientMode && (() => {
         const totalFilters = filterStatuses.size + filterPriorities.size + (searchQuery ? 1 : 0);
-        const btnClass = "hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-border)] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)]";
+        const btnClass = "hidden md:inline-flex h-8 gap-1.5 border-[#17181C] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)]";
         return (
           <div className="flex flex-wrap items-center gap-2">
 
@@ -508,6 +508,19 @@ export function TableView({
               </Button>
             )}
 
+            {/* ── ЗАГРУЗИТЬ (Excel-импорт — отдельная кнопка) ──────── */}
+            {!clientMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden md:inline-flex h-8 gap-1.5 border-[#17181C] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)] bg-[var(--tracker-bg-card)]"
+                onClick={onImportXLSX}
+              >
+                <Upload className="size-3.5" />
+                Загрузить
+              </Button>
+            )}
+
             {/* ── ПЕРЕНЕСТИ (только detailed) ─────────────────────── */}
             {isDetailed && (
               <Button variant="outline" size="sm" className={btnClass} onClick={onOpenTransfer}>
@@ -551,10 +564,6 @@ export function TableView({
                   <Upload className="size-3.5" />
                   JSON
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={onImportXLSX} className="gap-2 cursor-pointer text-xs">
-                  <Upload className="size-3.5" />
-                  Excel (месяц)
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             )}
@@ -563,7 +572,7 @@ export function TableView({
             {!isDetailed && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 gap-1.5 border-[var(--tracker-border)] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)]">
+                  <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 gap-1.5 border-[#17181C] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)]">
                     <MoreHorizontal className="size-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -590,9 +599,6 @@ export function TableView({
                   <DropdownMenuLabel className="text-xs">Загрузить</DropdownMenuLabel>
                   <DropdownMenuItem onClick={onImportJSON} className="gap-2 cursor-pointer text-xs">
                     <Upload className="size-3.5" /> JSON
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onImportXLSX} className="gap-2 cursor-pointer text-xs">
-                    <Upload className="size-3.5" /> Excel (месяц)
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -623,7 +629,7 @@ export function TableView({
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Поиск задач..."
             className="w-full h-9 pl-9 pr-8 text-sm rounded-xl border bg-[var(--tracker-bg-card)] outline-none focus:ring-1 focus:ring-[var(--tracker-accent)]"
-            style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}
+            style={{ borderColor: "#17181C", color: "var(--tracker-text-main)" }}
           />
           {searchQuery && (
             <button onClick={() => setSearchQuery("")}
@@ -805,7 +811,7 @@ export function TableView({
       </div>
 
       {ideaRows.length > 0 && (
-        <div className="rounded-2xl border" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+        <div className="rounded-2xl border" style={{ borderColor: "#17181C", background: "var(--tracker-bg-card)" }}>
           <button type="button" onClick={() => setIdeasOpen(v => !v)} className="w-full flex items-center gap-2 px-4 py-3 text-left cursor-pointer select-none hover:bg-black/5 transition-colors">
             <Lightbulb className="size-4" style={{ color: "#fbbf24" }} />
             <span className="font-semibold text-sm">Идеи</span>
@@ -980,13 +986,13 @@ export function TableView({
 
       {/* ---- DESKTOP VIEW SETTINGS (только detailed) ---- */}
       {isDetailed && (
-      <div className="hidden md:flex items-center justify-between gap-3 rounded-lg border border-[var(--tracker-border)] bg-[var(--tracker-bg-card)] px-3 py-2">
+      <div className="hidden md:flex items-center justify-between gap-3 rounded-lg border border-[#17181C] bg-[var(--tracker-bg-card)] px-3 py-2">
         <div className="flex items-center gap-2 text-xs text-[var(--tracker-text-muted)]">
           <LayoutGrid className="size-3.5" />
           Группировать карточки
         </div>
         <div className="inline-flex items-center gap-2">
-          <div className="inline-flex rounded-md border border-[var(--tracker-border)] p-0.5">
+          <div className="inline-flex rounded-md border border-[#17181C] p-0.5">
             {([
               ["status", "По статусу"],
               ["priority", "По приоритету"],
@@ -1137,7 +1143,7 @@ export function TableView({
       {workRows.length > 0 && (
         <div
           className="hidden md:flex items-stretch gap-6 px-5 py-3 rounded-[var(--radius-card,14px)] border bg-[var(--tracker-bg-card)]"
-          style={{ borderColor: "var(--tracker-border)", boxShadow: "var(--shadow-card)" }}
+          style={{ borderColor: "#17181C", boxShadow: "var(--shadow-card)" }}
         >
           <div className="flex flex-col justify-center gap-0.5">
             <span className="paper-eyebrow">План</span>
@@ -1169,7 +1175,7 @@ export function TableView({
       {workRows.length > 0 && (
         <div
           className="md:hidden sticky top-12 z-20 flex items-center gap-3 px-3 py-2 mx-1 rounded-xl border bg-[var(--tracker-bg-card)]/95 backdrop-blur"
-          style={{ borderColor: "var(--tracker-border)" }}
+          style={{ borderColor: "#17181C" }}
         >
           <div className="flex flex-col leading-tight">
             <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>План</span>

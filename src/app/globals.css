@@ -135,7 +135,8 @@
 
 .task-card {
   background: var(--tracker-bg-card, #fff);
-  border: 1px solid var(--tracker-border, #e8e0f5);
+  /* Чёрная обводка — единый стиль белых «окон» (кнопки, карточки, панели). */
+  border: 1px solid #17181C;
   border-radius: var(--radius-card, 14px);
   padding: 18px 20px;
   cursor: pointer;
