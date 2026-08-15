@@ -326,27 +326,6 @@ export function TableView({
 
   return (
     <div className="space-y-3">
-      {/* ---- SEARCH BAR (только detailed — в simple поиск внутри тулбара) ---- */}
-      {isDetailed && (
-      <div className="relative hidden md:block">
-        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Поиск задач по номеру, названию, статусу..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="h-9 pl-9 pr-4 text-sm bg-[var(--tracker-bg-card)] border-[#17181C]"
-        />
-        {searchQuery && (
-          <button
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setSearchQuery("")}
-          >
-            <X className="size-3.5" />
-          </button>
-        )}
-      </div>
-      )}
-
       {/* ---- TOOLBAR ---- */}
       {!clientMode && (() => {
         const totalFilters = filterStatuses.size + filterPriorities.size + (searchQuery ? 1 : 0);
@@ -354,29 +333,27 @@ export function TableView({
         return (
           <div className="flex flex-wrap items-center gap-2">
 
-            {/* ── ПОИСК (только simple — компактный, в строке тулбара) ── */}
-            {!isDetailed && (
-              <div className="relative flex-1 min-w-[150px] max-w-[360px] hidden md:block">
-                <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Поиск..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8 pl-8 pr-8 text-[13px] bg-[var(--tracker-bg-card)] border-[#17181C]"
-                />
-                {searchQuery && (
-                  <button
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setSearchQuery("")}
-                  >
-                    <X className="size-3" />
-                  </button>
-                )}
-              </div>
-            )}
+            {/* ── ПОИСК — в строке тулбара (оба режима) ── */}
+            <div className="relative flex-1 min-w-[150px] max-w-[360px] hidden md:block">
+              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Поиск задач..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 pl-8 pr-8 text-[13px] bg-[var(--tracker-bg-card)] border-[#17181C]"
+              />
+              {searchQuery && (
+                <button
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
 
-            {/* ── МЕТРИКИ inline (simple) — между поиском и «Добавить» ── */}
-            {!isDetailed && workRows.length > 0 && (
+            {/* ── МЕТРИКИ inline — между поиском и «Добавить» (оба режима) ── */}
+            {workRows.length > 0 && (
               <div
                 className="hidden md:flex items-center gap-2.5 px-3 h-8 rounded-md border bg-[var(--tracker-bg-card)] shrink-0"
                 style={{ borderColor: "#17181C" }}
@@ -612,6 +589,46 @@ export function TableView({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
+
+            {/* ── ГРУППИРОВКА (только detailed) — компактный контрол ── */}
+            {isDetailed && (
+              <div className="hidden md:inline-flex items-center gap-1 h-8 rounded-md border border-[#17181C] bg-[var(--tracker-bg-card)] px-1">
+                <LayoutGrid className="size-3.5 mx-0.5 shrink-0" style={{ color: "var(--tracker-text-muted)" }} />
+                {([
+                  ["status", "Статус"],
+                  ["priority", "Приоритет"],
+                  ["none", "Без"],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => applyGroupingMode(value)}
+                    className="rounded px-2 py-0.5 text-[11px] font-medium transition-colors"
+                    style={{
+                      background: groupingMode === value ? "var(--tracker-accent-bg)" : "transparent",
+                      color: groupingMode === value ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+                {groupingMode !== "none" && (
+                  <button
+                    type="button"
+                    onClick={toggleHideEmptyGroups}
+                    className="rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors border ml-1"
+                    style={{
+                      background: hideEmptyGroups ? "var(--tracker-accent-bg)" : "transparent",
+                      color: hideEmptyGroups ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
+                      borderColor: hideEmptyGroups ? "var(--tracker-accent)" : "#17181C",
+                    }}
+                    title={hideEmptyGroups ? "Показать пустые категории" : "Скрыть пустые категории"}
+                  >
+                    Пустые
+                  </button>
+                )}
+              </div>
             )}
 
             {/* «Ещё» удалено из simple — экспорт/перенос/JSON доступны
@@ -997,52 +1014,8 @@ export function TableView({
         </div>
       )}
 
-      {/* ---- DESKTOP VIEW SETTINGS (только detailed) ---- */}
-      {isDetailed && (
-      <div className="hidden md:flex items-center justify-between gap-3 rounded-lg border border-[#17181C] bg-[var(--tracker-bg-card)] px-3 py-2">
-        <div className="flex items-center gap-2 text-xs text-[var(--tracker-text-muted)]">
-          <LayoutGrid className="size-3.5" />
-          Группировать карточки
-        </div>
-        <div className="inline-flex items-center gap-2">
-          <div className="inline-flex rounded-md border border-[#17181C] p-0.5">
-            {([
-              ["status", "По статусу"],
-              ["priority", "По приоритету"],
-              ["none", "Без групп"],
-            ] as const).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => applyGroupingMode(value)}
-                className="rounded px-2.5 py-1 text-xs font-medium transition-colors"
-                style={{
-                  background: groupingMode === value ? "var(--tracker-accent-bg)" : "transparent",
-                  color: groupingMode === value ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {groupingMode !== "none" && (
-            <button
-              type="button"
-              onClick={toggleHideEmptyGroups}
-              className="rounded px-2 py-1 text-xs font-medium transition-colors border"
-              style={{
-                background: hideEmptyGroups ? "var(--tracker-accent-bg)" : "transparent",
-                color: hideEmptyGroups ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
-                borderColor: hideEmptyGroups ? "var(--tracker-accent)" : "var(--tracker-border)",
-              }}
-              title={hideEmptyGroups ? "Показать пустые категории" : "Скрыть пустые категории"}
-            >
-              {hideEmptyGroups ? "✕ Пустые" : "Пустые"}
-            </button>
-          )}
-        </div>
-      </div>
-      )}
+      {/* Панель настроек группировки удалена — заменена компактным
+          контролом в тулбаре (detailed). */}
 
       {/* ---- DESKTOP CARD LIST ---- */}
       {/* Bulk actions bar: фиксированный снизу на мобиле, в потоке на десктопе. */}
@@ -1152,37 +1125,8 @@ export function TableView({
         );
       })()}
 
-      {/* Summary bar: Δ-полоса (только detailed — в simple компактная строка сверху) */}
-      {isDetailed && workRows.length > 0 && (
-        <div
-          className="hidden md:flex items-stretch gap-6 px-5 py-3 rounded-[var(--radius-card,14px)] border bg-[var(--tracker-bg-card)]"
-          style={{ borderColor: "#17181C", boxShadow: "var(--shadow-card)" }}
-        >
-          <div className="flex flex-col justify-center gap-0.5">
-            <span className="paper-eyebrow">План</span>
-            <span className="delta-num text-[15px] font-semibold text-[var(--tracker-text-main)]">{fmt2(rowsMetrics.totPlan)}ч</span>
-          </div>
-          <div className="w-px h-8 self-center shrink-0" style={{ background: "var(--tracker-border)" }} />
-          <div className="flex flex-col justify-center gap-0.5">
-            <span className="paper-eyebrow">Факт</span>
-            <span className="delta-num text-[15px] font-semibold text-[var(--tracker-text-main)]">{fmt2(rowsMetrics.totFact)}ч</span>
-          </div>
-          <div className="w-px h-8 self-center shrink-0" style={{ background: "var(--tracker-border)" }} />
-          <div className="flex flex-col justify-center gap-0.5">
-            <span className="paper-eyebrow">Итого</span>
-            <span className="delta-num text-[15px] font-semibold text-[var(--tracker-text-main)]">{fmt2(rowsMetrics.totTotalH)}ч</span>
-          </div>
-          <div className="flex items-center gap-2.5 ml-auto">
-            <div className="flex flex-col items-end gap-1">
-              <span className="paper-eyebrow">Прогресс</span>
-              <div className="h-1.5 w-28 rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
-                <div className="h-full rounded-full transition-all" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: "var(--tracker-accent)" }} />
-              </div>
-            </div>
-            <span className="delta-num text-[15px] font-semibold text-[var(--tracker-text-main)]">{rowsMetrics.avgProg}%</span>
-          </div>
-        </div>
-      )}
+      {/* Большой summary-бар удалён — метрики встроены в тулбар (inline),
+          компактная версия осталась на мобиле ниже. */}
 
       {/* Mobile compact summary bar — ключевая метрика продукта на мобиле */}
       {workRows.length > 0 && (
