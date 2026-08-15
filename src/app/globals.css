@@ -136,7 +136,7 @@
 .task-card {
   background: var(--tracker-bg-card, #fff);
   /* Чёрная обводка — единый стиль белых «окон» (кнопки, карточки, панели). */
-  border: 1px solid #17181C;
+  border: 3px solid #17181C;
   border-radius: var(--radius-card, 14px);
   padding: 18px 20px;
   cursor: pointer;
@@ -263,7 +263,7 @@
   font-size: 0.75rem;
   border-radius: 6px;
   /* Чёрная обводка — единый стиль белых «окон» */
-  border: 1px solid #17181C;
+  border: 3px solid #17181C;
   background: var(--tracker-bg, var(--background));
   color: var(--tracker-text-main, var(--foreground));
   outline: none;
@@ -526,7 +526,7 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
 .mobile-task-card {
   position: relative;
   background: var(--tracker-bg-card, #fff);
-  border: 1px solid var(--tracker-border, #e8e0f5);
+  border: 3px solid #17181C;
   border-radius: 16px;
   padding: 14px 16px;
   cursor: pointer;
@@ -893,8 +893,8 @@ kbd {
   font-size: 10px;
   padding: 2px 5px;
   border-radius: 5px;
-  border: 1px solid var(--tracker-border, #e8e0f5);
-  border-bottom-width: 2px;
+  border: 3px solid #17181C;
+  border-bottom-width: 4px;
   background: var(--tracker-bg-main, #faf9f7);
   color: var(--tracker-text-muted, #8a8378);
 }
@@ -1224,7 +1224,7 @@ kbd {
   --destructive: #C6453F;
   background: #FFFFFF !important;
   color: #17181C;
-  border: 1px solid #17181C !important;
+  border: 3px solid #17181C !important;
   border-radius: 10px !important;
   box-shadow: var(--shadow-pop, 0 8px 28px -6px rgba(28,22,14,0.12), 0 3px 10px -2px rgba(28,22,14,0.06)) !important;
   padding: 4px !important;
@@ -1259,7 +1259,7 @@ kbd {
   --accent-foreground: #FAFAF8;
   background: #FFFFFF !important;
   color: #17181C;
-  border: 1px solid #17181C !important;
+  border: 3px solid #17181C !important;
   border-radius: 10px !important;
   box-shadow: var(--shadow-pop, 0 8px 28px -6px rgba(28,22,14,0.12), 0 3px 10px -2px rgba(28,22,14,0.06)) !important;
   padding: 4px !important;

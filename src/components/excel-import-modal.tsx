@@ -705,7 +705,7 @@ function DropZone({ onFile, loading }: { onFile: (f: File) => void; loading: boo
         borderRadius: 12,
         cursor: "pointer",
         transition: "all .18s",
-        border: `2px dashed ${drag ? "var(--tracker-accent)" : "#17181C"}`,
+        border: `3px dashed ${drag ? "var(--tracker-accent)" : "#17181C"}`,
         background: drag ? "var(--tracker-accent-bg)" : "transparent",
       }}
     >
@@ -797,7 +797,7 @@ function FormatHint() {
         padding: "12px 14px",
         borderRadius: 10,
         background: "var(--tracker-bg-card)",
-        border: "1px solid var(--tracker-border)",
+        border: "3px solid #17181C",
       }}
     >
       <Info
@@ -1104,7 +1104,7 @@ export function ExcelImportModal({
           width: "96vw",
           maxHeight: "90vh",
           borderRadius: 14,
-          border: "1px solid var(--tracker-border)",
+          border: "3px solid #17181C",
           background: "var(--tracker-bg-main)",
           overflow: "hidden",
         }}
@@ -1293,7 +1293,7 @@ export function ExcelImportModal({
                     color: "var(--tracker-text-muted)",
                     padding: "4px 9px",
                     borderRadius: 99,
-                    border: "1px dashed var(--tracker-border)",
+                    border: "3px dashed #17181C",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 5,
@@ -1354,7 +1354,7 @@ export function ExcelImportModal({
                   padding: "5px 10px",
                   borderRadius: 6,
                   color: "var(--tracker-text-muted)",
-                  border: "1px solid var(--tracker-border)",
+                  border: "3px solid #17181C",
                   background: "transparent",
                   cursor: "pointer",
                   fontWeight: 600,
