@@ -937,7 +937,7 @@ export function TableView({
                         className="task-card-progress-fill"
                         style={{
                           width: `${Math.min(metrics.prog, 100)}%`,
-                          backgroundColor: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over),
+                          backgroundColor: "var(--tracker-accent)",
                         }}
                       />
                     </div>
@@ -1157,7 +1157,7 @@ export function TableView({
             <div className="flex flex-col items-end gap-1">
               <span className="paper-eyebrow">Прогресс</span>
               <div className="h-1.5 w-28 rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
-                <div className="h-full rounded-full transition-all" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: progColor(rowsMetrics.avgProg) }} />
+                <div className="h-full rounded-full transition-all" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: "var(--tracker-accent)" }} />
               </div>
             </div>
             <span className="delta-num text-[15px] font-semibold text-[var(--tracker-text-main)]">{rowsMetrics.avgProg}%</span>
@@ -1187,7 +1187,7 @@ export function TableView({
           </div>
           <div className="flex items-center gap-1.5 ml-auto">
             <div className="h-1.5 w-12 rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
-              <div className="h-full rounded-full" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: progColor(rowsMetrics.avgProg) }} />
+              <div className="h-full rounded-full" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: "var(--tracker-accent)" }} />
             </div>
             <span className="delta-num text-[12px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{rowsMetrics.avgProg}%</span>
           </div>
@@ -1367,7 +1367,7 @@ export function TableView({
                                 /* Executive: status badge is read-only */
                                 <span
                                   className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center justify-center"
-                                  style={{ color: "#FFFFFF", background: "#17181C" }}
+                                  style={{ color: "#17181C", background: "#FFFFFF", border: "1px solid #17181C" }}
                                 >
                                   {task.status}
                                 </span>
@@ -1376,7 +1376,7 @@ export function TableView({
                                   <PopoverTrigger asChild>
                                     <button
                                       className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity"
-                                      style={{ color: "#FFFFFF", background: "#17181C" }}
+                                      style={{ color: "#17181C", background: "#FFFFFF", border: "1px solid #17181C" }}
                                     >
                                       {task.status}
                                     </button>
@@ -1419,7 +1419,7 @@ export function TableView({
                                   <DropdownMenuTrigger asChild>
                                     <button
                                       className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1"
-                                      style={{ color: "#FFFFFF", background: "#17181C" }}
+                                      style={{ color: "#17181C", background: "#FFFFFF", border: "1px solid #17181C" }}
                                     >
                                       {task.priority}
                                     </button>
@@ -1439,7 +1439,7 @@ export function TableView({
                               ) : (
                                 <span
                                   className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center gap-1"
-                                  style={{ color: "#FFFFFF", background: "#17181C" }}
+                                  style={{ color: "#17181C", background: "#FFFFFF", border: "1px solid #17181C" }}
                                 >
                                   {task.priority}
                                 </span>
@@ -1454,7 +1454,7 @@ export function TableView({
                                 className="task-card-progress-fill"
                                 style={{
                                   width: `${Math.min(metrics.prog, 100)}%`,
-                                  backgroundColor: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over),
+                                  backgroundColor: "var(--tracker-accent)",
                                 }}
                               />
                             </div>

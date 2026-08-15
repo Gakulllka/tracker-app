@@ -221,13 +221,14 @@ export const sortVal = (row: Task, key: string, qMap: Record<string, number>, to
   return 0;
 };
 
-/** Цвет прогресс-бара — 3 состояния:
- *  - в работе                          → чернильный акцент (чёрный в светлой теме, белый в тёмной)
- *  - завершена без превышения          → зелёный
- *  - завершена с превышением (over)    → красный
- *  Процент выполнения на цвет НЕ влияет — задача 40% не выглядит «проблемой». */
-export const progColor = (p: number, isClosed?: boolean, isOver?: boolean): string => {
-  if (isClosed) return isOver ? "#ef4444" : "#22c55e";
+/** Цвет ЦИФРЫ процентов прогресса:
+ *  - превышение (факт > план)  → красный
+ *  - достиг плана (≥100%, без превышения) → зелёный
+ *  - в работе (<100%)          → чернильный (чёрный в светлой теме)
+ *  Сам прогресс-бар всегда чернильный — цветом отмечена только цифра. */
+export const progColor = (p: number, _isClosed?: boolean, isOver?: boolean): string => {
+  if (isOver) return "#ef4444";
+  if (p >= 100) return "#22c55e";
   return "var(--tracker-accent)";
 };
 
