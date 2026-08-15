@@ -24,7 +24,7 @@ import {
   ArrowUpDown, Save, FolderOpen, FileText,
   Package, MessageSquare, Ruler, Timer, Wallet,
   ExternalLink, LayoutGrid, ChevronDown, Lightbulb, Play,
-  MoreHorizontal, Rows3, AlignJustify,
+  Rows3, AlignJustify,
 } from "lucide-react";
 import {
   MONTHS, STATUSES, PRIORITIES, PCOL, scolText,
@@ -326,29 +326,6 @@ export function TableView({
 
   return (
     <div className="space-y-3">
-      {/* ---- COMPACT SUMMARY (simple) — строка 1: План/Факт/Итого/Прогресс ---- */}
-      {!isDetailed && workRows.length > 0 && (
-        <div
-          className="hidden md:flex items-center gap-3 px-3.5 py-1.5 rounded-xl border bg-[var(--tracker-bg-card)]"
-          style={{ borderColor: "#17181C" }}
-        >
-          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>План</span>
-          <span className="delta-num text-[13px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{fmt2(rowsMetrics.totPlan)}ч</span>
-          <div className="w-px h-4 shrink-0" style={{ background: "#17181C" }} />
-          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Факт</span>
-          <span className="delta-num text-[13px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{fmt2(rowsMetrics.totFact)}ч</span>
-          <div className="w-px h-4 shrink-0" style={{ background: "#17181C" }} />
-          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Итого</span>
-          <span className="delta-num text-[13px] font-semibold" style={{ color: "var(--tracker-accent)" }}>{fmt2(rowsMetrics.totTotalH)}ч</span>
-          <div className="flex items-center gap-1.5 ml-auto">
-            <div className="h-1.5 w-24 rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
-              <div className="h-full rounded-full" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: "var(--tracker-accent)" }} />
-            </div>
-            <span className="delta-num text-[12px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{rowsMetrics.avgProg}%</span>
-          </div>
-        </div>
-      )}
-
       {/* ---- SEARCH BAR (только detailed — в simple поиск внутри тулбара) ---- */}
       {isDetailed && (
       <div className="relative hidden md:block">
@@ -398,7 +375,29 @@ export function TableView({
               </div>
             )}
 
-            {/* ── ФИЛЬТР ───────────────────────────────────────────── */}
+            {/* ── МЕТРИКИ inline (simple) — между поиском и «Добавить» ── */}
+            {!isDetailed && workRows.length > 0 && (
+              <div
+                className="hidden md:flex items-center gap-2.5 px-3 h-8 rounded-lg border bg-[var(--tracker-bg-card)] shrink-0"
+                style={{ borderColor: "#17181C" }}
+              >
+                <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>План</span>
+                <span className="delta-num text-[12px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{fmt2(rowsMetrics.totPlan)}ч</span>
+                <div className="w-px h-3.5 shrink-0" style={{ background: "#17181C" }} />
+                <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Факт</span>
+                <span className="delta-num text-[12px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{fmt2(rowsMetrics.totFact)}ч</span>
+                <div className="w-px h-3.5 shrink-0" style={{ background: "#17181C" }} />
+                <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Итого</span>
+                <span className="delta-num text-[12px] font-semibold" style={{ color: "var(--tracker-accent)" }}>{fmt2(rowsMetrics.totTotalH)}ч</span>
+                <div className="h-1.5 w-16 rounded-full overflow-hidden shrink-0" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
+                  <div className="h-full rounded-full" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: "var(--tracker-accent)" }} />
+                </div>
+                <span className="delta-num text-[11px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{rowsMetrics.avgProg}%</span>
+              </div>
+            )}
+
+            {/* ── ФИЛЬТР (только detailed) ─────────────────────────── */}
+            {isDetailed && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className={btnClass + " !flex"}>
@@ -535,6 +534,7 @@ export function TableView({
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
 
             {/* Сортировка удалена: при группировке задачи автоматически
                 упорядочиваются по нумерации внутри группы. */}
@@ -614,41 +614,8 @@ export function TableView({
             </DropdownMenu>
             )}
 
-            {/* ── «ЕЩЁ» — редкие действия в simple режиме ─────────── */}
-            {!isDetailed && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 gap-1.5 border-[#17181C] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)]">
-                    <MoreHorizontal className="size-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem onClick={onOpenTransfer} className="gap-2 cursor-pointer text-xs">
-                    <ArrowRight className="size-3.5" />
-                    Перенести на след. месяц
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs">Сохранить</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={onExportMonthXLSX} className="gap-2 cursor-pointer text-xs">
-                    <FileSpreadsheet className="size-3.5" /> Excel (месяц)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onExportAllXLSX} className="gap-2 cursor-pointer text-xs">
-                    <FileSpreadsheet className="size-3.5" /> Excel (все)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onExportJSON} className="gap-2 cursor-pointer text-xs">
-                    <Save className="size-3.5" /> JSON
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onExportPDF} className="gap-2 cursor-pointer text-xs">
-                    <FileText className="size-3.5" /> PDF (печать)
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs">Загрузить</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={onImportJSON} className="gap-2 cursor-pointer text-xs">
-                    <Upload className="size-3.5" /> JSON
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+            {/* «Ещё» удалено из simple — экспорт/перенос/JSON доступны
+                в подробном режиме через «Файлы» и «Перенести». */}
 
             {/* ── ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМА ────────────────────────────── */}
             <Button
