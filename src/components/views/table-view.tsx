@@ -378,7 +378,7 @@ export function TableView({
             {/* ── МЕТРИКИ inline (simple) — между поиском и «Добавить» ── */}
             {!isDetailed && workRows.length > 0 && (
               <div
-                className="hidden md:flex items-center gap-2.5 px-3 h-8 rounded-lg border bg-[var(--tracker-bg-card)] shrink-0"
+                className="hidden md:flex items-center gap-2.5 px-3 h-8 rounded-md border bg-[var(--tracker-bg-card)] shrink-0"
                 style={{ borderColor: "#17181C" }}
               >
                 <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>План</span>
