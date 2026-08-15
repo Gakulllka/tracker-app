@@ -1207,6 +1207,101 @@ kbd {
 }
 
 
+/* ================================================================
+   Paper Ctx — контекстное меню в «бумажном» стиле: белый фон,
+   чёрная рамка, инверсия (чернильная плашка) при ховере.
+   Зеркало ink-ctx. Цвет — только у семантики (точки фаз,
+   красное удаление).
+   ================================================================ */
+
+.paper-ctx {
+  --popover: #FFFFFF;
+  --popover-foreground: #17181C;
+  --accent: #17181C;
+  --accent-foreground: #FAFAF8;
+  --muted-foreground: #5D5D57;
+  --destructive: #C6453F;
+  background: #FFFFFF !important;
+  color: #17181C;
+  border: 1px solid #17181C !important;
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-pop, 0 8px 28px -6px rgba(28,22,14,0.12), 0 3px 10px -2px rgba(28,22,14,0.06)) !important;
+  padding: 4px !important;
+}
+.paper-ctx [data-slot="context-menu-item"],
+.paper-ctx [data-slot="context-menu-sub-trigger"] {
+  border-radius: 8px !important;
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+  color: #17181C;
+  transition: background 0.1s, color 0.1s !important;
+}
+/* Ховер — фирменная инверсия: чернильная плашка, бумажный текст */
+.paper-ctx [data-slot="context-menu-item"]:hover,
+.paper-ctx [data-slot="context-menu-item"]:focus,
+.paper-ctx [data-slot="context-menu-sub-trigger"]:hover,
+.paper-ctx [data-slot="context-menu-sub-trigger"]:focus {
+  background: #17181C !important;
+  color: #FAFAF8 !important;
+}
+.paper-ctx [data-slot="context-menu-item"]:hover svg,
+.paper-ctx [data-slot="context-menu-item"]:focus svg,
+.paper-ctx [data-slot="context-menu-sub-trigger"]:hover svg,
+.paper-ctx [data-slot="context-menu-sub-trigger"]:focus svg {
+  color: #FAFAF8 !important;
+}
+/* Подменю — тот же бумажный стиль */
+.paper-ctx [data-slot="context-menu-sub-content"] {
+  --popover: #FFFFFF;
+  --popover-foreground: #17181C;
+  --accent: #17181C;
+  --accent-foreground: #FAFAF8;
+  background: #FFFFFF !important;
+  color: #17181C;
+  border: 1px solid #17181C !important;
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-pop, 0 8px 28px -6px rgba(28,22,14,0.12), 0 3px 10px -2px rgba(28,22,14,0.06)) !important;
+  padding: 4px !important;
+}
+.paper-ctx [data-slot="context-menu-sub-content"] [data-slot="context-menu-item"] {
+  border-radius: 8px !important;
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+}
+.paper-ctx [data-slot="context-menu-sub-content"] [data-slot="context-menu-item"]:hover,
+.paper-ctx [data-slot="context-menu-sub-content"] [data-slot="context-menu-item"]:focus {
+  background: #17181C !important;
+  color: #FAFAF8 !important;
+}
+/* Разделитель — тонкая чёрная линия */
+.paper-ctx [data-slot="context-menu-separator"] {
+  background: rgba(23, 24, 28, 0.15) !important;
+  margin: 4px 8px !important;
+  height: 1px !important;
+}
+/* Удалить — единственный цвет: красная плашка при ховере */
+.paper-ctx [data-slot="context-menu-item"][data-variant="destructive"] {
+  color: #C6453F !important;
+}
+.paper-ctx [data-slot="context-menu-item"][data-variant="destructive"]:hover,
+.paper-ctx [data-slot="context-menu-item"][data-variant="destructive"]:focus {
+  background: #C6453F !important;
+  color: #FFFFFF !important;
+}
+/* Точки статусов/приоритетов — цвет фаз сохраняется (семантика) */
+.paper-ctx .ctx-dot {
+  box-shadow: 0 0 0 1px rgba(23, 24, 28, 0.12);
+}
+/* Отметка текущего значения — чёрная галочка */
+.paper-ctx .ctx-check {
+  color: #17181C;
+  font-weight: 700;
+}
+.paper-ctx [data-slot="context-menu-item"]:hover .ctx-check {
+  color: #FAFAF8;
+}
+
+
 /* ================================================================ */
 /*  Ink Scope — целый блок всегда в графите (настройки, тосты).      */
 /*  Переопределяет и tracker-, и shadcn-токены в своей области,      */

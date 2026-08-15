@@ -58,12 +58,12 @@ export function TaskContextMenu({
       <ContextMenuTrigger asChild>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-56 ink-ctx">
+      <ContextMenuContent className="w-56 paper-ctx">
         <ContextMenuSub>
           <ContextMenuSubTrigger>
             <Tag className="mr-2 size-3.5" /> Статус
           </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="max-h-72 overflow-y-auto ink-ctx">
+          <ContextMenuSubContent className="max-h-72 overflow-y-auto paper-ctx">
             {Object.values(STATUSES).map(s => (
               <ContextMenuItem
                 key={s}
@@ -85,7 +85,7 @@ export function TaskContextMenu({
           <ContextMenuSubTrigger>
             <Flag className="mr-2 size-3.5" /> Приоритет
           </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="ink-ctx">
+          <ContextMenuSubContent className="paper-ctx">
             {Object.values(PRIORITIES).map(p => (
               <ContextMenuItem
                 key={p}
@@ -107,7 +107,7 @@ export function TaskContextMenu({
           <ContextMenuSubTrigger>
             <Calendar className="mr-2 size-3.5" /> Перенести в месяц
           </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="max-h-72 overflow-y-auto ink-ctx">
+          <ContextMenuSubContent className="max-h-72 overflow-y-auto paper-ctx">
             {MONTHS.map((m, i) => (
               <ContextMenuItem
                 key={m}
@@ -116,7 +116,7 @@ export function TaskContextMenu({
                 className="text-xs"
               >
                 {m}
-                {i === month && <span className="ml-auto" style={{ color: "rgba(250,250,248,0.45)" }}>←</span>}
+                {i === month && <span className="ml-auto opacity-50">←</span>}
               </ContextMenuItem>
             ))}
           </ContextMenuSubContent>
@@ -136,7 +136,8 @@ export function TaskContextMenu({
 
         <ContextMenuItem
           onClick={() => deleteTask(month, task.id)}
-          className="text-xs gap-2 text-[#FF4444] focus:text-[#FF4444]"
+          variant="destructive"
+          className="text-xs gap-2"
         >
           <Trash2 className="size-3.5" /> Удалить
         </ContextMenuItem>
