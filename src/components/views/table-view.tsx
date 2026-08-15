@@ -326,7 +326,31 @@ export function TableView({
 
   return (
     <div className="space-y-3">
-      {/* ---- SEARCH BAR ---- */}
+      {/* ---- COMPACT SUMMARY (simple) — строка 1: План/Факт/Итого/Прогресс ---- */}
+      {!isDetailed && workRows.length > 0 && (
+        <div
+          className="hidden md:flex items-center gap-3 px-3.5 py-1.5 rounded-xl border bg-[var(--tracker-bg-card)]"
+          style={{ borderColor: "#17181C" }}
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>План</span>
+          <span className="delta-num text-[13px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{fmt2(rowsMetrics.totPlan)}ч</span>
+          <div className="w-px h-4 shrink-0" style={{ background: "#17181C" }} />
+          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Факт</span>
+          <span className="delta-num text-[13px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{fmt2(rowsMetrics.totFact)}ч</span>
+          <div className="w-px h-4 shrink-0" style={{ background: "#17181C" }} />
+          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Итого</span>
+          <span className="delta-num text-[13px] font-semibold" style={{ color: "var(--tracker-accent)" }}>{fmt2(rowsMetrics.totTotalH)}ч</span>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <div className="h-1.5 w-24 rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
+              <div className="h-full rounded-full" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: "var(--tracker-accent)" }} />
+            </div>
+            <span className="delta-num text-[12px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{rowsMetrics.avgProg}%</span>
+          </div>
+        </div>
+      )}
+
+      {/* ---- SEARCH BAR (только detailed — в simple поиск внутри тулбара) ---- */}
+      {isDetailed && (
       <div className="relative hidden md:block">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -344,6 +368,7 @@ export function TableView({
           </button>
         )}
       </div>
+      )}
 
       {/* ---- TOOLBAR ---- */}
       {!clientMode && (() => {
@@ -351,6 +376,27 @@ export function TableView({
         const btnClass = "hidden md:inline-flex h-8 gap-1.5 border-[#17181C] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)]";
         return (
           <div className="flex flex-wrap items-center gap-2">
+
+            {/* ── ПОИСК (только simple — компактный, в строке тулбара) ── */}
+            {!isDetailed && (
+              <div className="relative flex-1 min-w-[150px] max-w-[360px] hidden md:block">
+                <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Поиск..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 pl-8 pr-8 text-[13px] bg-[var(--tracker-bg-card)] border-[#17181C]"
+                />
+                {searchQuery && (
+                  <button
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <X className="size-3" />
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* ── ФИЛЬТР ───────────────────────────────────────────── */}
             <DropdownMenu>
@@ -1139,8 +1185,8 @@ export function TableView({
         );
       })()}
 
-      {/* Summary bar: Δ-полоса — суть продукта (разница план/факт) в метрике */}
-      {workRows.length > 0 && (
+      {/* Summary bar: Δ-полоса (только detailed — в simple компактная строка сверху) */}
+      {isDetailed && workRows.length > 0 && (
         <div
           className="hidden md:flex items-stretch gap-6 px-5 py-3 rounded-[var(--radius-card,14px)] border bg-[var(--tracker-bg-card)]"
           style={{ borderColor: "#17181C", boxShadow: "var(--shadow-card)" }}
