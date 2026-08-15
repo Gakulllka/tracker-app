@@ -1363,7 +1363,8 @@ export function TableView({
                               )}
                             </div>
                             <div className="flex flex-col items-end gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                              {isExecutive || isGuest ? (
+                              {/* Статус скрыт при группировке «По статусу» — виден в заголовке группы */}
+                              {groupingMode !== "status" && (isExecutive || isGuest ? (
                                 /* Executive: status badge is read-only */
                                 <span
                                   className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center justify-center"
@@ -1412,9 +1413,9 @@ export function TableView({
                                     </div>
                                   </PopoverContent>
                                 </Popover>
-                              )}
-                              {/* Приоритет — дропдаун */}
-                              {!isExecutive && !isGuest ? (
+                              ))}
+                              {/* Приоритет скрыт при группировке «По приоритету» — виден в заголовке группы */}
+                              {groupingMode !== "priority" && (!isExecutive && !isGuest ? (
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <button
@@ -1443,7 +1444,7 @@ export function TableView({
                                 >
                                   {task.priority}
                                 </span>
-                              )}
+                              ))}
                             </div>
                           </div>
 
