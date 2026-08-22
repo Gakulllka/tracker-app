@@ -222,25 +222,31 @@ export function QuestionsView({
     <div className="space-y-4">
 
       {/* ── Stats bar ── */}
-      {totalQuestions > 0 && (
-        <div className="grid grid-cols-5 gap-2">
-          {[
+      {(totalQuestions > 0 || archivedCount > 0) && (() => {
+        const allTiles = [
             { label: "Всего", value: totalQuestions, color: "var(--tracker-accent)", bg: "var(--tracker-accent-bg)" },
             { label: "Открытых", value: openCount, color: "#f59e0b", bg: "rgba(245,158,11,0.08)" },
             { label: "Возобновлённых", value: reopenedCount, color: "#f97316", bg: "rgba(249,115,22,0.08)" },
             { label: "Отвечено", value: answeredCount, color: "#22c55e", bg: "rgba(34,197,94,0.08)" },
             { label: "Архив", value: archivedCount, color: "#8b5cf6", bg: "rgba(139,92,246,0.08)", clickable: true },
-          ].map((s) => (
-            <div key={s.label}
-              onClick={s.clickable ? () => setArchiveOpen(true) : undefined}
-              className={`rounded-xl px-3 py-2.5 text-center ${s.clickable ? "cursor-pointer hover:opacity-80 transition-opacity" : ""}`}
-              style={{ background: s.bg }}>
-              <p className="text-lg font-bold tabular-nums" style={{ color: s.color }}>{s.value}</p>
-              <p className="text-[10px] font-medium" style={{ color: "var(--tracker-text-muted)" }}>{s.label}</p>
-            </div>
-          ))}
-        </div>
-      )}
+        ];
+        // Нет активных вопросов — показываем только плитку «Архив»,
+        // иначе вход в архив недоступен при пустом списке.
+        const tiles = totalQuestions > 0 ? allTiles : allTiles.filter(t => t.clickable);
+        return (
+          <div className={totalQuestions > 0 ? "grid grid-cols-5 gap-2" : "grid grid-cols-1 gap-2 max-w-[160px]"}>
+            {tiles.map((s) => (
+              <div key={s.label}
+                onClick={s.clickable ? () => setArchiveOpen(true) : undefined}
+                className={`rounded-xl px-3 py-2.5 text-center ${s.clickable ? "cursor-pointer hover:opacity-80 transition-opacity" : ""}`}
+                style={{ background: s.bg }}>
+                <p className="text-lg font-bold tabular-nums" style={{ color: s.color }}>{s.value}</p>
+                <p className="text-[10px] font-medium" style={{ color: "var(--tracker-text-muted)" }}>{s.label}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* ── Create task dialog ── */}
       <Dialog open={taskDialog.open} onOpenChange={open => { if (!open) setTaskDialog(d => ({ ...d, open: false })); }}>
