@@ -198,7 +198,7 @@ export function TaskDetailDialog({
 
   const renderComment = (c: TaskComment, depth: number = 0) => (
     <div key={c.id} className="group" style={{ marginLeft: depth > 0 ? 24 : 0 }}>
-      <div className="flex gap-3 py-3" style={{ borderBottom: "3px solid #17181C" }}>
+      <div className="flex gap-3 py-3" style={{ borderBottom: "2px solid #17181C" }}>
         <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
           style={{ background: "var(--tracker-accent-bg, rgba(29,158,117,0.1))", color: "var(--tracker-accent-fg-dark, var(--foreground))" }}>
           {c.author?.charAt(0)?.toUpperCase() || "?"}
@@ -222,7 +222,7 @@ export function TaskDetailDialog({
                     <img src={att} alt="Вложение" className="max-h-32 max-w-[220px] rounded-xl object-cover" />
                   ) : (
                     <span className="text-xs px-2 py-1 rounded-xl border flex items-center gap-1.5"
-                      style={{ borderColor: "#17181C", borderWidth: 3 }}>
+                      style={{ borderColor: "#17181C", borderWidth: 2 }}>
                       <Paperclip className="size-3.5" /> Файл
                     </span>
                   )}
@@ -248,7 +248,7 @@ export function TaskDetailDialog({
         style={{
           background: "var(--tracker-bg-card, var(--background))",
           borderColor: "#17181C",
-          borderWidth: 3,
+          borderWidth: 2,
           width: "min(1200px, 94vw)",
           height: "min(860px, 92vh)",
           maxWidth: "min(1200px, 94vw)",
@@ -264,10 +264,10 @@ export function TaskDetailDialog({
         <div className="flex flex-col md:flex-row h-full overflow-hidden">
 
           {/* ═══════════════════ ЛЕВАЯ КОЛОНКА ═══════════════════ */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden" style={{ borderRight: "3px solid #17181C" }}>
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden" style={{ borderRight: "2px solid #17181C" }}>
 
             {/* ── Sticky Header ── */}
-            <div className="shrink-0 p-4 pb-3 border-b" style={{ borderColor: "#17181C", borderWidth: 3, background: "var(--tracker-bg, var(--background))" }}>
+            <div className="shrink-0 p-4 pb-3 border-b" style={{ borderColor: "#17181C", background: "var(--tracker-bg, var(--background))" }}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -306,17 +306,17 @@ export function TaskDetailDialog({
                   {planfixUrl && (
                     <a href={planfixUrl} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white"
-                      style={{ border: "3px solid #17181C", color: "#17181C" }}>
+                      style={{ border: "2px solid #17181C", color: "#17181C" }}>
                       <ExternalLink className="size-4" /> PlanFix
                     </a>
                   )}
                   <button className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white"
-                    style={{ border: "3px solid #17181C", color: "#17181C" }}
+                    style={{ border: "2px solid #17181C", color: "#17181C" }}
                     onClick={() => { snapshot(); onMoveToBacklog(month, task.id); onOpenChange(false); }}>
                     <Package className="size-4" /> В беклог
                   </button>
                   <button className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white"
-                    style={{ border: "3px solid #17181C", color: "#C6453F" }}
+                    style={{ border: "2px solid #17181C", color: "#C6453F" }}
                     onClick={() => { snapshot(); onDeleteTask(month, task.id); onOpenChange(false); }}>
                     <Trash2 className="size-4" /> Удалить
                   </button>
@@ -401,7 +401,7 @@ export function TaskDetailDialog({
                     <PopoverTrigger asChild>
                       <button
                         className="h-9 text-xs font-semibold rounded-lg px-3 inline-flex items-center gap-1.5 bg-white cursor-pointer hover:opacity-80 transition-opacity"
-                        style={{ border: "3px solid #17181C", color: scolText(task.status, isDark) || "#17181C" }}
+                        style={{ border: "2px solid #17181C", color: scolText(task.status, isDark) || "#17181C" }}
                       >
                         {task.status}
                         <ChevronDown className="size-3.5 opacity-60" />
@@ -443,7 +443,7 @@ export function TaskDetailDialog({
                     <DropdownMenuTrigger asChild>
                       <button
                         className="h-9 text-xs font-semibold rounded-lg px-3 inline-flex items-center gap-1.5 bg-white cursor-pointer hover:opacity-80 transition-opacity"
-                        style={{ border: "3px solid #17181C", color: PCOL[task.priority] || "#17181C" }}
+                        style={{ border: "2px solid #17181C", color: PCOL[task.priority] || "#17181C" }}
                       >
                         {task.priority}
                         <ChevronDown className="size-3.5 opacity-60" />
@@ -460,7 +460,7 @@ export function TaskDetailDialog({
                   </DropdownMenu>
 
                   {/* Прогресс — компактный, белый с чёрной рамкой */}
-                  <div className="flex items-center gap-2 flex-1 min-w-[160px] h-9 px-3 rounded-lg bg-white" style={{ border: "3px solid #17181C" }}>
+                  <div className="flex items-center gap-2 flex-1 min-w-[160px] h-9 px-3 rounded-lg bg-white" style={{ border: "2px solid #17181C" }}>
                     <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0" style={{ color: "var(--tracker-text-muted)" }}>Прогресс</span>
                     <div className="h-1.5 flex-1 rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
                       <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: barColor }} />
@@ -474,7 +474,7 @@ export function TaskDetailDialog({
 
             {/* ── Часы по месяцам ── */}
             {monthBreakdown.length > 0 && (
-              <div className="px-4 py-3 border-t" style={{ borderColor: "#17181C", borderWidth: 3 }}>
+              <div className="px-4 py-3 border-t" style={{ borderColor: "#17181C" }}>
                 <SectionTitle>Часы по месяцам</SectionTitle>
 
                 {/* Mini bar chart */}
@@ -505,7 +505,7 @@ export function TaskDetailDialog({
                 </div>
 
                 {/* Таблица */}
-                <div className="rounded-xl overflow-hidden border text-xs" style={{ borderColor: "#17181C", borderWidth: 3 }}>
+                <div className="rounded-xl overflow-hidden border text-xs" style={{ borderColor: "#17181C", borderWidth: 2 }}>
                   <table className="w-full" style={{ borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ background: "#FFFFFF" }}>
@@ -519,7 +519,7 @@ export function TaskDetailDialog({
                       {monthBreakdown.map((r) => {
                         const over = r.cumulative > r.planH && r.planH > 0;
                         return (
-                          <tr key={r.month} style={{ borderTop: "3px solid #17181C" }}>
+                          <tr key={r.month} style={{ borderTop: "2px solid #17181C" }}>
                             <td className="px-2.5 py-1.5 font-medium">{MONTHS[r.month]}</td>
                             <td className="px-2.5 py-1.5 text-right tabular-nums" style={{ color: "var(--tracker-text-muted)" }}>{fmt2(r.planH)}ч</td>
                             <td className="px-2.5 py-1.5 text-right tabular-nums">{fmt2(r.factH)}ч</td>
@@ -547,7 +547,7 @@ export function TaskDetailDialog({
 
             {/* ── Бюджет (скрыт: SHOW_BUDGET=false, код сохранён) ── */}
             {SHOW_BUDGET && (
-            <div className="px-4 py-3 border-t" style={{ borderColor: "#17181C", borderWidth: 3 }}>
+            <div className="px-4 py-3 border-t" style={{ borderColor: "#17181C" }}>
               <SectionTitle>
                 <span className="inline-flex items-center justify-center w-5 h-5 rounded-md"
                   style={{ background: "rgba(29,158,117,0.12)", color: "#1D9E75" }}><Wallet className="size-3" /></span>
@@ -555,7 +555,7 @@ export function TaskDetailDialog({
               </SectionTitle>
 
               <div className="rounded-xl p-3 mb-3 grid grid-cols-3 gap-3 text-center text-sm"
-                style={{ background: "#FFFFFF", border: "3px solid #17181C" }}>
+                style={{ background: "#FFFFFF", border: "2px solid #17181C" }}>
                 <div><p className="text-[10px] mb-1" style={{ color: "var(--tracker-text-muted)" }}>Лимит</p><p className="font-bold text-base">{monthCapacity}ч</p></div>
                 <div><p className="text-[10px] mb-1" style={{ color: "var(--tracker-text-muted)" }}>Занято</p><p className="font-bold text-base">{R2(usedExcludingSelf)}ч</p></div>
                 <div><p className="text-[10px] mb-1" style={{ color: "var(--tracker-text-muted)" }}>Свободно</p>
@@ -564,7 +564,7 @@ export function TaskDetailDialog({
 
               <div className="flex items-center gap-3 mb-3">
                 <input type="number" min={0} step={1} className="flex-1 h-9 rounded-xl border px-3 text-sm outline-none focus:ring-2 tabular-nums"
-                  style={{ background: "var(--tracker-bg)", borderColor: "#17181C", borderWidth: 3, color: "var(--tracker-text-main)" }}
+                  style={{ background: "var(--tracker-bg)", borderColor: "#17181C", borderWidth: 2, color: "var(--tracker-text-main)" }}
                   value={budgetInput} onChange={e => setBudgetInput(e.target.value)}
                   placeholder={planHNum >= 100 ? String(planHNum) : "0"} />
                 <span className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>ч</span>
@@ -575,7 +575,7 @@ export function TaskDetailDialog({
               </div>
 
               {budgetNum > 0 && (
-                <div className="rounded-xl p-3 text-sm space-y-1.5" style={{ background: "var(--tracker-bg)", border: "3px solid #17181C" }}>
+                <div className="rounded-xl p-3 text-sm space-y-1.5" style={{ background: "var(--tracker-bg)", border: "2px solid #17181C" }}>
                   <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>В этом месяце</span><span className="font-bold" style={{ color: "#1D9E75" }}>{previewAllocated}ч</span></div>
                   {previewRollover > 0 && <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Ролловер</span><span className="font-bold" style={{ color: "#BA7517" }}>{previewRollover}ч</span></div>}
                   {previewRollover === 0 && <p className="text-xs" style={{ color: "#1D9E75" }}>✓ Влезает в текущий месяц</p>}
@@ -583,7 +583,7 @@ export function TaskDetailDialog({
               )}
 
               {(task.totalBudgetRequested !== undefined) && (
-                <div className="mt-3 pt-3 border-t space-y-1 text-xs" style={{ borderColor: "#17181C", borderWidth: 3 }}>
+                <div className="mt-3 pt-3 border-t space-y-1 text-xs" style={{ borderColor: "#17181C", borderWidth: 2 }}>
                   <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Запрошено</span><span className="tabular-nums">{task.totalBudgetRequested ?? 0}ч</span></div>
                   <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Выделено</span><span className="tabular-nums" style={{ color: "#1D9E75" }}>{task.budgetAllocated ?? 0}ч</span></div>
                   {(task.budgetRollover ?? 0) > 0 && <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Перенос</span><span className="tabular-nums" style={{ color: "#BA7517" }}>{task.budgetRollover}ч</span></div>}
@@ -602,9 +602,9 @@ export function TaskDetailDialog({
 
           {/* ═══════════════════ ПРАВАЯ КОЛОНКА: Комментарии ═══════════════════ */}
           <div className="w-full md:w-[38%] md:min-w-[320px] flex flex-col overflow-hidden border-t md:border-t-0"
-            style={{ borderColor: "#17181C", borderWidth: 3 }}>
+            style={{ borderColor: "#17181C", borderWidth: 2 }}>
             <div className="px-4 py-3 flex items-center justify-between border-b shrink-0"
-              style={{ borderColor: "#17181C", borderWidth: 3 }}>
+              style={{ borderColor: "#17181C", borderWidth: 2 }}>
               <h4 className="paper-eyebrow flex items-center gap-2">
                 <MessageSquare className="size-3.5" />
                 Комментарии · {comments.length}
@@ -619,7 +619,7 @@ export function TaskDetailDialog({
             </div>
 
             {/* New comment input */}
-            <div className="px-5 py-3 border-t shrink-0" style={{ borderColor: "#17181C", borderWidth: 3 }}>
+            <div className="px-5 py-3 border-t shrink-0" style={{ borderColor: "#17181C", borderWidth: 2 }}>
               <div className="flex flex-col gap-2">
                 {replyTo && (
                   <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--tracker-text-muted)" }}>
@@ -629,7 +629,7 @@ export function TaskDetailDialog({
                 )}
                 <textarea ref={textareaRef}
                   className="w-full text-sm p-3 rounded-2xl border outline-none resize-none min-h-[56px]"
-                  style={{ background: "var(--tracker-bg)", borderColor: "#17181C", borderWidth: 3, color: "var(--tracker-text-main)" }}
+                  style={{ background: "var(--tracker-bg)", borderColor: "#17181C", borderWidth: 2, color: "var(--tracker-text-main)" }}
                   placeholder="Написать комментарий..." value={newComment}
                   onChange={e => setNewComment(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addComment(); }} />
@@ -642,7 +642,7 @@ export function TaskDetailDialog({
                           <img src={att} alt="Вложение" className="h-16 w-16 rounded-xl object-cover" />
                         ) : (
                           <span className="text-xs px-2 py-1 rounded-xl border flex items-center gap-1 h-16"
-                            style={{ borderColor: "#17181C", borderWidth: 3 }}><Paperclip className="size-3.5" /> Файл</span>
+                            style={{ borderColor: "#17181C", borderWidth: 1 }}><Paperclip className="size-3.5" /> Файл</span>
                         )}
                         <button className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover/att:opacity-100"
                           onClick={() => setAttachments(p => p.filter((_, j) => j !== i))}>
