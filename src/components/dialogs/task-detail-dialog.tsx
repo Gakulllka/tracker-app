@@ -268,7 +268,7 @@ export function TaskDetailDialog({
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden" style={{ borderRight: "2px solid var(--tracker-accent)" }}>
 
             {/* ── Sticky Header ── */}
-            <div className="shrink-0 p-4 pb-3 border-b" style={{ borderColor: "var(--tracker-accent)", background: "var(--tracker-bg, var(--background))" }}>
+            <div className="shrink-0 p-4 pb-3 border-b" style={{ borderColor: "var(--tracker-accent)", background: "var(--tracker-bg-main)" }}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -565,7 +565,7 @@ export function TaskDetailDialog({
 
               <div className="flex items-center gap-3 mb-3">
                 <input type="number" min={0} step={1} className="flex-1 h-9 rounded-xl border px-3 text-sm outline-none focus:ring-2 tabular-nums"
-                  style={{ background: "var(--tracker-bg)", borderColor: "var(--tracker-accent)", borderWidth: 2, color: "var(--tracker-text-main)" }}
+                  style={{ background: "var(--tracker-bg-main)", borderColor: "var(--tracker-accent)", borderWidth: 2, color: "var(--tracker-text-main)" }}
                   value={budgetInput} onChange={e => setBudgetInput(e.target.value)}
                   placeholder={planHNum >= 100 ? String(planHNum) : "0"} />
                 <span className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>ч</span>
@@ -576,7 +576,7 @@ export function TaskDetailDialog({
               </div>
 
               {budgetNum > 0 && (
-                <div className="rounded-xl p-3 text-sm space-y-1.5" style={{ background: "var(--tracker-bg)", border: "2px solid var(--tracker-accent)" }}>
+                <div className="rounded-xl p-3 text-sm space-y-1.5" style={{ background: "var(--tracker-bg-main)", border: "2px solid var(--tracker-accent)" }}>
                   <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>В этом месяце</span><span className="font-bold" style={{ color: "var(--tracker-success)" }}>{previewAllocated}ч</span></div>
                   {previewRollover > 0 && <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Ролловер</span><span className="font-bold" style={{ color: "var(--tracker-warning)" }}>{previewRollover}ч</span></div>}
                   {previewRollover === 0 && <p className="text-xs" style={{ color: "var(--tracker-success)" }}>✓ Влезает в текущий месяц</p>}
@@ -630,7 +630,7 @@ export function TaskDetailDialog({
                 )}
                 <textarea ref={textareaRef}
                   className="w-full text-sm p-3 rounded-2xl border outline-none resize-none min-h-[56px]"
-                  style={{ background: "var(--tracker-bg)", borderColor: "var(--tracker-accent)", borderWidth: 2, color: "var(--tracker-text-main)" }}
+                  style={{ background: "var(--tracker-bg-main)", borderColor: "var(--tracker-accent)", borderWidth: 2, color: "var(--tracker-text-main)" }}
                   placeholder="Написать комментарий..." value={newComment}
                   onChange={e => setNewComment(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addComment(); }} />

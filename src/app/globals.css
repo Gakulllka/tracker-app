@@ -305,7 +305,7 @@
   border-radius: 6px;
   /* Чернильная обводка — единый стиль белых «окон» */
   border: 2px solid var(--tracker-accent);
-  background: var(--tracker-bg, var(--background));
+  background: var(--tracker-bg-main);
   color: var(--tracker-text-main, var(--foreground));
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;

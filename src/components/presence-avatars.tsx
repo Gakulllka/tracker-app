@@ -4,6 +4,7 @@
  * Опрашивает /api/presence раз в 45 секунд и показывает стопку аватарок.
  */
 import React, { useEffect, useState, useCallback } from "react";
+import { RAIL } from "@/lib/tokens";
 
 interface OnlineUser {
   id: string;
@@ -62,7 +63,7 @@ export function PresenceAvatars({ token, currentUserId }: { token: string; curre
       ))}
       {rest > 0 && (
         <div className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-[var(--tracker-accent)] bg-[rgba(250,250,248,0.16)] shrink-0">
-          <span className="text-[8px] font-bold" style={{ color: "rgba(250,250,248,0.8)" }}>+{rest}</span>
+          <span className="text-[8px] font-bold" style={{ color: RAIL.muted }}>+{rest}</span>
         </div>
       )}
       <span className="ml-3 mr-1 size-1.5 rounded-full bg-[var(--tracker-success)] shrink-0" />

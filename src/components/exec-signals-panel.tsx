@@ -288,18 +288,18 @@ export function ExecSignalsPanel({
                 <label className="text-xs font-medium mb-1 block" style={M}>План, ч</label>
                 <Input value={editDraft.planH} onChange={e => setEditDraft(d => ({ ...d, planH: e.target.value }))}
                   className="h-9 text-sm"
-                  style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))", color: "var(--tracker-text-main)" }} />
+                  style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)", color: "var(--tracker-text-main)" }} />
               </div>
               <div>
                 <label className="text-xs font-medium mb-1 block" style={M}>Факт, ч</label>
                 <Input value={editDraft.factH} onChange={e => setEditDraft(d => ({ ...d, factH: e.target.value }))}
                   className="h-9 text-sm"
-                  style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))", color: "var(--tracker-text-main)" }} />
+                  style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)", color: "var(--tracker-text-main)" }} />
               </div>
               <div>
                 <label className="text-xs font-medium mb-1 block" style={M}>Статус</label>
                 <Select value={editDraft.status} onValueChange={v => setEditDraft(d => ({ ...d, status: v as Status }))}>
-                  <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}>
+                  <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -310,7 +310,7 @@ export function ExecSignalsPanel({
               <div>
                 <label className="text-xs font-medium mb-1 block" style={M}>Приоритет</label>
                 <Select value={editDraft.priority} onValueChange={v => setEditDraft(d => ({ ...d, priority: v as Priority }))}>
-                  <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}>
+                  <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -440,7 +440,7 @@ function SignalCard({
               className="w-full rounded-lg border text-xs px-2 py-1.5 resize-none outline-none focus:ring-1"
               rows={2}
               placeholder="Укажите причину отклонения…"
-              style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))", color: "var(--tracker-text-main)" }}
+              style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)", color: "var(--tracker-text-main)" }}
               value={rejectDraft}
               onChange={e => onRejectDraftChange(e.target.value)}
             />
@@ -481,7 +481,7 @@ function SignalCard({
             <textarea
               className="w-full rounded-lg border text-xs px-2 py-1.5 resize-none outline-none focus:ring-1"
               rows={3}
-              style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))", color: "var(--tracker-text-main)" }}
+              style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)", color: "var(--tracker-text-main)" }}
               value={questionText}
               onChange={e => onQuestionTextChange(e.target.value)}
               placeholder="Текст вопроса…"

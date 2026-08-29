@@ -303,7 +303,7 @@ function ProtocolCard({
     <div
       className="card group hover:translate-y-[-1px] transition-all duration-150"
       style={{
-        background: "var(--tracker-card)",
+        background: "var(--tracker-bg-card)",
         borderRadius: "var(--radius-card, 14px)",
         padding: "18px 20px",
         boxShadow: "var(--shadow-card)",

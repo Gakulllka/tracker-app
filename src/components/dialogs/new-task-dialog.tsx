@@ -73,13 +73,13 @@ export function NewTaskDialog({ open, month, year, onClose }: NewTaskDialogProps
               <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>№</label>
               <Input value={draft.num} onChange={e => setDraft(d => ({ ...d, num: e.target.value }))}
                 placeholder="—" className="h-9 text-sm"
-                style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }} />
+                style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }} />
             </div>
             <div>
               <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>Наименование *</label>
               <Input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
                 placeholder="Название задачи" className="h-9 text-sm" autoFocus
-                style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}
+                style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }}
                 onKeyDown={e => { if (e.key === "Enter") handleCreate(); }} />
             </div>
           </div>
@@ -88,12 +88,12 @@ export function NewTaskDialog({ open, month, year, onClose }: NewTaskDialogProps
               <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>План, ч</label>
               <Input value={draft.planH} onChange={e => setDraft(d => ({ ...d, planH: e.target.value }))}
                 placeholder="0" className="h-9 text-sm"
-                style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }} />
+                style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }} />
             </div>
             <div>
               <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>Приоритет</label>
               <Select value={draft.priority} onValueChange={v => setDraft(d => ({ ...d, priority: v as Priority }))}>
-                <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}>
+                <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -108,7 +108,7 @@ export function NewTaskDialog({ open, month, year, onClose }: NewTaskDialogProps
             <div>
               <label className="text-xs font-medium mb-1 block" style={{ color: "var(--tracker-text-muted)" }}>Статус</label>
               <Select value={draft.status} onValueChange={v => setDraft(d => ({ ...d, status: v as Status }))}>
-                <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}>
+                <SelectTrigger className="h-9 text-xs" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

@@ -54,7 +54,7 @@ export function TransferDialog({
           </div>
 
           <Select value={transferTarget >= 0 ? String(transferTarget) : undefined} onValueChange={v => onTargetChange(Number(v))}>
-            <SelectTrigger style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg, var(--background))" }}>
+            <SelectTrigger style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }}>
               <SelectValue placeholder="Выберите целевой месяц…" />
             </SelectTrigger>
             <SelectContent>
