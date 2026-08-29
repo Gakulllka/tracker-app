@@ -507,11 +507,9 @@ function HoursField({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
-  // Значение могло измениться снаружи — например, формулой в заметке.
-  useEffect(() => {
-    if (!editing) setDraft(value);
-  }, [value, editing]);
-
+  // Синхронизировать draft со значением снаружи не нужно: пока поле не
+  // в фокусе, показывается вычисленное значение, а черновик берётся
+  // из value в момент фокуса.
   const computed = value.trim() === "" ? "" : fmt2(evalExpr(value));
   const isFormula = computed !== "" && computed !== value.trim();
 
