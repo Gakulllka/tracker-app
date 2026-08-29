@@ -61,3 +61,16 @@ export function getFileIcon(fileType: string): string {
   if (fileType.includes("spreadsheet") || fileType.includes("excel") || fileType.endsWith(".xlsx") || fileType.endsWith(".xls")) return "📊";
   return "📎";
 }
+
+/**
+ * base64 → ArrayBuffer.
+ *
+ * Файлы протоколов хранятся в базе строкой base64 (MeetingProtocol.fileData),
+ * а библиотекам предпросмотра нужен бинарный буфер.
+ */
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const chars = atob(base64);
+  const bytes = new Uint8Array(chars.length);
+  for (let i = 0; i < chars.length; i++) bytes[i] = chars.charCodeAt(i);
+  return bytes.buffer;
+}

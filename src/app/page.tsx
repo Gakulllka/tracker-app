@@ -8,6 +8,7 @@ import React, {
   useRef,
 } from "react";
 import { AuthGate } from "@/app/auth-gate";
+import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { useInsightSync } from "@/hooks/useInsightSync";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { mergeImportedTasks, type ImportPayload } from "@/lib/task-import";
@@ -1250,37 +1251,12 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
       </main>
       </SidebarInset>
 
-      {/* ---- MOBILE BOTTOM NAV ---- */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 mobile-bottom-nav" role="navigation" aria-label="Мобильная навигация">
-        <div className="flex items-stretch" role="tablist" aria-label="Вкладки приложения">
-          {(
-            [
-              { key: "table",     icon: LayoutGrid,    label: "Задачи" },
-              { key: "backlog",   icon: Package,       label: "Беклог" },
-              ...(canSeeQuestions ? [{ key: "questions" as const, icon: HelpCircle, label: "Вопросы" }] : []),
-              { key: "slides",    icon: Presentation,  label: "Слайды" },
-              { key: "protocols", icon: FileText,      label: "Протоколы" },
-            ] as const
-          )
-            .filter((tab) => !allowedTabs || allowedTabs.has(tab.key))
-            .map((tab) => {
-              return (
-                <button
-                  key={tab.key}
-                  role="tab"
-                  aria-selected={view === tab.key}
-                  aria-label={tab.label}
-                  onClick={() => setView(tab.key)}
-                  className={`mobile-bottom-nav-item ${view === tab.key ? "active" : ""}`}
-                >
-                  <span className="mobile-bottom-nav-icon"><tab.icon className="size-[18px]" /></span>
-                  <span className="mobile-bottom-nav-label">{tab.label}</span>
-                </button>
-              );
-            })}
-        </div>
-      </nav>
-
+      <MobileBottomNav
+        view={view}
+        setView={setView}
+        allowedTabs={allowedTabs ?? undefined}
+        canSeeQuestions={canSeeQuestions}
+      />
       {/* ---- TOTALH DIALOG ---- */}
       <TotalHDialog
         open={totalHDialog.open}

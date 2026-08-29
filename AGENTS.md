@@ -517,22 +517,27 @@ npm run db:push
 | Слой | Где лежит | За что отвечает |
 |------|-----------|-----------------|
 | Страницы | `src/app/page.tsx` | Главный экран трекера, сборка всех вкладок |
-| | `src/app/auth-gate.tsx` | Всё до входа в трекер: сессия, вход, выбор домена |
+| | `src/app/auth-gate.tsx` | Всё до входа: сессия, вход, выбор домена |
 | | `src/app/admin/page.tsx` | Админ-панель: оболочка и проверка прав |
-| | `src/components/admin/` | Четыре вкладки админки + общие типы |
 | API | `src/app/api/**/route.ts` | 30 маршрутов, вся проверка прав только здесь |
 | Логика | `src/lib/store.ts` | Zustand-стор: задачи, беклог, домены, undo |
-| | `src/lib/month-keys.ts` | Перевод между `allData[месяц]` и `dataByYearMonth["YYYY-MM"]` |
-| | `src/lib/task-import.ts` | Слияние импортируемых задач, оживление удалённых |
+| | `src/lib/month-keys.ts` | Перевод между `allData[месяц]` и `dataByYearMonth` |
+| | `src/lib/workspace-storage.ts` | localStorage с разделением по пространствам |
+| | `src/lib/task-import.ts` | Слияние импорта, оживление удалённых задач |
 | | `src/lib/excel-import.ts` | Разбор XLSX и сверка с месяцем (без интерфейса) |
+| | `src/lib/sync-merge.ts` | Слияние клиента и сервера (last-write-wins) |
+| | `src/lib/transfer.ts` | Отбор задач для переноса в другой месяц |
 | | `src/lib/metrics.ts` | Формулы, `evalExpr`, накопительный факт по `num` |
+| | `src/lib/cut-algorithm.ts` | Кого отсекать при перерасходе месяца |
 | | `src/lib/auth.ts` | Роли и права: `getDomainRole`, `canEditDomain` |
+| | `src/lib/presentation-theme.ts` | Цвета и шрифты презентации |
 | | `src/lib/presentation-bg.ts` | Настройки фона презентации |
 | Хуки | `src/hooks/useKeyboardShortcuts.ts` | Глобальные горячие клавиши |
 | | `src/hooks/useInsightSync.ts` | Загрузка AI-инсайта и пометка «устарел» |
-| | `src/hooks/usePermissions.ts`, `useServerSync.ts`, `usePresentation.ts` и др. | |
-| Интерфейс | `src/components/views/` | Вкладки: таблица, беклог, вопросы, слайды, протоколы, чат |
+| | `src/hooks/usePermissions.ts`, `useServerSync.ts`, `usePresentation.ts` | |
+| Интерфейс | `src/components/views/` | Вкладки + `mobile-task-cards`, `ideas-panel`, `question-card`, `protocol-dialogs` |
 | | `src/components/dialogs/` | Модальные окна |
+| | `src/components/admin/` | Четыре вкладки админки + общие типы |
 | | `src/components/ui/` | shadcn/ui — не редактировать вручную |
 
 ### Правило разделения
@@ -543,8 +548,13 @@ npm run db:push
 
 ### Крупные файлы
 
-Самые большие: `views/table-view.tsx` (~1610), `app/page.tsx` (~1517),
-`excel-import-modal.tsx` (~1188), `lib/store.ts` (~1156).
+Самые большие: `app/page.tsx` (~1493), `views/table-view.tsx` (~1334),
+`lib/store.ts` (~1109). Файлов свыше 1500 строк не осталось.
+
+`page.tsx` дальше дробить по разметке не стоит: оставшийся JSX завязан на
+полсотни переменных состояния, и вынос блоков превратится в проброс
+пятидесяти пропсов — читаемость от этого только упадёт. Разгружать его нужно
+переносом логики в хуки, а не разрезанием разметки.
 
 Не переписывай большой файл целиком ради небольшого изменения.
 

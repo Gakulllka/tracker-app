@@ -1,6 +1,8 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DeleteTaskDialog } from "@/components/dialogs/delete-task-dialog";
+import { MobileTaskCards } from "@/components/views/mobile-task-cards";
+import { IdeasPanel } from "@/components/views/ideas-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -709,311 +711,33 @@ export function TableView({
         </div>
       </div>
 
-      {/* ---- MOBILE TASK CARDS (md:hidden) ---- */}
-      <div className="md:hidden space-y-2 stagger">
-        {rows.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon"><ClipboardList className="size-6" /></div>
-            <p className="empty-state-title">В этом месяце пока пусто</p>
-            <p className="empty-state-hint">Добавьте первую задачу кнопкой ниже — или перенесите из другого месяца</p>
-          </div>
-        ) : (
-          workRows.map((task) => {
-            const metrics = getTaskMetrics(task, totalFactMap);
-            const pct = metrics.totalH > 0 && evalExpr(task.planH) > 0
-              ? Math.min(100, (metrics.totalH / evalExpr(task.planH)) * 100)
-              : null;
-            const isOver = pct !== null && pct > 100;
-            const isSelected = selectedTaskIds.has(task.id);
-            const inSelectMode = selectedTaskIds.size > 0;
-            return (
-              <div
-                key={task.id}
-                onClick={() => {
-                  if (inSelectMode) {
-                    toggleTaskSelection(task.id);
-                  } else {
-                    onOpenTaskDetail?.(task, month);
-                  }
-                }}
-                onTouchStart={(e) => {
-                  if (clientMode || isGuest) return;
-                  // Долгое нажатие (>500мс) → режим выбора (bulk-операции).
-                  (e.currentTarget as HTMLElement & { _longPressTimer?: number })._longPressTimer =
-                    window.setTimeout(() => {
-                      if (!selectedTaskIds.has(task.id)) toggleTaskSelection(task.id);
-                      // Тактильная обратная связь если доступна.
-                      if (navigator.vibrate) navigator.vibrate(15);
-                    }, 500);
-                }}
-                onTouchEnd={(e) => {
-                  const el = e.currentTarget as HTMLElement & { _longPressTimer?: number };
-                  if (el._longPressTimer) { clearTimeout(el._longPressTimer); el._longPressTimer = undefined; }
-                }}
-                onTouchMove={(e) => {
-                  const el = e.currentTarget as HTMLElement & { _longPressTimer?: number };
-                  if (el._longPressTimer) { clearTimeout(el._longPressTimer); el._longPressTimer = undefined; }
-                }}
-                className={`mobile-task-card ${isSelected ? "selected" : ""}`}
-                style={isSelected ? { borderColor: "var(--tracker-accent)", boxShadow: "0 0 0 2px color-mix(in srgb, var(--tracker-accent) 20%, transparent)" } : undefined}
-              >
-                {/* Чекбокс выбора в режиме bulk */}
-                {inSelectMode && (
-                  <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-                    style={{
-                      background: isSelected ? "var(--tracker-accent)" : "transparent",
-                      border: `2px solid ${isSelected ? "var(--tracker-accent)" : "var(--tracker-border)"}`,
-                    }}>
-                    {isSelected && <Check className="size-3" style={{ color: "var(--tracker-accent-contrast)" }} />}
-                  </div>
-                )}
-                {/* Top row: number + priority */}
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="mobile-task-num">#{task.num || "—"}</span>
-                    {task.approvalStatus === "pending" && (
-                      <span className="mobile-task-pending-badge">Ожидает БА</span>
-                    )}
-                  </div>
-                  <span
-                    className="mobile-task-priority-pill"
-                    style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
-                  >
-                    {task.priority}
-                  </span>
-                </div>
-                {/* Name */}
-                <p className="mobile-task-name">
-                  {task.name || <span className="italic opacity-40">без названия</span>}
-                </p>
-                {/* Bottom row: status + hours */}
-                <div className="flex items-center justify-between mt-2 pt-2 mobile-task-footer">
-                  <span
-                    className="mobile-task-status-pill"
-                    style={{
-                      color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
-                      background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
-                    }}
-                  >
-                    {task.status}
-                  </span>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    {(task.budgetAllocated ?? 0) > 0 && (
-                      <span className="mobile-task-budget-badge">
-                        <Wallet className="size-3 inline" /> {task.budgetAllocated}ч
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1 delta-num"><Ruler className="size-3" /> {task.planH || "0"}ч</span>
-                    <span className={`flex items-center gap-1 delta-num ${isOver ? "text-red-500 font-semibold" : ""}`}>
-                      <Timer className="size-3" /> {task.factH || "0"}ч
-                    </span>
-                  </div>
-                </div>
-                {/* Progress bar */}
-                {pct !== null && (
-                  <div className="mt-2 h-1 rounded-full overflow-hidden bg-muted/60">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${Math.min(pct, 100)}%`,
-                        background: isOver
-                          ? "var(--tracker-danger)"
-                          : "var(--tracker-accent)",
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })
-        )}
-        {/* Mobile FAB */}
-        {!clientMode && !isGuest && (
-          <button
-            className="mobile-fab"
-            onClick={() => onOpenNewTaskDialog(month)}
-            aria-label="Добавить задачу"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-          </button>
-        )}
-      </div>
+      <MobileTaskCards
+        workRows={workRows}
+        rows={rows}
+        month={month}
+        isDark={isDark}
+        totalFactMap={totalFactMap}
+        selectedTaskIds={selectedTaskIds}
+        toggleTaskSelection={toggleTaskSelection}
+        onOpenTaskDetail={onOpenTaskDetail}
+        onOpenNewTaskDialog={onOpenNewTaskDialog}
+        clientMode={clientMode}
+        isGuest={isGuest}
+      />
 
-      {ideaRows.length > 0 && (
-        <div className="rounded-2xl border" style={{ borderColor: "#17181C", borderWidth: 2, background: "var(--tracker-bg-card)" }}>
-          <button type="button" onClick={() => setIdeasOpen(v => !v)} className="w-full flex items-center gap-2 px-4 py-3 text-left cursor-pointer select-none hover:bg-black/5 transition-colors">
-            <Lightbulb className="size-4" style={{ color: "#fbbf24" }} />
-            <span className="font-semibold text-sm">Идеи</span>
-            <span className="text-xs rounded-full px-2 py-0.5" style={{ background: "rgba(251,191,36,.14)", color: "#b45309" }}>{ideaRows.length}</span>
-            <ChevronDown className={`size-4 ml-auto transition-transform ${ideasOpen ? "rotate-180" : ""}`} />
-          </button>
-          {ideasOpen && <div className="task-card-grid p-3 pt-0">
-            {ideaRows.map(({ task, sourceMonth }) => {
-              const metrics = getTaskMetrics(task, totalFactMap);
-              const accentColor = PHASE_COLORS[getPhaseForStatus(task.status)] || "var(--tracker-accent)";
-              return (
-              <TaskContextMenu key={task.id} task={task} month={sourceMonth} isDark={isDark} updateTask={updateTask} deleteTask={deleteTask} moveToBacklog={moveToBacklog} duplicateTask={duplicateTask} isGuest={isGuest}>
-                <div
-                  className="task-card cursor-pointer"
-                  style={{ "--card-accent-color": "#fbbf24" } as React.CSSProperties}
-                  onClick={(e) => {
-                    const tag = (e.target as HTMLElement)?.tagName;
-                    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON" || tag === "SELECT") return;
-                    if ((e.target as HTMLElement)?.closest("button, select, input, textarea, [role='combobox']")) return;
-                    onOpenTaskDetail?.(task, sourceMonth);
-                  }}
-                >
-                  {/* Строка 1: лампочка + номер + статус + приоритет */}
-                  <div className="flex items-start gap-2">
-                    <div className="shrink-0 mt-0.5" onClick={(e) => e.stopPropagation()}>
-                      <Lightbulb className="size-4" style={{ color: "#fbbf24" }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                        <span className="task-card-num">#{task.num || "—"}</span>
-                      </div>
-                      <p className="task-card-name">{task.name || "без названия"}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      {/* Статус — дропдаун */}
-                      {!isExecutive && !isGuest ? (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button
-                              className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity"
-                              style={{
-                                color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
-                                background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
-                              }}
-                            >
-                              {task.status}
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[280px] p-2" align="end" side="bottom">
-                            <div className="flex flex-col gap-1.5">
-                              {([
-                                { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW], color: PHASE_COLORS.new },
-                                { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS], color: PHASE_COLORS.in_progress },
-                                { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE], color: PHASE_COLORS.done },
-                                { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL], color: PHASE_COLORS.cancel },
-                              ]).map((group) => (
-                                <div key={group.label}>
-                                  <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: group.color }}>{group.label}</div>
-                                  <div className="flex flex-wrap gap-1">
-                                    {group.items.map((s) => (
-                                      <button
-                                        key={s}
-                                        onClick={() => { useTaskStore.getState().snapshot(); updateTask(sourceMonth, task.id, "status", s); }}
-                                        className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full transition-all ${task.status === s ? "ring-1 ring-offset-1" : "opacity-70 hover:opacity-100"}`}
-                                        style={{
-                                          color: scolText(s, isDark) || "#888",
-                                          background: (scolText(s, isDark) || "#888") + "20",
-                                          ...(task.status === s ? { ringColor: scolText(s, isDark) || "#888", outlineColor: scolText(s, isDark) || "#888" } : {}),
-                                        }}
-                                      >
-                                        {s}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      ) : (
-                        <span
-                          className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center justify-center"
-                          style={{
-                            color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
-                            background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
-                          }}
-                        >
-                          {task.status}
-                        </span>
-                      )}
-                      {/* Приоритет — дропдаун */}
-                      {!isExecutive && !isGuest ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1"
-                              style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
-                            >
-                              {task.priority}
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            {Object.values(PRIORITIES).map(p => (
-                              <DropdownMenuItem key={p} className="text-xs gap-2 cursor-pointer" onClick={() => {
-                                useTaskStore.getState().snapshot();
-                                updateTask(sourceMonth, task.id, "priority", p);
-                              }}>
-                                <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PCOL[p] }} />
-                                {p}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : (
-                        <span
-                          className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center gap-1"
-                          style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
-                        >
-                          {task.priority}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Прогресс */}
-                  <div className="flex items-center gap-1.5 mt-2 pl-5">
-                    <div className="task-card-progress flex-1">
-                      <div
-                        className="task-card-progress-fill"
-                        style={{
-                          width: `${Math.min(metrics.prog, 100)}%`,
-                          backgroundColor: "var(--tracker-accent)",
-                        }}
-                      />
-                    </div>
-                    <span className="text-[10px] font-semibold tabular-nums shrink-0" style={{ color: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over) }}>
-                      {metrics.prog}%
-                    </span>
-                  </div>
-
-                  {/* Часы: план / факт / итого */}
-                  <div className="flex items-center gap-2 mt-1.5 pl-5 text-[13px] delta-num text-[var(--tracker-text-main)] [&_svg]:opacity-45">
-                    <span className="flex items-center gap-1 w-[72px]">
-                      <Ruler className="size-3.5 shrink-0" /> {fmt2(metrics.plan)}<span className="text-[var(--tracker-text-muted)]">ч</span>
-                    </span>
-                    <span className={`flex items-center gap-1 w-[72px] ${metrics.fact > metrics.plan && metrics.plan > 0 ? "text-[var(--tracker-danger)] font-semibold" : ""}`}>
-                      <Timer className="size-3.5 shrink-0" /> {fmt2(metrics.fact)}<span className="text-[var(--tracker-text-muted)]">ч</span>
-                    </span>
-                    <span className="flex items-center gap-1 w-[72px]">
-                      <span className="opacity-60">Σ</span> {fmt2(metrics.totalH)}<span className="text-[var(--tracker-text-muted)]">ч</span>
-                    </span>
-                  </div>
-
-                  {/* Кнопки: В работу + В бэклог */}
-                  {!isExecutive && !isGuest && (
-                    <div className="flex items-center gap-0.5 shrink-0 mt-1.5 ml-5" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => promoteIdea(sourceMonth, task)} title="В работу">
-                        <Play className="size-3" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveToBacklog(sourceMonth, task.id)} title="В беклог">
-                        <Package className="size-3" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </TaskContextMenu>
-              );
-            })}
-          </div>}
-        </div>
-      )}
+      <IdeasPanel
+        ideaRows={ideaRows}
+        isDark={isDark}
+        totalFactMap={totalFactMap}
+        updateTask={updateTask}
+        deleteTask={deleteTask}
+        moveToBacklog={moveToBacklog}
+        duplicateTask={duplicateTask}
+        onOpenTaskDetail={onOpenTaskDetail}
+        promoteIdea={promoteIdea}
+        isGuest={isGuest}
+        isExecutive={isExecutive}
+      />
 
       {/* Панель настроек группировки удалена — заменена компактным
           контролом в тулбаре (detailed). */}

@@ -1,10 +1,11 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { StateStorage } from "zustand/middleware";
+import { workspaceStorage, LEGACY_KEY } from "./workspace-storage";
 import { PRIORITIES, STATUSES, MONTHS, PRIO_START, STATUS_ORDER } from "./types";
 import type { Task, Domain, AllData, Status, Priority, CommentEntry } from "./types";
 import { createNewTask } from "./metrics";
 import { createUndoHelpers } from "./undo";
+import { prepareTransfer } from "./transfer";
 import { monthKey, parseMonthKey, buildAllDataForYear, listYearsWithData, type MonthKey } from "./month-keys";
 import { DEFAULT_PRES_BG, type PresBgSettings } from "./presentation-bg";
 
@@ -291,52 +292,6 @@ function saveCurrentDomainData(
     },
   };
 }
-
-// ---------------------------------------------------------------------------
-//  Workspace-scoped localStorage adapter
-//  Each workspace (user) gets its own localStorage entry so that logging in
-//  as a different user doesn't overwrite the previous user's local state.
-//  Key format: `task-tracker-store-ws-<workspaceId>`
-//  Falls back to the legacy shared key `task-tracker-store` for migration.
-// ---------------------------------------------------------------------------
-
-const WS_STORAGE_BASE = "task-tracker-store";
-
-function getWorkspaceStorageKey(name: string): string {
-  if (typeof window === "undefined") return name;
-  const wsId = localStorage.getItem("auth_workspace");
-  return wsId ? `${name}-ws-${wsId}` : name;
-}
-
-const workspaceStorage: StateStorage = {
-  getItem: (name: string): string | null => {
-    const key = getWorkspaceStorageKey(name);
-    const value = localStorage.getItem(key);
-
-    // Migration: if workspace-scoped key is empty but the legacy shared key
-    // has data, copy it to the new workspace-scoped key. This handles the
-    // transition from the old shared-key format.
-    if (!value && key !== name) {
-      const legacy = localStorage.getItem(name);
-      if (legacy) {
-        try {
-          localStorage.setItem(key, legacy);
-          return legacy;
-        } catch { /* quota exceeded — fall through */ }
-      }
-    }
-
-    return value;
-  },
-  setItem: (name: string, value: string): void => {
-    const key = getWorkspaceStorageKey(name);
-    localStorage.setItem(key, value);
-  },
-  removeItem: (name: string): void => {
-    const key = getWorkspaceStorageKey(name);
-    localStorage.removeItem(key);
-  },
-};
 
 export const useTaskStore = create<AppState>()(
   persist(
@@ -932,14 +887,12 @@ export const useTaskStore = create<AppState>()(
           return withDomainSync(state, { allData: newAllData });
         });
       },
+      // Логика отбора — в lib/transfer.ts, здесь только запись в стор.
       transferIncompleteTasks: (fromMonth, toMonth) => {
         const state = get();
-        const fromRows = state.allData[fromMonth] || [];
-        const incomplete = fromRows.filter(
-          r => r.status !== STATUSES.DONE && r.status !== STATUSES.COMPLETED && r.status !== STATUSES.CANCEL
-        );
-        if (incomplete.length === 0) return 0;
-        const transferred = incomplete.map(r => ({ ...r, id: crypto.randomUUID(), factH: "0", commentLog: [], _ts: Date.now() }));
+        const { transferred } = prepareTransfer(state.allData[fromMonth] || []);
+        if (transferred.length === 0) return 0;
+
         undoHelpers.snapshot(getStateSnapshot);
         const newAllData = {
           ...state.allData,
@@ -1078,7 +1031,7 @@ export const useTaskStore = create<AppState>()(
       },
     }),
     {
-      name: WS_STORAGE_BASE,
+      name: LEGACY_KEY,
       storage: createJSONStorage(() => workspaceStorage),
       partialize: (state) => ({
         domainData: state.domainData,

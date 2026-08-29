@@ -15,6 +15,7 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import { useTaskStore, undoStore } from "@/lib/store";
 import { mapQuestionFromAPI, Question } from "@/lib/questions";
+import { mergeRows, type SyncRow } from "@/lib/sync-merge";
 
 interface UseServerSyncParams {
   workspaceId: string;
@@ -35,63 +36,13 @@ interface UseServerSyncParams {
   onSkippedDomains?: (domainNames: string[]) => void;
 }
 
-/**
- * Построчный LWW-мерж месяца/бэклога: побеждает строка с бОльшим _ts.
- *  - строка есть только на сервере → берём серверную (включая tombstone);
- *  - строка есть только локально → сохраняем (ещё не допушена);
- *  - есть обе → новее по _ts.
- * Именно это делает pull безопасным: пришедший старый снимок больше
- * не может откатить локальную правку или «воскресить» удалённую задачу.
- */
-function mergeRows(localRows: SyncTask[] | undefined, incomingRows: SyncTask[] | undefined): SyncTask[] {
-  const local = localRows || [];
-  const incoming = incomingRows || [];
-  if (local.length === 0) return incoming;
-  // «Версия» контента для тай-брейка при равных _ts
-  const contentKey = (r: SyncTask) => JSON.stringify([
-    r.num, r.name, r.planH, r.factH, r.priority, r.status,
-    r.comment, r._deleted ?? false, r.commentLog ?? [],
-  ]);
-  const localById = new Map(local.map((r) => [r.id, r]));
-  const result: SyncTask[] = [];
-  const used = new Set<string>();
-  for (const inc of incoming) {
-    const loc = localById.get(inc.id);
-    used.add(inc.id);
-    if (!loc) { result.push(inc); continue; }
-    const lt = loc._ts || 0;
-    const it = inc._ts || 0;
-    if (lt > it) result.push(loc);
-    else if (lt === it && contentKey(loc) !== contentKey(inc)) {
-      // Равные метки, разный контент: это наша ещё не подтверждённая
-      // правка — оставляем локальную, сервер примет её ближайшим push.
-      result.push(loc);
-    }
-    else result.push(inc);
-  }
-  // Локальные строки, неизвестные серверу (созданы/изменены и не допушены)
-  for (const loc of local) {
-    if (!used.has(loc.id)) result.push(loc);
-  }
-  return result;
-}
-
 export type SyncStatus =
   | "initializing" | "synced" | "pending" | "pushing" | "offline" | "denied";
 
-interface SyncTask {
-  id: string;
-  num?: string;
-  name?: string;
-  _ts?: number;
-  _updatedBy?: string;
-  _deleted?: boolean;
-  [key: string]: unknown;
-}
 
 interface SyncDomainData {
-  allData?: Record<string, SyncTask[]>;
-  backlog?: SyncTask[];
+  allData?: Record<string, SyncRow[]>;
+  backlog?: SyncRow[];
 }
 
 export function useServerSync({
@@ -232,19 +183,19 @@ export function useServerSync({
     // Собираем текущие _ts по id из активного домена (все месяцы + бэклог)
     const localTs = new Map<string, number>();
     const localDom = s.domainData[domId] as unknown as
-      | { dataByYearMonth?: Record<string, SyncTask[]>; backlog?: SyncTask[] }
+      | { dataByYearMonth?: Record<string, SyncRow[]>; backlog?: SyncRow[] }
       | undefined;
-    const scanLocal = (tasks?: SyncTask[]) => {
+    const scanLocal = (tasks?: SyncRow[]) => {
       for (const t of tasks || []) if (t?.id) localTs.set(t.id, t._ts || 0);
     };
     if (localDom?.dataByYearMonth) {
       for (const tasks of Object.values(localDom.dataByYearMonth)) scanLocal(tasks);
     }
-    for (const tasks of Object.values(s.allData)) scanLocal(tasks as unknown as SyncTask[]);
-    scanLocal(s.backlog as unknown as SyncTask[]);
+    for (const tasks of Object.values(s.allData)) scanLocal(tasks as unknown as SyncRow[]);
+    scanLocal(s.backlog as unknown as SyncRow[]);
 
     const messages: string[] = [];
-    const scanIncoming = (tasks?: SyncTask[]) => {
+    const scanIncoming = (tasks?: SyncRow[]) => {
       for (const t of tasks || []) {
         if (!t?.id || !t._updatedBy) continue;
         if (t._updatedBy === currentUsername) continue;
@@ -314,30 +265,30 @@ export function useServerSync({
         // сделанный сервером ДО нашей правки, не может её откатить.
         const st = useTaskStore.getState();
         const mergedDomainData: Record<string, {
-          allData: Record<string, SyncTask[]>;
-          backlog: SyncTask[];
+          allData: Record<string, SyncRow[]>;
+          backlog: SyncRow[];
           monthlyPlanByYearMonth?: Record<string, number>;
         }> = {};
 
         for (const [domId, rawIncoming] of Object.entries(data.domainData)) {
           const incoming = rawIncoming as {
-            allData?: Record<string, SyncTask[]>;
-            backlog?: SyncTask[];
+            allData?: Record<string, SyncRow[]>;
+            backlog?: SyncRow[];
             monthlyPlanByYearMonth?: Record<string, number>;
           };
           const localDom = st.domainData[domId] as unknown as {
-            dataByYearMonth?: Record<string, SyncTask[]>;
-            backlog?: SyncTask[];
+            dataByYearMonth?: Record<string, SyncRow[]>;
+            backlog?: SyncRow[];
             monthlyPlanByYearMonth?: Record<string, number>;
           } | undefined;
 
           // Локальные месяцы: канонично dataByYearMonth; для активного
           // домена текущий год перекрываем «живым» срезом allData.
-          const localByMonth: Record<string, SyncTask[]> = { ...(localDom?.dataByYearMonth || {}) };
+          const localByMonth: Record<string, SyncRow[]> = { ...(localDom?.dataByYearMonth || {}) };
           if (domId === st.activeDomainId) {
             for (let m = 0; m < 12; m++) {
               const key = `${st.currentYear}-${String(m + 1).padStart(2, "0")}`;
-              localByMonth[key] = (st.allData[m] as unknown as SyncTask[]) || [];
+              localByMonth[key] = (st.allData[m] as unknown as SyncRow[]) || [];
             }
           }
 
@@ -345,13 +296,13 @@ export function useServerSync({
             ...Object.keys(localByMonth),
             ...Object.keys(incoming.allData || {}),
           ]);
-          const mergedMonths: Record<string, SyncTask[]> = {};
+          const mergedMonths: Record<string, SyncRow[]> = {};
           for (const mk of months) {
             mergedMonths[mk] = mergeRows(localByMonth[mk], incoming.allData?.[mk]);
           }
 
           const localBacklog = domId === st.activeDomainId
-            ? (st.backlog as unknown as SyncTask[])
+            ? (st.backlog as unknown as SyncRow[])
             : localDom?.backlog;
 
           mergedDomainData[domId] = {
