@@ -553,10 +553,17 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     [visibleRows, totalFactMap]
   );
 
-  /** Сколько запланировано от бюджета месяца. */
+  /**
+   * Загрузка месяца — сколько часов бюджета уже израсходовано.
+   *
+   * Считается от ФАКТА текущего месяца, а не от суммы планов: планы
+   * задач складываются за всё время их жизни и легко перекрывают бюджет
+   * в разы. При бюджете 240 и сумме планов 548 получалось 228%, что
+   * ни о чём не говорит.
+   */
   const monthLoad = useMemo(
-    () => (monthlyPlan > 0 ? Math.round((rowsMetrics.totPlan / monthlyPlan) * 100) : 0),
-    [rowsMetrics.totPlan, monthlyPlan],
+    () => (monthlyPlan > 0 ? Math.round((rowsMetrics.totFact / monthlyPlan) * 100) : 0),
+    [rowsMetrics.totFact, monthlyPlan],
   );
 
   const monthHasData = useCallback(
@@ -983,7 +990,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
               <div className="month-load">
                 <dt>Загрузка</dt>
                 <dd>
-                  <span className="month-load-bar" role="img" aria-label={`Загрузка месяца ${monthLoad}%`}>
+                  <span className="month-load-bar" role="img" aria-label={`Израсходовано ${monthLoad}% бюджета месяца`}>
                     <i style={{ width: `${Math.min(monthLoad, 100)}%`, background: monthLoad > 100 ? "var(--tracker-danger)" : "var(--tracker-accent)" }} />
                   </span>
                   <span style={{ color: monthLoad > 100 ? "var(--tracker-danger)" : undefined }}>{monthLoad}%</span>
