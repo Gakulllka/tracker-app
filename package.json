@@ -8,12 +8,13 @@
     "start": "node scripts/run.mjs start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "playwright test",
+    "test": "node --experimental-strip-types --import ./tests/unit/alias.mjs --test \"tests/unit/*.test.ts\"",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

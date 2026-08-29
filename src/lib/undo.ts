@@ -1,4 +1,4 @@
-import { Task, AllData } from "./types";
+import type { Task, AllData } from "./types";
 
 const MAX_UNDO_STACK = 20;
 

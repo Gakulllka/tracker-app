@@ -1,14 +1,7 @@
 import "./buffer-polyfill";
 import ExcelJS from "exceljs";
-import {
-  type Task,
-  type AllData,
-  type Domain,
-  MONTHS,
-  SCOL,
-  PCOL,
-  STATUSES,
-} from "./types";
+import { MONTHS, SCOL, PCOL, STATUSES } from "./types";
+import type { Task, AllData, Domain } from "./types";
 import { fixStatus, fixPriority, evalExpr, fmt2, R2 } from "./metrics";
 
 /* ------------------------------------------------------------------ */

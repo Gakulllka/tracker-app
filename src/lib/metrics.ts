@@ -1,4 +1,5 @@
-import { Task, TaskMetrics, Priority, PRIO_START, Status, STATUSES, PRIORITIES } from "./types";
+import { PRIO_START, STATUSES, PRIORITIES } from "./types";
+import type { Task, TaskMetrics, Priority, Status } from "./types";
 
 export const R2 = (v: number) => Math.round(v * 100) / 100;
 

@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { StateStorage } from "zustand/middleware";
-import { Task, Domain, AllData, Status, Priority, PRIORITIES, STATUSES, MONTHS, PRIO_START, STATUS_ORDER, type CommentEntry } from "./types";
+import { PRIORITIES, STATUSES, MONTHS, PRIO_START, STATUS_ORDER } from "./types";
+import type { Task, Domain, AllData, Status, Priority, CommentEntry } from "./types";
 import { createNewTask } from "./metrics";
 import { createUndoHelpers } from "./undo";
 import { monthKey, parseMonthKey, buildAllDataForYear, listYearsWithData, type MonthKey } from "./month-keys";

@@ -3,7 +3,8 @@
  * Вынесено из page.tsx.
  */
 
-import { Task, STATUSES, MONTHS, STATUS_ORDER } from "./types";
+import { STATUSES, MONTHS, STATUS_ORDER } from "./types";
+import type { Task } from "./types";
 import { evalExpr, fmt2, buildTotalFactMap } from "./metrics";
 import { SlideData } from "./presentation-renderer";
 

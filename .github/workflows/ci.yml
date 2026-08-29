@@ -1,5 +1,5 @@
-# CI: проверка типов на каждый push/PR (блокирующая) + линт (информационный)
-# + опциональные смоук-тесты Playwright, если в секретах задан DATABASE_URL.
+# CI: проверка типов и юнит-тесты на каждый push/PR (блокирующие),
+# линт информационный, смоук-тесты Playwright — опционально (нужна живая база).
 name: CI
 
 on:
@@ -9,14 +9,14 @@ on:
 
 jobs:
   typecheck:
-    name: TypeScript + ESLint
+    name: TypeScript + юнит-тесты + ESLint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -28,8 +28,14 @@ jobs:
       - name: TypeScript (блокирующая проверка)
         run: npx tsc --noEmit
 
-      # В page.tsx есть 5 унаследованных предупреждений react-hooks —
-      # линт информационный, чтобы не блокировать деплой из-за старого кода.
+      # Юнит-тесты чистых модулей: lib/task-import, lib/excel-import, lib/metrics.
+      # База и браузер не нужны — запускаются встроенным движком Node.
+      - name: Юнит-тесты (блокирующая проверка)
+        run: npm test
+
+      # Унаследованные предупреждения react-hooks/set-state-in-effect
+      # (правило появилось в React 19). Линт информационный, чтобы не
+      # блокировать деплой из-за старого кода — см. AGENTS.md, раздел 11.
       - name: ESLint (информационно)
         run: npx eslint src || echo "::warning::ESLint нашёл проблемы — смотри лог выше"
 
@@ -47,7 +53,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -65,4 +71,4 @@ jobs:
         run: npm run build
 
       - name: Run smoke tests
-        run: npx playwright test
+        run: npm run test:e2e

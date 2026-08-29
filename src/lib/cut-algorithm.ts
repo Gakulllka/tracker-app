@@ -1,4 +1,5 @@
-import { Task, PRIO_START } from "./types";
+import { PRIO_START } from "./types";
+import type { Task } from "./types";
 import { evalExpr, R2 } from "./metrics";
 
 /**
