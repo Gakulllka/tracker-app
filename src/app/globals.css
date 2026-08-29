@@ -1013,29 +1013,124 @@ html, body {
   text-align: center;
 }
 
-/* ── Моменты входа ─────────────────────────────────────────────────────
-   Заставка, экран входа и пустые состояния — единственные места, где
-   манга-приёмы звучат в полную силу. В рабочей области их нет: таблица
-   задач должна оставаться тихой.                                        */
+/* ── Экран загрузки ────────────────────────────────────────────────────
+   Композиция титульного кадра. Единственное движение — знак прочерчивается
+   и останавливается; полоса под ним показывает, что процесс идёт.
 
-/* Медленное вращение лучей. Заметно, только если смотреть — а смотрят
-   на заставку не дольше секунды. */
-/* Вращается ГРУППА линий внутри SVG, а не сам SVG.
-   Если крутить элемент, его углы уходят за экран и по краям появляются
-   прорехи: прямоугольник при повороте перестаёт накрывать окно. */
-.brand-speedlines g {
-  animation: brand-speedlines-turn 90s linear infinite;
-  transform-origin: 50% 44%;
-  transform-box: view-box;
+   Раньше здесь работали четыре бесконечные несинхронизированные анимации,
+   а «линии концентрации» были растянуты на весь экран через
+   preserveAspectRatio="none" и при вращении неравномерно искажались:
+   вертикальные лучи выходили толще горизонтальных, и пучок дрожал.     */
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  padding: 0 clamp(24px, 8vw, 96px);
+  transition: opacity 0.5s ease;
 }
 
-@keyframes brand-speedlines-turn {
-  to { transform: rotate(360deg); }
+.splash--hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
-/* Если в системе отключена анимация — лучи просто стоят. */
+.splash-frame {
+  width: 100%;
+  max-width: 420px;
+}
+
+.splash-mark-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.splash-titles {
+  min-width: 0;
+}
+
+.splash-wordmark {
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  /* Компенсируем разрядку последней буквы, иначе слово уезжает вправо. */
+  margin-right: -0.42em;
+  color: #FAFAF8;
+}
+
+.splash-product {
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #FAFAF8;
+}
+
+/* Знак прочерчивается: внешний контур, следом внутренний. */
+.splash-stroke {
+  stroke-dasharray: 280;
+  stroke-dashoffset: 280;
+  animation: splash-draw 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.splash-stroke--2 {
+  animation-delay: 0.3s;
+}
+
+@keyframes splash-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Полоса живёт, пока идёт загрузка, — но она одна и она тонкая. */
+.splash-rule {
+  position: relative;
+  height: 2px;
+  overflow: hidden;
+  background: rgba(250, 250, 248, 0.14);
+  margin-bottom: 10px;
+}
+
+.splash-rule i {
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: #FAFAF8;
+  animation: splash-rule 1.5s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+@keyframes splash-rule {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(220%); }
+}
+
+.splash-label {
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(250, 250, 248, 0.5);
+}
+
+/* На телефоне композиция уезжает в центр: слева от неё нет рельсы,
+   к которой можно прижаться, и прижатый к краю блок выглядит забытым. */
+@media (max-width: 767px) {
+  .splash {
+    justify-content: center;
+    padding: 0 28px;
+  }
+  .splash-product { font-size: 22px; }
+}
+
+/* Без анимации: знак сразу целый, полоса стоит. */
 @media (prefers-reduced-motion: reduce) {
-  .brand-speedlines g { animation: none; }
+  .splash-stroke { animation: none; stroke-dashoffset: 0; }
+  .splash-rule i { animation: none; width: 100%; }
 }
 
 /* Пустое состояние: рамка со штриховкой вместо серого квадрата.
@@ -1109,45 +1204,26 @@ kbd {
 
 
 /* ================================================================ */
-/*  Brand Splash — фирменная загрузка (графит и бумага)              */
+/*  Знак Delta на экранах входа                                      */
 /* ================================================================ */
 
-.brand-delta-draw {
-  stroke-dasharray: 118;
-  stroke-dashoffset: 118;
-  animation: brand-delta-draw 2.4s ease-in-out infinite;
-}
-@keyframes brand-delta-draw {
-  0%        { stroke-dashoffset: 118; opacity: 0.9; }
-  55%, 70%  { stroke-dashoffset: 0;   opacity: 1; }
-  100%      { stroke-dashoffset: -118; opacity: 0.9; }
+/* Медленное «дыхание» стека дельт на брендовой панели входа.
+   Правила прежнего экрана загрузки (brand-delta-draw, brand-delta-fade,
+   brand-progress) удалены вместе с ним — стили заставки живут в блоке
+   «Экран загрузки» выше. */
+.brand-hero-delta {
+  animation: brand-hero-breathe 7s ease-in-out infinite;
+  transform-origin: 50% 62%;
 }
 
-.brand-delta-fade { animation: brand-delta-fade 2.4s ease-in-out infinite; }
-.brand-delta-fade-1 { animation-delay: 0.25s; opacity: 0.4; }
-.brand-delta-fade-2 { animation-delay: 0.5s;  opacity: 0.25; }
-@keyframes brand-delta-fade {
-  0%, 100% { opacity: 0.18; }
-  60%      { opacity: 0.55; }
-}
-
-.brand-progress-line {
-  animation: brand-progress 1.6s ease-in-out infinite;
-}
-@keyframes brand-progress {
-  0%   { transform: translateX(-120%); }
-  100% { transform: translateX(420%); }
-}
-
-/* Вход: медленное «дыхание» стека дельт на брендовой панели */
-.brand-hero-delta { animation: brand-hero-breathe 7s ease-in-out infinite; transform-origin: 50% 62%; }
 @keyframes brand-hero-breathe {
   0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.015); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .brand-delta-draw { animation: none; stroke-dashoffset: 0; }
+  .brand-hero-delta { animation: none; }
+}
 }
 
 
