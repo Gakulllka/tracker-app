@@ -462,11 +462,17 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Подписи и высота полей общие с HoursField — иначе поля в одной
+ *  строке сетки встают на разной высоте. */
 function EditField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--tracker-text-main, #17181C)" }}>{label}</label>
-      <input className="field-input h-10 text-base w-full" value={value} onChange={e => onChange(e.target.value)} />
+      <label className="task-dialog-label">{label}</label>
+      <input
+        className="field-input w-full"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }
@@ -517,7 +523,7 @@ function HoursField({
     <div>
       <label className="task-dialog-label">{label}</label>
       <input
-        className="field-input h-9 w-full delta-num"
+        className="field-input w-full delta-num"
         value={editing ? draft : computed}
         title={isFormula ? `Записано как ${value}` : undefined}
         onFocus={() => { setDraft(value); setEditing(true); }}
@@ -528,9 +534,9 @@ function HoursField({
           if (e.key === "Escape") { setDraft(value); setEditing(false); }
         }}
       />
-      {isFormula && !editing && (
-        <p className="task-dialog-formula delta-num" aria-hidden="true">{value}</p>
-      )}
+      <p className="task-dialog-formula delta-num" aria-hidden="true">
+        {isFormula && !editing ? value : "\u00a0"}
+      </p>
     </div>
   );
 }

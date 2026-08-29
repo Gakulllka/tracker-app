@@ -306,12 +306,12 @@
   /* Чернильная обводка — единый стиль белых «окон» */
   border: 2px solid var(--tracker-accent);
   background: var(--tracker-bg-main);
-  color: var(--tracker-text-main, var(--foreground));
+  color: var(--tracker-text-main);
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .field-input:focus {
-  border-color: var(--tracker-accent, #1D9E75);
+  border-color: var(--tracker-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tracker-accent, #1D9E75) 12%, transparent);
 }
 textarea.field-input {
@@ -1015,11 +1015,20 @@ html, body {
 }
 
 /* Исходная формула под полем часов: значение видно вычисленным,
-   но запись не должна теряться из виду. */
+   но запись не должна теряться из виду. Строка занимает место всегда,
+   даже когда формулы нет, — иначе соседнее поле в строке подпрыгивает. */
 .task-dialog-formula {
   margin-top: 3px;
+  min-height: 13px;
   font-size: 10px;
+  line-height: 13px;
   color: var(--tracker-text-muted);
+}
+
+/* Реквизиты выравниваются по верхнему краю: у полей разная высота
+   из-за подписи с формулой. */
+.task-dialog-side .grid {
+  align-items: start;
 }
 
 .task-dialog-label {
