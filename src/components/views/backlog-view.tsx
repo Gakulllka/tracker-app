@@ -158,16 +158,16 @@ export function BacklogView({
   const getQueueStyle = (idx: number, total: number): React.CSSProperties => {
     const rank = idx + 1;
     if (rank === 1) return { background: "color-mix(in srgb, var(--tracker-danger) 4%, transparent)" };
-    if (rank === 2) return { background: "color-mix(in srgb, #f97316 3%, transparent)" };
-    if (rank === 3) return { background: "color-mix(in srgb, #eab308 2%, transparent)" };
+    if (rank === 2) return { background: "color-mix(in srgb, var(--tracker-warning) 3%, transparent)" };
+    if (rank === 3) return { background: "color-mix(in srgb, var(--tracker-warning) 2%, transparent)" };
     return { background: "transparent" };
   };
 
   const getQueueBadgeStyle = (idx: number): React.CSSProperties => {
     const rank = idx + 1;
     if (rank === 1) return { background: "var(--tracker-danger)", color: "#fff", fontWeight: 700 };
-    if (rank === 2) return { background: "#f97316", color: "#fff", fontWeight: 700 };
-    if (rank === 3) return { background: "#eab308", color: "#fff", fontWeight: 600 };
+    if (rank === 2) return { background: "var(--tracker-warning)", color: "#fff", fontWeight: 700 };
+    if (rank === 3) return { background: "var(--tracker-warning)", color: "#fff", fontWeight: 600 };
     if (rank <= 5) return { background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)", fontWeight: 600 };
     return { background: "transparent", color: "var(--tracker-text-muted)", fontWeight: 500, border: "1px solid var(--tracker-border)" };
   };
@@ -193,7 +193,7 @@ export function BacklogView({
                 className={`task-card ${isDragging ? "opacity-30" : ""} ${isDropTarget ? "drag-over" : ""}`}
                 style={{
                   ...getQueueStyle(idx, backlog.length),
-                  "--card-accent-color": idx < 3 ? ["var(--tracker-danger)", "#f97316", "#eab308"][idx] : "var(--tracker-accent)",
+                  "--card-accent-color": idx < 3 ? ["var(--tracker-danger)", "var(--tracker-warning)", "var(--tracker-warning)"][idx] : "var(--tracker-accent)",
                 } as React.CSSProperties}
               >
                 <div className="flex items-start gap-2.5">

@@ -72,18 +72,18 @@ export function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAns
               <span className="text-[11px] font-semibold" style={{ color: "var(--tracker-accent-fg-dark)" }}>{q.author}</span>
               {q.questionDate && <span className="text-[9px]" style={{ color: "var(--tracker-text-muted)" }}>{fmtDateUtil(q.questionDate)}</span>}
               {q.linkedTaskName && (
-                <span className="text-[8px] font-semibold px-1 py-0.5 rounded-full inline-flex items-center gap-0.5" style={{ background: "rgba(99,102,241,0.1)", color: "#6366f1" }}>
+                <span className="text-[8px] font-semibold px-1 py-0.5 rounded-full inline-flex items-center gap-0.5" style={{ background: "rgba(99,102,241,0.1)", color: "var(--tracker-accent)" }}>
                   <ClipboardList className="size-2" />{q.linkedTaskName}
                 </span>
               )}
               <div className="flex-1" />
               {q.status === "reopened"
-                ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(249,115,22,0.12)", color: "#f97316" }}>Возобновлён</span>
+                ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(249,115,22,0.12)", color: "var(--tracker-warning)" }}>Возобновлён</span>
                 : q.status === "open" && isAnswered
-                  ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b" }}>Ожидает ответа</span>
+                  ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.12)", color: "var(--tracker-warning)" }}>Ожидает ответа</span>
                   : isAnswered
-                    ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}>{answers.length} {answers.length === 1 ? "ответ" : answers.length < 5 ? "ответа" : "ответов"}</span>
-                    : <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b" }}>Ожидает</span>}
+                    ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.12)", color: "var(--tracker-success)" }}>{answers.length} {answers.length === 1 ? "ответ" : answers.length < 5 ? "ответа" : "ответов"}</span>
+                    : <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.12)", color: "var(--tracker-warning)" }}>Ожидает</span>}
             </div>
             <p className="text-xs leading-relaxed" style={{ color: "var(--tracker-text-main)" }}>{q.text}</p>
 
@@ -116,7 +116,7 @@ export function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAns
               {isAnswered && !isGuest && (
                 <button onClick={() => archiveQuestion(q.id)}
                   className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-all hover:shadow-sm"
-                  style={{ borderColor: "rgba(139,92,246,0.3)", color: "#8b5cf6" }}>
+                  style={{ borderColor: "rgba(139,92,246,0.3)", color: "var(--tracker-accent)" }}>
                   <Archive className="size-2.5" />В архив
                 </button>
               )}
@@ -133,8 +133,8 @@ export function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAns
             {linkedTask && (
               <div className="mt-2 p-2 rounded-lg border" style={{ borderColor: "rgba(99,102,241,0.2)", background: "rgba(99,102,241,0.04)" }}>
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <ClipboardList className="size-3" style={{ color: "#6366f1" }} />
-                  <span className="text-[10px] font-semibold" style={{ color: "#6366f1" }}>
+                  <ClipboardList className="size-3" style={{ color: "var(--tracker-accent)" }} />
+                  <span className="text-[10px] font-semibold" style={{ color: "var(--tracker-accent)" }}>
                     #{linkedTask.num || "—"} {linkedTask.name || "Без названия"}
                   </span>
                   <span className="text-[9px] px-1 py-0.5 rounded-full ml-auto"
@@ -191,14 +191,14 @@ export function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAns
           {answers.map((ans, ai) => (
             <div key={ans.id} className="flex gap-2 items-start group ml-9">
               <div className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold"
-                style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}>
+                style={{ background: "rgba(34,197,94,0.12)", color: "var(--tracker-success)" }}>
                 {(ans.author || "?")[0].toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <span className="text-[10px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{ans.author}</span>
                   <span className="text-[9px]" style={{ color: "var(--tracker-text-muted)" }}>{fmtDateUtil(ans.date)}</span>
-                  {ai === answers.length - 1 && <span className="text-[8px] px-1 py-0.5 rounded-full font-semibold" style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>последний</span>}
+                  {ai === answers.length - 1 && <span className="text-[8px] px-1 py-0.5 rounded-full font-semibold" style={{ background: "rgba(34,197,94,0.1)", color: "var(--tracker-success)" }}>последний</span>}
                 </div>
                 <p className="text-[11px] leading-relaxed whitespace-pre-wrap" style={{ color: "var(--tracker-text-main)" }}>{ans.text}</p>
               </div>
@@ -217,11 +217,11 @@ export function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAns
         <div className="border-t px-3 py-2 flex items-start gap-2"
           style={{ borderColor: "var(--tracker-border)", background: "color-mix(in srgb, rgba(34,197,94,0.03) 50%, var(--tracker-bg-card))" }}>
           <div className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold mt-0.5"
-            style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>
+            style={{ background: "rgba(34,197,94,0.15)", color: "var(--tracker-success)" }}>
             {(answers[answers.length - 1].author || "?")[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <span className="text-[9px] font-semibold mr-1" style={{ color: "#22c55e" }}>{answers[answers.length - 1].author}</span>
+            <span className="text-[9px] font-semibold mr-1" style={{ color: "var(--tracker-success)" }}>{answers[answers.length - 1].author}</span>
             <span className="text-[10px] line-clamp-1" style={{ color: "var(--tracker-text-muted)" }}>{answers[answers.length - 1].text}</span>
           </div>
         </div>

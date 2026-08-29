@@ -50,7 +50,7 @@ export function MobileActionSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="rounded-t-2xl ink-pop p-0">
         <SheetHeader className="px-4 pt-4 pb-2">
-          <SheetTitle className="text-[15px] font-semibold" style={{ color: "#FAFAF8" }}>
+          <SheetTitle className="text-[15px] font-semibold" style={{ color: "var(--tracker-bg-main)" }}>
             Инструменты
           </SheetTitle>
         </SheetHeader>
@@ -67,7 +67,7 @@ export function MobileActionSheet({
                 onClick={a.onClick}
                 disabled={a.disabled}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-[14px] font-medium transition-colors active:scale-[0.98] disabled:opacity-40"
-                style={{ color: "#FAFAF8" }}
+                style={{ color: "var(--tracker-bg-main)" }}
               >
                 <Icon className="size-5 shrink-0" style={{ color: "rgba(250,250,248,0.6)" }} />
                 {a.label}

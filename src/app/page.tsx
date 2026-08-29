@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { AuthGate } from "@/app/auth-gate";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
+import { RAIL } from "@/lib/tokens";
 import { useInsightSync } from "@/hooks/useInsightSync";
 import { useDomains } from "@/hooks/useDomains";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -40,7 +41,7 @@ import {
 import { applyCommentFormulas } from "@/lib/comment-formulas";
 
 import {
-  getRowsMetrics,
+  getRowsMetrics, fmt2,
   calcQueueMap,
   buildTotalFactMap,
   evalExpr,
@@ -829,14 +830,14 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         {/* ---- MOBILE TOP BAR (десктоп живёт без шапки) ---- */}
         <div
           className="md:hidden sticky top-0 z-30 flex items-center gap-2 px-3 h-12"
-          style={{ background: "#17181C", borderBottom: "1px solid rgba(250,250,248,0.12)" }}
+          style={{ background: RAIL.bg, borderBottom: `1px solid ${RAIL.line}` }}
         >
-          <SidebarTrigger className="shrink-0" style={{ color: "#FAFAF8" }} />
-          <svg width="14" height="12" viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg" style={{ color: "#FAFAF8" }}>
+          <SidebarTrigger className="shrink-0" style={{ color: RAIL.text }} />
+          <svg width="14" height="12" viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg" style={{ color: RAIL.text }}>
             <polygon points="20,2 38,34 2,34" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round"/>
           </svg>
           <span className="text-[11px] font-semibold uppercase select-none"
-            style={{ color: "#FAFAF8", letterSpacing: "0.3em", fontFamily: "var(--font-geist-mono, ui-monospace, monospace)" }}>
+            style={{ color: RAIL.text, letterSpacing: "0.3em", fontFamily: "var(--font-geist-mono, ui-monospace, monospace)" }}>
             Delta
           </span>
           {/* Домен — тап для смены */}
@@ -904,11 +905,35 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
 
         {/* ---- VIEWS ---- */}
         {view === "table" && (
-          <div className="view-enter" key={`head-${currentMonth}-${currentYear}`}>
-            <p className="paper-eyebrow">{currentYear} · {(activeDomain?.name || "").toUpperCase()}</p>
-            <h1 className="mt-0.5 text-[22px] font-bold tracking-tight text-[var(--tracker-text-main)]">
-              {MONTHS[currentMonth]}
-            </h1>
+          <div className="month-masthead view-enter" key={`head-${currentMonth}-${currentYear}`}>
+            <div>
+              <p className="paper-eyebrow">{currentYear} · {(activeDomain?.name || "").toUpperCase()}</p>
+              <h1 className="month-masthead-title">{MONTHS[currentMonth]}</h1>
+            </div>
+
+            {/* Метрики месяца. Раньше жили в тулбаре узкой плашкой рядом с
+                поиском — числа месяца важнее инструментов и должны стоять
+                на одной линии с заголовком. */}
+            {visibleRows.length > 0 && (
+              <dl className="month-masthead-metrics">
+                <div>
+                  <dt>План</dt>
+                  <dd>{fmt2(rowsMetrics.totPlan)}</dd>
+                </div>
+                <div>
+                  <dt>Факт</dt>
+                  <dd>{fmt2(rowsMetrics.totFact)}</dd>
+                </div>
+                <div>
+                  <dt>Итого</dt>
+                  <dd>{fmt2(rowsMetrics.totTotalH)}</dd>
+                </div>
+                <div className="text-right">
+                  <dt>Месяц</dt>
+                  <dd>{rowsMetrics.avgProg}%</dd>
+                </div>
+              </dl>
+            )}
           </div>
         )}
 

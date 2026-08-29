@@ -1,5 +1,6 @@
 import { PRIO_START, STATUSES, PRIORITIES } from "./types";
 import type { Task, TaskMetrics, Priority, Status } from "./types";
+import { STATE } from "./tokens";
 
 export const R2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -228,9 +229,9 @@ export const sortVal = (row: Task, key: string, qMap: Record<string, number>, to
  *  - в работе (<100%)          → чернильный (чёрный в светлой теме)
  *  Сам прогресс-бар всегда чернильный — цветом отмечена только цифра. */
 export const progColor = (p: number, _isClosed?: boolean, isOver?: boolean): string => {
-  if (isOver) return "#ef4444";
-  if (p >= 100) return "#22c55e";
-  return "var(--tracker-accent)";
+  if (isOver) return STATE.danger;
+  if (p >= 100) return STATE.success;
+  return STATE.neutral;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

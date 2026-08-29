@@ -98,6 +98,8 @@
   --tracker-text-muted: #5D5D57;
   --tracker-border: #DEDDD6;
   --tracker-danger: #C6453F;
+  --tracker-success: #3F9E6E;
+  --tracker-warning: #C08A2D;
 }
 
 .dark {
@@ -150,6 +152,8 @@
   --tracker-text-muted: #ABABA5;
   --tracker-border: #34353C;
   --tracker-danger: #E0706A;
+  --tracker-success: #5FBE8E;
+  --tracker-warning: #D9A84E;
 }
 
 @layer base {
@@ -1162,6 +1166,62 @@ kbd {
 }
 
 /* Бровь на светлой поверхности */
+
+/* ── Шапка месяца ──────────────────────────────────────────────────────
+   Титул разворота: месяц крупно, метрики на той же линии, всё отбито от
+   рабочей области жирной чернильной чертой. Раньше «Август» был набран
+   22 пикселями и не отличался по весу от панели инструментов, а метрики
+   месяца прятались в узкой плашке рядом с поиском.                      */
+
+.month-masthead {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 11px;
+  margin-bottom: 14px;
+  border-bottom: 3px solid var(--tracker-accent);
+}
+
+.month-masthead-title {
+  font-size: 40px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--tracker-text-main);
+}
+
+.month-masthead-metrics {
+  margin-left: auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.month-masthead-metrics dt {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tracker-text-muted);
+}
+
+.month-masthead-metrics dd {
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.1;
+  color: var(--tracker-text-main);
+}
+
+/* На мобильном метрики месяца показывает липкая полоса над списком —
+   она не уезжает при прокрутке. В шапке их дублировать незачем. */
+@media (max-width: 767px) {
+  .month-masthead-title { font-size: 28px; }
+  .month-masthead-metrics { display: none; }
+}
+
 .paper-eyebrow {
   font-family: var(--font-geist-mono, ui-monospace, monospace);
   font-size: 10px;

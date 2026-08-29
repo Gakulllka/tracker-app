@@ -55,11 +55,11 @@ export function IdeasPanel({
   if (ideaRows.length === 0) return null;
 
   return (
-<div className="rounded-2xl border" style={{ borderColor: "#17181C", borderWidth: 2, background: "var(--tracker-bg-card)" }}>
+<div className="rounded-2xl border" style={{ borderColor: "var(--tracker-accent)", borderWidth: 2, background: "var(--tracker-bg-card)" }}>
   <button type="button" onClick={() => setIdeasOpen(v => !v)} className="w-full flex items-center gap-2 px-4 py-3 text-left cursor-pointer select-none hover:bg-black/5 transition-colors">
-    <Lightbulb className="size-4" style={{ color: "#fbbf24" }} />
+    <Lightbulb className="size-4" style={{ color: "var(--tracker-warning)" }} />
     <span className="font-semibold text-sm">Идеи</span>
-    <span className="text-xs rounded-full px-2 py-0.5" style={{ background: "rgba(251,191,36,.14)", color: "#b45309" }}>{ideaRows.length}</span>
+    <span className="text-xs rounded-full px-2 py-0.5" style={{ background: "rgba(251,191,36,.14)", color: "var(--tracker-warning)" }}>{ideaRows.length}</span>
     <ChevronDown className={`size-4 ml-auto transition-transform ${ideasOpen ? "rotate-180" : ""}`} />
   </button>
   {ideasOpen && <div className="task-card-grid p-3 pt-0">
@@ -70,7 +70,7 @@ export function IdeasPanel({
       <TaskContextMenu key={task.id} task={task} month={sourceMonth} isDark={isDark} updateTask={updateTask} deleteTask={deleteTask} moveToBacklog={moveToBacklog} duplicateTask={duplicateTask} isGuest={isGuest}>
         <div
           className="task-card cursor-pointer"
-          style={{ "--card-accent-color": "#fbbf24" } as React.CSSProperties}
+          style={{ "--card-accent-color": "var(--tracker-warning)" } as React.CSSProperties}
           onClick={(e) => {
             const tag = (e.target as HTMLElement)?.tagName;
             if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON" || tag === "SELECT") return;
@@ -81,7 +81,7 @@ export function IdeasPanel({
           {/* Строка 1: лампочка + номер + статус + приоритет */}
           <div className="flex items-start gap-2">
             <div className="shrink-0 mt-0.5" onClick={(e) => e.stopPropagation()}>
-              <Lightbulb className="size-4" style={{ color: "#fbbf24" }} />
+              <Lightbulb className="size-4" style={{ color: "var(--tracker-warning)" }} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-1 flex-wrap">

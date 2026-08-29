@@ -280,7 +280,7 @@ export function ExcelImportModal({
           width: "96vw",
           maxHeight: "90vh",
           borderRadius: 14,
-          border: "2px solid #17181C",
+          border: "2px solid var(--tracker-accent)",
           background: "var(--tracker-bg-main)",
           overflow: "hidden",
         }}
@@ -384,7 +384,7 @@ export function ExcelImportModal({
                 }}
               >
                 <AlertTriangle
-                  style={{ width: 16, height: 16, color: "#b45309", flexShrink: 0, marginTop: 2 }}
+                  style={{ width: 16, height: 16, color: "var(--tracker-warning)", flexShrink: 0, marginTop: 2 }}
                 />
                 <div style={{ fontSize: 12, color: "var(--tracker-text-main)", lineHeight: 1.55 }}>
                   <b>Файл прочитан, но задач в нём нет.</b> Проверьте, что у строк заполнены колонки
@@ -448,7 +448,7 @@ export function ExcelImportModal({
               <StatPill
                 count={stats.changedCount}
                 label="изменено"
-                color="#b45309"
+                color="var(--tracker-warning)"
                 bg="rgba(245,158,11,.12)"
                 active={filter === "changed"}
                 onClick={() => setFilter(filter === "changed" ? "all" : "changed")}
@@ -469,7 +469,7 @@ export function ExcelImportModal({
                     color: "var(--tracker-text-muted)",
                     padding: "4px 9px",
                     borderRadius: 99,
-                    border: "2px dashed #17181C",
+                    border: "2px dashed var(--tracker-accent)",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 5,
@@ -530,7 +530,7 @@ export function ExcelImportModal({
                   padding: "5px 10px",
                   borderRadius: 6,
                   color: "var(--tracker-text-muted)",
-                  border: "2px solid #17181C",
+                  border: "2px solid var(--tracker-accent)",
                   background: "transparent",
                   cursor: "pointer",
                   fontWeight: 600,
@@ -617,7 +617,7 @@ export function ExcelImportModal({
                   )}
                   {stats.toUpdate > 0 && (
                     <>
-                      <b style={{ color: "#b45309" }}>~{stats.toUpdate}</b> обновится
+                      <b style={{ color: "var(--tracker-warning)" }}>~{stats.toUpdate}</b> обновится
                     </>
                   )}
                   {stats.untouched > 0 && (

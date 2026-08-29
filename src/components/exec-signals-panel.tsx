@@ -67,7 +67,7 @@ const FLAG_LABELS: Record<string, string> = {
   request_status: "Запросить статус",
 };
 const FLAG_COLORS: Record<string, string> = {
-  escalate: "#ef4444", pause: "#6b7280", cancel: "#ef4444", request_status: "#6366f1",
+  escalate: "var(--tracker-danger)", pause: "#6b7280", cancel: "var(--tracker-danger)", request_status: "var(--tracker-accent)",
 };
 
 const T = { color: "var(--tracker-text-main, var(--foreground))" } as const;
@@ -187,7 +187,7 @@ export function ExecSignalsPanel({
           className="h-7 px-2 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors"
           style={{
             background: filterActive ? "rgba(245,158,11,0.12)" : "transparent",
-            color: filterActive ? "#d97706" : "var(--tracker-text-muted)",
+            color: filterActive ? "var(--tracker-warning)" : "var(--tracker-text-muted)",
             border: filterActive ? "1px solid rgba(245,158,11,0.3)" : "1px solid var(--tracker-border)",
           }}
           title={filterActive ? "Показать все задачи" : "Показать только задачи с запросами руководителя"}
@@ -208,13 +208,13 @@ export function ExecSignalsPanel({
             <div className="flex gap-2 flex-wrap mt-1">
               {pendingCount > 0 && (
                 <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                  style={{ background: "rgba(245,158,11,0.12)", color: "#d97706" }}>
+                  style={{ background: "rgba(245,158,11,0.12)", color: "var(--tracker-warning)" }}>
                   ⏳ {pendingCount} ожидают БА
                 </span>
               )}
               {rejectedCount > 0 && (
                 <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                  style={{ background: "rgba(239,68,68,0.1)", color: "#dc2626" }}>
+                  style={{ background: "rgba(239,68,68,0.1)", color: "var(--tracker-danger)" }}>
                   {rejectedCount} отклонено
                 </span>
               )}
@@ -365,7 +365,7 @@ function SignalCard({
 
   const borderColor =
     type === "rejected" ? "rgba(239,68,68,0.4)" :
-    type === "executive_flag" ? `${FLAG_COLORS[task.executiveFlag ?? ""] ?? "#6366f1"}60` :
+    type === "executive_flag" ? `${FLAG_COLORS[task.executiveFlag ?? ""] ?? "var(--tracker-accent)"}60` :
     "rgba(245,158,11,0.35)";
 
   const headerBg =
@@ -396,25 +396,25 @@ function SignalCard({
         </div>
         <div>
           <p style={{ color: "var(--tracker-text-muted)" }}>Бюджет мес.</p>
-          <p className="font-bold tabular-nums" style={{ color: budget > planH * 0.8 ? "#f59e0b" : "#3b82f6" }}>{budget}ч</p>
+          <p className="font-bold tabular-nums" style={{ color: budget > planH * 0.8 ? "var(--tracker-warning)" : "#3b82f6" }}>{budget}ч</p>
         </div>
         {(task.budgetRollover ?? 0) > 0 && (
           <div>
             <p style={{ color: "var(--tracker-text-muted)" }}>Ролловер</p>
-            <p className="font-bold tabular-nums" style={{ color: "#f59e0b" }}>{task.budgetRollover}ч →</p>
+            <p className="font-bold tabular-nums" style={{ color: "var(--tracker-warning)" }}>{task.budgetRollover}ч →</p>
           </div>
         )}
         {factH > 0 && (
           <div>
             <p style={{ color: "var(--tracker-text-muted)" }}>Факт</p>
-            <p className="font-bold tabular-nums" style={{ color: "#22c55e" }}>{factH}ч</p>
+            <p className="font-bold tabular-nums" style={{ color: "var(--tracker-success)" }}>{factH}ч</p>
           </div>
         )}
       </div>
 
       {/* Причина отклонения (для руководителя) */}
       {type === "rejected" && task.comment?.startsWith("[Отклонено БА:") && (
-        <div className="px-3 py-2 text-xs" style={{ background: "rgba(239,68,68,0.04)", color: "#dc2626" }}>
+        <div className="px-3 py-2 text-xs" style={{ background: "rgba(239,68,68,0.04)", color: "var(--tracker-danger)" }}>
           {task.comment.match(/\[Отклонено БА: ([^\]]*)\]/)?.[1] || "Без пояснения"}
         </div>
       )}
@@ -424,10 +424,10 @@ function SignalCard({
         {/* БА: принять / отклонить */}
         {!isAdmin && type !== "rejected" && (
           <div className="flex gap-2">
-            <Button size="sm" className="flex-1 h-7 text-xs" style={{ background: "#22c55e", color: "#fff" }} onClick={onAccept}>
+            <Button size="sm" className="flex-1 h-7 text-xs" style={{ background: "var(--tracker-success)", color: "#fff" }} onClick={onAccept}>
               Принять
             </Button>
-            <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" style={{ borderColor: "#ef4444", color: "#ef4444" }} onClick={onRejectOpen}>
+            <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" style={{ borderColor: "var(--tracker-danger)", color: "var(--tracker-danger)" }} onClick={onRejectOpen}>
               Отклонить
             </Button>
           </div>
@@ -444,7 +444,7 @@ function SignalCard({
               value={rejectDraft}
               onChange={e => onRejectDraftChange(e.target.value)}
             />
-            <Button size="sm" className="w-full h-7 text-xs" style={{ background: "#ef4444", color: "#fff" }} onClick={onRejectConfirm}>
+            <Button size="sm" className="w-full h-7 text-xs" style={{ background: "var(--tracker-danger)", color: "#fff" }} onClick={onRejectConfirm}>
               Подтвердить отклонение
             </Button>
           </div>
@@ -453,7 +453,7 @@ function SignalCard({
         {/* БА: снять флаг руководителя */}
         {!isAdmin && type === "executive_flag" && task.executiveFlag && (
           <div className="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg"
-            style={{ background: `${FLAG_COLORS[task.executiveFlag] ?? "#6366f1"}10`, color: FLAG_COLORS[task.executiveFlag] ?? "#6366f1" }}>
+            style={{ background: `${FLAG_COLORS[task.executiveFlag] ?? "var(--tracker-accent)"}10`, color: FLAG_COLORS[task.executiveFlag] ?? "var(--tracker-accent)" }}>
             <span className="font-medium">{FLAG_LABELS[task.executiveFlag] ?? task.executiveFlag}</span>
             <button className="text-[10px] underline hover:no-underline" onClick={onClearFlag}>Снять</button>
           </div>
@@ -503,22 +503,22 @@ function SignalCard({
 
 function TypeBadge({ type, flag }: { type: SignalItem["type"]; flag?: string }) {
   if (type === "rejected") return (
-    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.12)", color: "#dc2626" }}>
+    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.12)", color: "var(--tracker-danger)" }}>
       Отклонено БА
     </span>
   );
   if (type === "pending_budget") return (
-    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.12)", color: "#d97706" }}>
+    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.12)", color: "var(--tracker-warning)" }}>
       Ролловер / превышение
     </span>
   );
   if (type === "executive_flag") return (
-    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.1)", color: "#6366f1" }}>
+    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.1)", color: "var(--tracker-accent)" }}>
       {FLAG_LABELS[flag ?? ""] ?? "Флаг"}
     </span>
   );
   return (
-    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-dashed" style={{ borderColor: "rgba(245,158,11,0.4)", color: "#d97706" }}>
+    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-dashed" style={{ borderColor: "rgba(245,158,11,0.4)", color: "var(--tracker-warning)" }}>
       ⏳ Ожидает подтверждения
     </span>
   );

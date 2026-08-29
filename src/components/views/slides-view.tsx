@@ -360,10 +360,10 @@ export function SlidesView({
       {aiAnalysisError && !aiAnalysisBusy && (
         <div className="rounded-xl border p-3 flex items-start gap-2"
           style={{ background: "rgba(226,75,74,.06)", borderColor: "rgba(226,75,74,.3)" }}>
-          <span className="text-base shrink-0" style={{ color: "#A32D2D" }}>⚠</span>
+          <span className="text-base shrink-0" style={{ color: "var(--tracker-danger)" }}>⚠</span>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold" style={{ color: "#A32D2D" }}>Ошибка AI-генерации</p>
-            <p className="text-[11px] mt-0.5 break-words" style={{ color: "#A32D2D", opacity: 0.85 }}>{aiAnalysisError}</p>
+            <p className="text-xs font-semibold" style={{ color: "var(--tracker-danger)" }}>Ошибка AI-генерации</p>
+            <p className="text-[11px] mt-0.5 break-words" style={{ color: "var(--tracker-danger)", opacity: 0.85 }}>{aiAnalysisError}</p>
           </div>
         </div>
       )}
@@ -390,7 +390,7 @@ export function SlidesView({
             {/* Phase 4: бейдж stale — данные изменились с момента генерации */}
             {aiInsightStale && !aiDraft && (
               <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium"
-                style={{ background: "rgba(251,191,36,.12)", color: "#92400e", border: "1px solid rgba(251,191,36,.35)" }}>
+                style={{ background: "var(--tracker-accent-soft)", color: "var(--tracker-warning)", border: "1px solid var(--tracker-warning)" }}>
                 ⚠️ Данные изменились с момента генерации — стоит обновить
               </div>
             )}

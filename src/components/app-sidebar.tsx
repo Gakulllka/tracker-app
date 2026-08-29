@@ -33,6 +33,7 @@ import { undoStore } from "@/lib/store";
 import { ExecSignalsPanel } from "@/components/exec-signals-panel";
 import { PresenceAvatars } from "@/components/presence-avatars";
 import { OwnerNotificationsPanel } from "@/components/owner-notifications-panel";
+import { RAIL } from "@/lib/tokens";
 
 export interface SidebarTab {
   key: string;
@@ -50,12 +51,12 @@ const ROLE_LABEL: Record<string, string> = {
 /** Компактный индикатор синхронизации: точка + моно-подпись. */
 function SyncPill({ syncStatus, lastSync }: { syncStatus: SyncStatus; lastSync: Date | null }) {
   const cfg: Record<SyncStatus, { dot: string; label: string; title: string }> = {
-    synced: { dot: "#3FB574", label: "Сохранено", title: lastSync ? `Синхронизировано: ${lastSync.toLocaleTimeString("ru-RU")}` : "Подключение..." },
-    pending: { dot: "#E2A93B", label: "Изменения", title: "Есть несохранённые изменения" },
-    pushing: { dot: "#E2A93B", label: "Отправка", title: "Отправка данных на сервер..." },
-    initializing: { dot: "#8A8A85", label: "Загрузка", title: "Первая загрузка..." },
-    denied: { dot: "#E07840", label: "Нет прав", title: "Сеть в порядке, но нет прав на редактирование этого домена" },
-    offline: { dot: "#D95C55", label: "Оффлайн", title: "Нет подключения к серверу" },
+    synced: { dot: "var(--tracker-success)", label: "Сохранено", title: lastSync ? `Синхронизировано: ${lastSync.toLocaleTimeString("ru-RU")}` : "Подключение..." },
+    pending: { dot: "var(--tracker-warning)", label: "Изменения", title: "Есть несохранённые изменения" },
+    pushing: { dot: "var(--tracker-warning)", label: "Отправка", title: "Отправка данных на сервер..." },
+    initializing: { dot: RAIL.faint, label: "Загрузка", title: "Первая загрузка..." },
+    denied: { dot: "var(--tracker-warning)", label: "Нет прав", title: "Сеть в порядке, но нет прав на редактирование этого домена" },
+    offline: { dot: "var(--tracker-danger)", label: "Оффлайн", title: "Нет подключения к серверу" },
   };
   const c = cfg[syncStatus];
   return (
@@ -162,14 +163,14 @@ export function AppSidebar({
       <SidebarHeader className="px-3 pt-4 pb-2 relative">
         <div className="flex items-center gap-2.5 px-1 select-none">
           <svg width="17" height="15" viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg"
-            style={{ flexShrink: 0, color: "#FAFAF8" }}>
+            style={{ flexShrink: 0, color: "var(--tracker-bg-main)" }}>
             <polygon points="20,2 38,34 2,34" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round"/>
             <polygon points="20,12 31,32 9,32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" opacity="0.4"/>
           </svg>
           <span
             className="text-[12px] font-semibold uppercase group-data-[collapsible=icon]:hidden"
             style={{
-              color: "#FAFAF8",
+              color: "var(--tracker-bg-main)",
               letterSpacing: "0.34em",
               fontFamily: "var(--font-geist-mono, ui-monospace, monospace)",
             }}
@@ -189,11 +190,11 @@ export function AppSidebar({
           >
             <SelectTrigger
               className="rail-hoverable h-9 w-full gap-1.5 rounded-[10px] px-2.5 text-[13px] font-semibold border shadow-none transition-colors"
-              style={{ background: "transparent", borderColor: "rgba(250,250,248,0.12)", color: "#FAFAF8" }}
+              style={{ background: "transparent", borderColor: "rgba(250,250,248,0.12)", color: "var(--tracker-bg-main)" }}
             >
               {isReadOnlyDomain
                 ? <Lock className="size-3 shrink-0" style={{ color: "rgba(250,250,248,0.5)" }} />
-                : <span className="size-2 rounded-[4px] shrink-0" style={{ background: "#FAFAF8", opacity: 0.9 }} />}
+                : <span className="size-2 rounded-[4px] shrink-0" style={{ background: "var(--tracker-bg-main)", opacity: 0.9 }} />}
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="rounded-xl ink-pop">
@@ -240,14 +241,14 @@ export function AppSidebar({
                         className={"rail-nav relative h-10 rounded-lg overflow-hidden text-[13px] font-medium transition-colors"}
                         style={
                           view === tab.key
-                            ? { background: "#FAFAF8", color: "#17181C" }
+                            ? { background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }
                             : { color: "rgba(250,250,248,0.74)" }
                         }
                       >
                         {view === tab.key && (
                           <span
                             className="absolute left-0 top-1/2 -translate-y-1/2"
-                            style={{ width: 3, height: 16, borderRadius: 2, background: "#17181C" }}
+                            style={{ width: 3, height: 16, borderRadius: 2, background: "var(--tracker-accent)" }}
                           />
                         )}
                         <Icon className="size-4" />
@@ -258,8 +259,8 @@ export function AppSidebar({
                         {!isDisabled && "badge" in tab && (tab.badge as number) > 0 && (
                           <span className="ml-auto min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center"
                             style={view === tab.key
-                              ? { background: "#17181C", color: "#FAFAF8" }
-                              : { background: "#FAFAF8", color: "#17181C" }}>
+                              ? { background: "var(--tracker-accent)", color: "var(--tracker-bg-main)" }
+                              : { background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }}>
                             {tab.badge}
                           </span>
                         )}
@@ -287,7 +288,7 @@ export function AppSidebar({
                       }`}
                       style={
                         currentMonth === i
-                          ? { background: "#FAFAF8", color: "#17181C" }
+                          ? { background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }
                           : { color: "rgba(250,250,248,0.74)" }
                       }
                       title={m}
@@ -296,7 +297,7 @@ export function AppSidebar({
                       <span
                         className="absolute bottom-1 size-1 rounded-full transition-opacity"
                         style={{
-                          background: currentMonth === i ? "#17181C" : "#FAFAF8",
+                          background: currentMonth === i ? "var(--tracker-accent)" : "var(--tracker-bg-main)",
                           opacity: monthHasData(i) ? (currentMonth === i ? 0.85 : 0.65) : 0,
                         }}
                       />
@@ -310,7 +311,7 @@ export function AppSidebar({
                     <PopoverTrigger asChild>
                       <button
                         className="rail-hoverable delta-num h-6 px-2 text-[11px] font-medium rounded flex items-center justify-center min-w-[52px] transition-colors"
-                        style={{ border: "1px solid rgba(250,250,248,0.12)", color: "#FAFAF8", background: "transparent" }}
+                        style={{ border: "1px solid rgba(250,250,248,0.12)", color: "var(--tracker-bg-main)", background: "transparent" }}
                       >
                         {currentYear}
                       </button>
@@ -328,7 +329,7 @@ export function AppSidebar({
                               onClick={() => setCurrentYear(y)}
                               className={`delta-num text-[11px] font-medium rounded px-2 py-1 transition-colors ${
                                 y === currentYear
-                                  ? "bg-[#FAFAF8] text-[#17181C]"
+                                  ? "bg-[var(--tracker-bg-main)] text-[var(--tracker-accent)]"
                                   : "text-[rgba(250,250,248,0.8)] hover:bg-[rgba(250,250,248,0.09)]"
                               }`}
                             >
@@ -356,9 +357,9 @@ export function AppSidebar({
                   <button
                     onClick={() => switchWorkspace(authData.workspaceId)}
                     className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                    style={{ background: "rgba(250,250,248,0.12)", color: "#FAFAF8" }}
+                    style={{ background: "rgba(250,250,248,0.12)", color: "var(--tracker-bg-main)" }}
                   >
-                    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: "#FAFAF8", color: "#17181C" }}>
+                    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }}>
                       <span className="text-[9px] font-bold">{initial}</span>
                     </div>
                     <span className="truncate">Моё пространство</span>
@@ -372,7 +373,7 @@ export function AppSidebar({
                         workspaceId === ws.workspaceId ? "font-medium" : "rail-hoverable"
                       }`}
                       style={workspaceId === ws.workspaceId
-                        ? { background: "rgba(250,250,248,0.12)", color: "#FAFAF8" }
+                        ? { background: "rgba(250,250,248,0.12)", color: "var(--tracker-bg-main)" }
                         : { color: "rgba(250,250,248,0.74)" }}
                     >
                       <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: "rgba(250,250,248,0.08)", color: "rgba(250,250,248,0.74)" }}>
@@ -396,7 +397,7 @@ export function AppSidebar({
       {/* ── Подвал: инструменты · команда · пользователь ── */}
       <SidebarFooter
         className="p-2 space-y-1.5 group-data-[collapsible=icon]:hidden"
-        style={{ background: "#17181C", color: "#FAFAF8" }}
+        style={{ background: "var(--tracker-accent)", color: "var(--tracker-bg-main)" }}
       >
         {/* Exec-сигналы (кнопка появляется, когда есть запросы) */}
         <ExecSignalsPanel
@@ -468,12 +469,12 @@ export function AppSidebar({
             >
               <span
                 className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
-                style={{ background: "#FAFAF8", color: "#17181C" }}
+                style={{ background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }}
               >
                 {initial}
               </span>
               <span className="flex-1 min-w-0 text-left">
-                <span className="block text-[12px] font-medium truncate" style={{ color: "#FAFAF8" }}>{displayName}</span>
+                <span className="block text-[12px] font-medium truncate" style={{ color: "var(--tracker-bg-main)" }}>{displayName}</span>
                 <span className="block text-[10px] truncate" style={{ color: "rgba(250,250,248,0.5)" }}>{ROLE_LABEL[authData.user.role] || authData.user.role}</span>
               </span>
               <ChevronUp className="size-3 shrink-0" style={{ color: "rgba(250,250,248,0.5)" }} />
@@ -481,7 +482,7 @@ export function AppSidebar({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" side="top" className="w-60 rounded-xl p-1.5 ink-pop">
             <DropdownMenuLabel className="font-normal px-2.5 py-2">
-              <p className="text-[13px] font-semibold truncate" style={{ color: "#FAFAF8" }}>{displayName}</p>
+              <p className="text-[13px] font-semibold truncate" style={{ color: "var(--tracker-bg-main)" }}>{displayName}</p>
               <p className="text-[11px] mt-0.5" style={{ color: "rgba(250,250,248,0.6)" }}>
                 {ROLE_LABEL[authData.user.role] || authData.user.role}
                 {authData.user.username !== displayName ? ` · ${authData.user.username}` : ""}

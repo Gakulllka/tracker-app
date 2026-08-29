@@ -122,7 +122,7 @@ export function UsersTab() {
             <option value="BLOCKED">Заблокированные</option>
           </select>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="gap-2 bg-[#E31937] hover:bg-[#c91530] text-white">
+        <Button onClick={() => setShowCreate(true)} className="gap-2 bg-[var(--tracker-danger)] hover:bg-[var(--tracker-danger)] text-white">
           <Plus className="w-4 h-4" /> Новый пользователь
         </Button>
       </div>
@@ -222,7 +222,7 @@ export function UsersTab() {
             </div>
             <div className="flex gap-3 justify-end mt-5">
               <Button variant="outline" onClick={() => setShowCreate(false)}>Отмена</Button>
-              <Button onClick={handleCreate} disabled={creating} className="bg-[#E31937] hover:bg-[#c91530] text-white gap-2">
+              <Button onClick={handleCreate} disabled={creating} className="bg-[var(--tracker-danger)] hover:bg-[var(--tracker-danger)] text-white gap-2">
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 Создать
               </Button>

@@ -29,7 +29,7 @@ const FLAG_LABELS: Record<string, string> = {
   cancel: "Отмена", request_status: "Статус",
 };
 const FLAG_COLORS: Record<string, string> = {
-  escalate: "#E24B4A", pause: "#BA7517", cancel: "#6B7280", request_status: "#1D9E75",
+  escalate: "var(--tracker-danger)", pause: "var(--tracker-warning)", cancel: "#6B7280", request_status: "var(--tracker-success)",
 };
 
 interface TaskDetailDialogProps {
@@ -199,7 +199,7 @@ export function TaskDetailDialog({
 
   const renderComment = (c: TaskComment, depth: number = 0) => (
     <div key={c.id} className="group" style={{ marginLeft: depth > 0 ? 24 : 0 }}>
-      <div className="flex gap-3 py-3" style={{ borderBottom: "2px solid #17181C" }}>
+      <div className="flex gap-3 py-3" style={{ borderBottom: "2px solid var(--tracker-accent)" }}>
         <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
           style={{ background: "var(--tracker-accent-bg, rgba(29,158,117,0.1))", color: "var(--tracker-accent-fg-dark, var(--foreground))" }}>
           {c.author?.charAt(0)?.toUpperCase() || "?"}
@@ -223,7 +223,7 @@ export function TaskDetailDialog({
                     <img src={att} alt="Вложение" className="max-h-32 max-w-[220px] rounded-xl object-cover" />
                   ) : (
                     <span className="text-xs px-2 py-1 rounded-xl border flex items-center gap-1.5"
-                      style={{ borderColor: "#17181C", borderWidth: 2 }}>
+                      style={{ borderColor: "var(--tracker-accent)", borderWidth: 2 }}>
                       <Paperclip className="size-3.5" /> Файл
                     </span>
                   )}
@@ -248,7 +248,7 @@ export function TaskDetailDialog({
         className="p-0 gap-0 rounded-2xl border overflow-hidden"
         style={{
           background: "var(--tracker-bg-card, var(--background))",
-          borderColor: "#17181C",
+          borderColor: "var(--tracker-accent)",
           borderWidth: 2,
           width: "min(1200px, 94vw)",
           height: "min(860px, 92vh)",
@@ -265,10 +265,10 @@ export function TaskDetailDialog({
         <div className="flex flex-col md:flex-row h-full overflow-hidden">
 
           {/* ═══════════════════ ЛЕВАЯ КОЛОНКА ═══════════════════ */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden" style={{ borderRight: "2px solid #17181C" }}>
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden" style={{ borderRight: "2px solid var(--tracker-accent)" }}>
 
             {/* ── Sticky Header ── */}
-            <div className="shrink-0 p-4 pb-3 border-b" style={{ borderColor: "#17181C", background: "var(--tracker-bg, var(--background))" }}>
+            <div className="shrink-0 p-4 pb-3 border-b" style={{ borderColor: "var(--tracker-accent)", background: "var(--tracker-bg, var(--background))" }}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -287,11 +287,11 @@ export function TaskDetailDialog({
                       {task.priority}
                     </span>
                     <span className="text-sm tabular-nums" style={{ color: "var(--tracker-text-muted, var(--muted-foreground))" }}>
-                      {task.planH || "0"}ч план / {task.factH || "0"}ч факт / <span style={{ color: maxCum <= evalExpr(task.planH) ? "#1D9E75" : "#E24B4A" }}>{fmt2(maxCum)}ч</span> итого
+                      {task.planH || "0"}ч план / {task.factH || "0"}ч факт / <span style={{ color: maxCum <= evalExpr(task.planH) ? "var(--tracker-success)" : "var(--tracker-danger)" }}>{fmt2(maxCum)}ч</span> итого
                     </span>
                     {SHOW_BUDGET && (task.budgetAllocated ?? 0) > 0 && (
                       <span className="text-[10px] font-semibold tabular-nums px-2 py-0.5 rounded-full"
-                        style={{ background: "rgba(29,158,117,0.1)", color: "#1D9E75" }}>
+                        style={{ background: "rgba(29,158,117,0.1)", color: "var(--tracker-success)" }}>
                         {task.budgetAllocated}ч
                       </span>
                     )}
@@ -300,24 +300,24 @@ export function TaskDetailDialog({
                 <div className="flex items-center gap-2 shrink-0">
                   {savedFlash && (
                     <span className="text-[10px] font-medium px-2 py-0.5 rounded-lg"
-                      style={{ background: "rgba(29,158,117,0.12)", color: "#1D9E75" }}>
+                      style={{ background: "rgba(29,158,117,0.12)", color: "var(--tracker-success)" }}>
                       ✓ Сохранено
                     </span>
                   )}
                   {planfixUrl && (
                     <a href={planfixUrl} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white"
-                      style={{ border: "2px solid #17181C", color: "#17181C" }}>
+                      style={{ border: "2px solid var(--tracker-accent)", color: "var(--tracker-accent)" }}>
                       <ExternalLink className="size-4" /> PlanFix
                     </a>
                   )}
                   <button className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white"
-                    style={{ border: "2px solid #17181C", color: "#17181C" }}
+                    style={{ border: "2px solid var(--tracker-accent)", color: "var(--tracker-accent)" }}
                     onClick={() => { snapshot(); onMoveToBacklog(month, task.id); onOpenChange(false); }}>
                     <Package className="size-4" /> В беклог
                   </button>
                   <button className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white"
-                    style={{ border: "2px solid #17181C", color: "#C6453F" }}
+                    style={{ border: "2px solid var(--tracker-accent)", color: "#C6453F" }}
                     onClick={() => { snapshot(); onDeleteTask(month, task.id); onOpenChange(false); }}>
                     <Trash2 className="size-4" /> Удалить
                   </button>
@@ -329,13 +329,13 @@ export function TaskDetailDialog({
                   style={{ background: "rgba(251,191,36,0.07)", borderColor: "rgba(251,191,36,0.3)" }}>
                   <span className="text-xs font-medium" style={{ color: "#854F0B" }}>Ожидает подтверждения БА</span>
                   <div className="flex gap-2">
-                    <Button size="sm" className="h-7 text-[11px] rounded-lg px-3" style={{ background: "#1D9E75", color: "#fff" }} onClick={handleAccept}>Принять</Button>
-                    <Button size="sm" variant="outline" className="h-7 text-[11px] rounded-lg px-3" style={{ borderColor: "#E24B4A", color: "#E24B4A" }} onClick={handleReject}>Отклонить</Button>
+                    <Button size="sm" className="h-7 text-[11px] rounded-lg px-3" style={{ background: "var(--tracker-success)", color: "#fff" }} onClick={handleAccept}>Принять</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-[11px] rounded-lg px-3" style={{ borderColor: "var(--tracker-danger)", color: "var(--tracker-danger)" }} onClick={handleReject}>Отклонить</Button>
                   </div>
                 </div>
               )}
               {isRejected && (
-                <div className="mt-2.5 rounded-xl p-2.5 border text-xs" style={{ background: "rgba(226,75,74,0.06)", borderColor: "rgba(226,75,74,0.2)", color: "#A32D2D" }}>
+                <div className="mt-2.5 rounded-xl p-2.5 border text-xs" style={{ background: "rgba(226,75,74,0.06)", borderColor: "rgba(226,75,74,0.2)", color: "var(--tracker-danger)" }}>
                   Задача отклонена БА.
                 </div>
               )}
@@ -381,7 +381,7 @@ export function TaskDetailDialog({
                 <div>
                   <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--tracker-text-main, #17181C)" }}>Итого (ч)</label>
                   <div className="field-input h-10 flex items-center text-base font-semibold tabular-nums"
-                    style={{ color: maxCum <= maxMonthPlan ? "#1D9E75" : "#E24B4A" }}>
+                    style={{ color: maxCum <= maxMonthPlan ? "var(--tracker-success)" : "var(--tracker-danger)" }}>
                     {fmt2(maxCum)}
                   </div>
                 </div>
@@ -394,7 +394,7 @@ export function TaskDetailDialog({
                 const isClosed = ["Завершена", "Контроль на прод", "Выполненная", "Отменено", "Отложена"].includes(task.status);
                 const pct = isClosed ? 100 : (plan > 0 ? Math.min(100, Math.round(fact / plan * 100)) : 0);
                 const over = fact > plan && plan > 0;
-                const barColor = isClosed ? "#22c55e" : over ? "#ef4444" : "var(--tracker-accent)";
+                const barColor = isClosed ? "var(--tracker-success)" : over ? "var(--tracker-danger)" : "var(--tracker-accent)";
                 return (
                 <div className="mb-3 flex items-center gap-2 flex-wrap">
                   {/* Статус — дропдаун: только действующий в его цвете */}
@@ -402,7 +402,7 @@ export function TaskDetailDialog({
                     <PopoverTrigger asChild>
                       <button
                         className="h-9 text-xs font-semibold rounded-lg px-3 inline-flex items-center gap-1.5 bg-white cursor-pointer hover:opacity-80 transition-opacity"
-                        style={{ border: "2px solid #17181C", color: scolText(task.status, isDark) || "#17181C" }}
+                        style={{ border: "2px solid var(--tracker-accent)", color: scolText(task.status, isDark) || "var(--tracker-accent)" }}
                       >
                         {task.status}
                         <ChevronDown className="size-3.5 opacity-60" />
@@ -444,7 +444,7 @@ export function TaskDetailDialog({
                     <DropdownMenuTrigger asChild>
                       <button
                         className="h-9 text-xs font-semibold rounded-lg px-3 inline-flex items-center gap-1.5 bg-white cursor-pointer hover:opacity-80 transition-opacity"
-                        style={{ border: "2px solid #17181C", color: PCOL[task.priority] || "#17181C" }}
+                        style={{ border: "2px solid var(--tracker-accent)", color: PCOL[task.priority] || "var(--tracker-accent)" }}
                       >
                         {task.priority}
                         <ChevronDown className="size-3.5 opacity-60" />
@@ -461,7 +461,7 @@ export function TaskDetailDialog({
                   </DropdownMenu>
 
                   {/* Прогресс — компактный, белый с чёрной рамкой */}
-                  <div className="flex items-center gap-2 flex-1 min-w-[160px] h-9 px-3 rounded-lg bg-white" style={{ border: "2px solid #17181C" }}>
+                  <div className="flex items-center gap-2 flex-1 min-w-[160px] h-9 px-3 rounded-lg bg-white" style={{ border: "2px solid var(--tracker-accent)" }}>
                     <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0" style={{ color: "var(--tracker-text-muted)" }}>Прогресс</span>
                     <div className="h-1.5 flex-1 rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
                       <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: barColor }} />
@@ -475,7 +475,7 @@ export function TaskDetailDialog({
 
             {/* ── Часы по месяцам ── */}
             {monthBreakdown.length > 0 && (
-              <div className="px-4 py-3 border-t" style={{ borderColor: "#17181C" }}>
+              <div className="px-4 py-3 border-t" style={{ borderColor: "var(--tracker-accent)" }}>
                 <SectionTitle>Часы по месяцам</SectionTitle>
 
                 {/* Mini bar chart */}
@@ -488,8 +488,8 @@ export function TaskDetailDialog({
                     return (
                       <div key={r.month} className="flex-1 flex flex-col items-center min-w-0">
                         <div className="w-full flex items-end justify-center gap-1" style={{ height: "96px" }}>
-                          <div className="flex-1 rounded-t-md transition-all" style={{ height: `${planPx}%`, background: "color-mix(in srgb, var(--tracker-text-muted, #94a3b8) 30%, transparent)", minHeight: "4px" }} title={`План: ${fmt2(r.planH)}ч`} />
-                          <div className="flex-1 rounded-t-md transition-all" style={{ height: `${cumPx}%`, background: over ? "#E24B4A" : "#1D9E75", minHeight: "4px" }} title={`Факт: ${fmt2(r.factH)}ч`} />
+                          <div className="flex-1 rounded-t-md transition-all" style={{ height: `${planPx}%`, background: "color-mix(in srgb, var(--tracker-text-muted, var(--tracker-text-muted)) 30%, transparent)", minHeight: "4px" }} title={`План: ${fmt2(r.planH)}ч`} />
+                          <div className="flex-1 rounded-t-md transition-all" style={{ height: `${cumPx}%`, background: over ? "var(--tracker-danger)" : "var(--tracker-success)", minHeight: "4px" }} title={`Факт: ${fmt2(r.factH)}ч`} />
                         </div>
                         <span className="text-[9px] mt-1.5 font-semibold" style={{ color: "var(--tracker-text-muted)" }}>
                           {MONTHS[r.month].substring(0, 3).toLowerCase()}
@@ -500,16 +500,16 @@ export function TaskDetailDialog({
                 </div>
                 {/* Легенда */}
                 <div className="flex items-center justify-center gap-4 mb-3 text-[9px]" style={{ color: "var(--tracker-text-muted)" }}>
-                  <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #94a3b8) 30%, transparent)" }} />План</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm bg-[#1D9E75]" />Факт</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm bg-[#E24B4A]" />Превышение</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, var(--tracker-text-muted)) 30%, transparent)" }} />План</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm bg-[var(--tracker-success)]" />Факт</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm bg-[var(--tracker-danger)]" />Превышение</span>
                 </div>
 
                 {/* Таблица */}
-                <div className="rounded-xl overflow-hidden border text-xs" style={{ borderColor: "#17181C", borderWidth: 2 }}>
+                <div className="rounded-xl overflow-hidden border text-xs" style={{ borderColor: "var(--tracker-accent)", borderWidth: 2 }}>
                   <table className="w-full" style={{ borderCollapse: "collapse" }}>
                     <thead>
-                      <tr style={{ background: "#FFFFFF" }}>
+                      <tr style={{ background: "var(--tracker-bg-card)" }}>
                         {["Месяц", "План", "Факт", "Итого", "Статус"].map((h, i) => (
                           <th key={h} className="text-[9px] uppercase tracking-wider font-semibold px-2.5 py-1.5"
                             style={{ textAlign: i === 0 ? "left" : i === 4 ? "center" : "right", color: "var(--tracker-text-muted)" }}>{h}</th>
@@ -520,11 +520,11 @@ export function TaskDetailDialog({
                       {monthBreakdown.map((r) => {
                         const over = r.cumulative > r.planH && r.planH > 0;
                         return (
-                          <tr key={r.month} style={{ borderTop: "2px solid #17181C" }}>
+                          <tr key={r.month} style={{ borderTop: "2px solid var(--tracker-accent)" }}>
                             <td className="px-2.5 py-1.5 font-medium">{MONTHS[r.month]}</td>
                             <td className="px-2.5 py-1.5 text-right tabular-nums" style={{ color: "var(--tracker-text-muted)" }}>{fmt2(r.planH)}ч</td>
                             <td className="px-2.5 py-1.5 text-right tabular-nums">{fmt2(r.factH)}ч</td>
-                            <td className="px-2.5 py-1.5 text-right tabular-nums font-semibold" style={{ color: over ? "#E24B4A" : "#1D9E75" }}>{fmt2(r.cumulative)}ч</td>
+                            <td className="px-2.5 py-1.5 text-right tabular-nums font-semibold" style={{ color: over ? "var(--tracker-danger)" : "var(--tracker-success)" }}>{fmt2(r.cumulative)}ч</td>
                             <td className="px-2.5 py-1.5 text-center">
                               <span className="text-[9px] font-medium" style={{ color: scolText(r.status as Status, isDark) }}>{r.status}</span>
                             </td>
@@ -533,11 +533,11 @@ export function TaskDetailDialog({
                       })}
                     </tbody>
                     <tfoot>
-                      <tr style={{ borderTop: "2px solid #17181C", background: "#FFFFFF" }}>
+                      <tr style={{ borderTop: "2px solid var(--tracker-accent)", background: "var(--tracker-bg-card)" }}>
                         <td className="px-2.5 py-1.5 font-bold">Итого</td>
                         <td className="px-2.5 py-1.5 text-right tabular-nums font-semibold" style={{ color: "var(--tracker-text-muted)" }}>{fmt2(maxMonthPlan)}ч</td>
                         <td className="px-2.5 py-1.5 text-right tabular-nums font-semibold">{fmt2(totalFact)}ч</td>
-                        <td className="px-2.5 py-1.5 text-right tabular-nums font-bold" style={{ color: maxCum <= maxMonthPlan ? "#1D9E75" : "#E24B4A" }}>{fmt2(maxCum)}ч</td>
+                        <td className="px-2.5 py-1.5 text-right tabular-nums font-bold" style={{ color: maxCum <= maxMonthPlan ? "var(--tracker-success)" : "var(--tracker-danger)" }}>{fmt2(maxCum)}ч</td>
                         <td className="px-2.5 py-1.5 text-center text-[9px]" style={{ color: "var(--tracker-text-muted)" }}>{monthBreakdown.length} мес.</td>
                       </tr>
                     </tfoot>
@@ -548,46 +548,46 @@ export function TaskDetailDialog({
 
             {/* ── Бюджет (скрыт: SHOW_BUDGET=false, код сохранён) ── */}
             {SHOW_BUDGET && (
-            <div className="px-4 py-3 border-t" style={{ borderColor: "#17181C" }}>
+            <div className="px-4 py-3 border-t" style={{ borderColor: "var(--tracker-accent)" }}>
               <SectionTitle>
                 <span className="inline-flex items-center justify-center w-5 h-5 rounded-md"
-                  style={{ background: "rgba(29,158,117,0.12)", color: "#1D9E75" }}><Wallet className="size-3" /></span>
+                  style={{ background: "rgba(29,158,117,0.12)", color: "var(--tracker-success)" }}><Wallet className="size-3" /></span>
                 Бюджет
               </SectionTitle>
 
               <div className="rounded-xl p-3 mb-3 grid grid-cols-3 gap-3 text-center text-sm"
-                style={{ background: "#FFFFFF", border: "2px solid #17181C" }}>
+                style={{ background: "var(--tracker-bg-card)", border: "2px solid var(--tracker-accent)" }}>
                 <div><p className="text-[10px] mb-1" style={{ color: "var(--tracker-text-muted)" }}>Лимит</p><p className="font-bold text-base">{monthCapacity}ч</p></div>
                 <div><p className="text-[10px] mb-1" style={{ color: "var(--tracker-text-muted)" }}>Занято</p><p className="font-bold text-base">{R2(usedExcludingSelf)}ч</p></div>
                 <div><p className="text-[10px] mb-1" style={{ color: "var(--tracker-text-muted)" }}>Свободно</p>
-                  <p className="font-bold text-base" style={{ color: freeHours > 0 ? "#1D9E75" : "#E24B4A" }}>{freeHours}ч</p></div>
+                  <p className="font-bold text-base" style={{ color: freeHours > 0 ? "var(--tracker-success)" : "var(--tracker-danger)" }}>{freeHours}ч</p></div>
               </div>
 
               <div className="flex items-center gap-3 mb-3">
                 <input type="number" min={0} step={1} className="flex-1 h-9 rounded-xl border px-3 text-sm outline-none focus:ring-2 tabular-nums"
-                  style={{ background: "var(--tracker-bg)", borderColor: "#17181C", borderWidth: 2, color: "var(--tracker-text-main)" }}
+                  style={{ background: "var(--tracker-bg)", borderColor: "var(--tracker-accent)", borderWidth: 2, color: "var(--tracker-text-main)" }}
                   value={budgetInput} onChange={e => setBudgetInput(e.target.value)}
                   placeholder={planHNum >= 100 ? String(planHNum) : "0"} />
                 <span className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>ч</span>
-                <Button size="sm" className="h-9 text-sm px-5 rounded-xl" style={{ background: "var(--tracker-accent, #1D9E75)", color: "#fff" }}
+                <Button size="sm" className="h-9 text-sm px-5 rounded-xl" style={{ background: "var(--tracker-accent, var(--tracker-success))", color: "#fff" }}
                   disabled={isSaving || budgetNum <= 0} onClick={handleSaveBudget}>
                   {isSaving ? "…" : "Сохранить"}
                 </Button>
               </div>
 
               {budgetNum > 0 && (
-                <div className="rounded-xl p-3 text-sm space-y-1.5" style={{ background: "var(--tracker-bg)", border: "2px solid #17181C" }}>
-                  <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>В этом месяце</span><span className="font-bold" style={{ color: "#1D9E75" }}>{previewAllocated}ч</span></div>
-                  {previewRollover > 0 && <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Ролловер</span><span className="font-bold" style={{ color: "#BA7517" }}>{previewRollover}ч</span></div>}
-                  {previewRollover === 0 && <p className="text-xs" style={{ color: "#1D9E75" }}>✓ Влезает в текущий месяц</p>}
+                <div className="rounded-xl p-3 text-sm space-y-1.5" style={{ background: "var(--tracker-bg)", border: "2px solid var(--tracker-accent)" }}>
+                  <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>В этом месяце</span><span className="font-bold" style={{ color: "var(--tracker-success)" }}>{previewAllocated}ч</span></div>
+                  {previewRollover > 0 && <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Ролловер</span><span className="font-bold" style={{ color: "var(--tracker-warning)" }}>{previewRollover}ч</span></div>}
+                  {previewRollover === 0 && <p className="text-xs" style={{ color: "var(--tracker-success)" }}>✓ Влезает в текущий месяц</p>}
                 </div>
               )}
 
               {(task.totalBudgetRequested !== undefined) && (
-                <div className="mt-3 pt-3 border-t space-y-1 text-xs" style={{ borderColor: "#17181C", borderWidth: 2 }}>
+                <div className="mt-3 pt-3 border-t space-y-1 text-xs" style={{ borderColor: "var(--tracker-accent)", borderWidth: 2 }}>
                   <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Запрошено</span><span className="tabular-nums">{task.totalBudgetRequested ?? 0}ч</span></div>
-                  <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Выделено</span><span className="tabular-nums" style={{ color: "#1D9E75" }}>{task.budgetAllocated ?? 0}ч</span></div>
-                  {(task.budgetRollover ?? 0) > 0 && <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Перенос</span><span className="tabular-nums" style={{ color: "#BA7517" }}>{task.budgetRollover}ч</span></div>}
+                  <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Выделено</span><span className="tabular-nums" style={{ color: "var(--tracker-success)" }}>{task.budgetAllocated ?? 0}ч</span></div>
+                  {(task.budgetRollover ?? 0) > 0 && <div className="flex justify-between"><span style={{ color: "var(--tracker-text-muted)" }}>Перенос</span><span className="tabular-nums" style={{ color: "var(--tracker-warning)" }}>{task.budgetRollover}ч</span></div>}
                 </div>
               )}
 
@@ -603,9 +603,9 @@ export function TaskDetailDialog({
 
           {/* ═══════════════════ ПРАВАЯ КОЛОНКА: Комментарии ═══════════════════ */}
           <div className="w-full md:w-[38%] md:min-w-[320px] flex flex-col overflow-hidden border-t md:border-t-0"
-            style={{ borderColor: "#17181C", borderWidth: 2 }}>
+            style={{ borderColor: "var(--tracker-accent)", borderWidth: 2 }}>
             <div className="px-4 py-3 flex items-center justify-between border-b shrink-0"
-              style={{ borderColor: "#17181C", borderWidth: 2 }}>
+              style={{ borderColor: "var(--tracker-accent)", borderWidth: 2 }}>
               <h4 className="paper-eyebrow flex items-center gap-2">
                 <MessageSquare className="size-3.5" />
                 Комментарии · {comments.length}
@@ -620,7 +620,7 @@ export function TaskDetailDialog({
             </div>
 
             {/* New comment input */}
-            <div className="px-5 py-3 border-t shrink-0" style={{ borderColor: "#17181C", borderWidth: 2 }}>
+            <div className="px-5 py-3 border-t shrink-0" style={{ borderColor: "var(--tracker-accent)", borderWidth: 2 }}>
               <div className="flex flex-col gap-2">
                 {replyTo && (
                   <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--tracker-text-muted)" }}>
@@ -630,7 +630,7 @@ export function TaskDetailDialog({
                 )}
                 <textarea ref={textareaRef}
                   className="w-full text-sm p-3 rounded-2xl border outline-none resize-none min-h-[56px]"
-                  style={{ background: "var(--tracker-bg)", borderColor: "#17181C", borderWidth: 2, color: "var(--tracker-text-main)" }}
+                  style={{ background: "var(--tracker-bg)", borderColor: "var(--tracker-accent)", borderWidth: 2, color: "var(--tracker-text-main)" }}
                   placeholder="Написать комментарий..." value={newComment}
                   onChange={e => setNewComment(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addComment(); }} />
@@ -643,7 +643,7 @@ export function TaskDetailDialog({
                           <img src={att} alt="Вложение" className="h-16 w-16 rounded-xl object-cover" />
                         ) : (
                           <span className="text-xs px-2 py-1 rounded-xl border flex items-center gap-1 h-16"
-                            style={{ borderColor: "#17181C", borderWidth: 1 }}><Paperclip className="size-3.5" /> Файл</span>
+                            style={{ borderColor: "var(--tracker-accent)", borderWidth: 1 }}><Paperclip className="size-3.5" /> Файл</span>
                         )}
                         <button className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover/att:opacity-100"
                           onClick={() => setAttachments(p => p.filter((_, j) => j !== i))}>
@@ -699,7 +699,7 @@ function ActionButton({ icon, label, active, onClick }: { icon: React.ReactNode;
   return (
     <button className={`flex items-center gap-2 text-xs px-4 py-2 rounded-xl transition-all ${active ? "font-semibold shadow-sm" : ""}`}
       style={{
-        color: active ? "var(--tracker-accent-fg, #1D9E75)" : "var(--tracker-text-muted)",
+        color: active ? "var(--tracker-accent-fg, var(--tracker-success))" : "var(--tracker-text-muted)",
         background: active ? "var(--tracker-accent-bg, rgba(29,158,117,0.12))" : "transparent",
       }}
       onClick={onClick}>

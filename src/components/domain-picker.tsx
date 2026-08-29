@@ -12,11 +12,11 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Loader2, Plus, Lock, ArrowRight, Eye } from "lucide-react";
 
 /* Фиксированные фирменные токены (как в auth-screen) */
-const INK = "#17181C";
+const INK = "var(--tracker-accent)";
 const INK_SOFT = "#26282E";
-const PAPER = "#FAFAF8";
-const CARD = "#FFFFFF";
-const LINE = "#E8E7E2";
+const PAPER = "var(--tracker-bg-main)";
+const CARD = "var(--tracker-bg-card)";
+const LINE = "var(--tracker-border)";
 const TEXT = "#1C1D21";
 const MUTED = "#8B8A84";
 const MONO = "var(--font-geist-mono, ui-monospace, monospace)";
@@ -187,7 +187,7 @@ export function DomainPickerScreen({
                   {/* Иконка */}
                   <div
                     className="flex items-center justify-center size-10 rounded-lg shrink-0"
-                    style={{ background: editable ? INK : "#F0EFEB" }}
+                    style={{ background: editable ? INK : "var(--tracker-accent-bg)" }}
                   >
                     {editable ? (
                       <svg width="18" height="16" viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg" style={{ color: PAPER }}>
@@ -225,9 +225,9 @@ export function DomainPickerScreen({
                         disabled={isRequesting || isRequested}
                         className="h-9 px-3 rounded-lg text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
                         style={{
-                          background: isRequested ? "#F0EFEB" : "transparent",
+                          background: isRequested ? "var(--tracker-accent-bg)" : "transparent",
                           color: isRequested ? MUTED : TEXT,
-                          border: `1px solid ${isRequested ? "#E8E7E2" : LINE}`,
+                          border: `1px solid ${isRequested ? "var(--tracker-border)" : LINE}`,
                         }}
                       >
                         {isRequesting ? (
@@ -287,7 +287,7 @@ export function DomainPickerScreen({
               <button
                 onClick={() => setShowCreate(true)}
                 className="w-full h-12 rounded-xl border border-dashed text-[13px] font-medium inline-flex items-center justify-center gap-2 transition-colors hover:bg-black/[0.02]"
-                style={{ borderColor: "#C5C4BE", color: TEXT }}
+                style={{ borderColor: "var(--tracker-border)", color: TEXT }}
               >
                 <Plus className="size-4" />
                 Создать новый домен

@@ -51,7 +51,7 @@ export function PresenceAvatars({ token, currentUserId }: { token: string; curre
       {shown.map((u) => (
         <div
           key={u.id}
-          className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-[#17181C] shrink-0"
+          className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-[var(--tracker-accent)] shrink-0"
           style={{ background: "color-mix(in srgb, var(--tracker-accent, #17181C) 25%, #fff)" }}
           title={`${u.displayName || u.username} (${ROLE_LABEL[u.role] || u.role}) — онлайн`}
         >
@@ -61,7 +61,7 @@ export function PresenceAvatars({ token, currentUserId }: { token: string; curre
         </div>
       ))}
       {rest > 0 && (
-        <div className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-[#17181C] bg-[rgba(250,250,248,0.16)] shrink-0">
+        <div className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-[var(--tracker-accent)] bg-[rgba(250,250,248,0.16)] shrink-0">
           <span className="text-[8px] font-bold" style={{ color: "rgba(250,250,248,0.8)" }}>+{rest}</span>
         </div>
       )}

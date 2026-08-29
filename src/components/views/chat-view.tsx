@@ -254,7 +254,7 @@ export function ChatView({
             <span className="text-[11px] font-semibold px-1.5" style={{ color: "var(--tracker-text-muted)" }}>{m.role === "user" ? "Вы" : m.role === "error" ? "⚠ Ошибка" : "✦ AI-ассистент"}</span>
             <div className={`rounded-2xl px-4 py-3 max-w-[85%] ${m.role === "user" ? "rounded-tr-sm" : "rounded-tl-sm"}`}
               style={m.role === "user" ? { background: "var(--tracker-accent-bg)", color: "var(--tracker-text-main)", border: "1px solid var(--tracker-border)" }
-                : m.role === "error" ? { background: "rgba(239,68,68,0.07)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }
+                : m.role === "error" ? { background: "rgba(239,68,68,0.07)", color: "var(--tracker-danger)", border: "1px solid rgba(239,68,68,0.3)" }
                 : { background: "var(--tracker-bg-card)", color: "var(--tracker-text-main)", border: "1px solid var(--tracker-border)" }}>
               {m.role === "ai" ? <AiText text={m.text} /> : <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.text}</p>}
               {m.role === "ai" && m.suggestedQuestions && m.suggestedQuestions.length > 0 && (

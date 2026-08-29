@@ -72,15 +72,15 @@ export function usePresentation({
 
   const readTrackerTokens = useCallback(() => {
     if (typeof window === "undefined") return {
-      bgMain: "#0d1117", bgCard: "#1a1f2a", textMain: "#e2e8f0",
+      bgMain: "var(--tracker-bg-main)", bgCard: "var(--tracker-bg-card)", textMain: "var(--tracker-border)",
       textMuted: "rgba(148,163,184,.7)", border: "rgba(255,255,255,.1)", isDark: true,
     };
     const cs = getComputedStyle(document.documentElement);
     const v = (n: string, f: string) => cs.getPropertyValue(n).trim() || f;
     return {
-      bgMain: v("--tracker-bg-main", "#0d1117"),
-      bgCard: v("--tracker-bg-card", darkMode ? "#1a1f2a" : "#ffffff"),
-      textMain: v("--tracker-text-main", darkMode ? "#e2e8f0" : "#1e293b"),
+      bgMain: v("--tracker-bg-main", "var(--tracker-bg-main)"),
+      bgCard: v("--tracker-bg-card", darkMode ? "var(--tracker-bg-card)" : "#ffffff"),
+      textMain: v("--tracker-text-main", darkMode ? "var(--tracker-border)" : "#1e293b"),
       textMuted: v("--tracker-text-muted", darkMode ? "rgba(148,163,184,.7)" : "rgba(100,116,139,.75)"),
       border: v("--tracker-border", darkMode ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)"),
       isDark: darkMode,

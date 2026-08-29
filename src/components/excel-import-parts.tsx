@@ -22,7 +22,7 @@ export function KindBadge({ kind }: { kind: RowKind }) {
     changed: {
       label: "ИЗМЕНЕНА",
       bg: "rgba(245,158,11,.15)",
-      color: "#b45309",
+      color: "var(--tracker-warning)",
       border: "rgba(245,158,11,.35)",
     },
     same: {
@@ -213,7 +213,7 @@ export function TaskRow({
                   padding: "2px 7px",
                   borderRadius: 99,
                   background: "rgba(245,158,11,.12)",
-                  color: "#b45309",
+                  color: "var(--tracker-warning)",
                   border: "1px solid rgba(245,158,11,.35)",
                 }}
               >
@@ -385,7 +385,7 @@ export function DropZone({ onFile, loading }: { onFile: (f: File) => void; loadi
         borderRadius: 12,
         cursor: "pointer",
         transition: "all .18s",
-        border: `2px dashed ${drag ? "var(--tracker-accent)" : "#17181C"}`,
+        border: `2px dashed ${drag ? "var(--tracker-accent)" : "var(--tracker-accent)"}`,
         background: drag ? "var(--tracker-accent-bg)" : "transparent",
       }}
     >
@@ -477,7 +477,7 @@ export function FormatHint() {
         padding: "12px 14px",
         borderRadius: 10,
         background: "var(--tracker-bg-card)",
-        border: "2px solid #17181C",
+        border: "2px solid var(--tracker-accent)",
       }}
     >
       <Info
@@ -515,9 +515,9 @@ export function ErrorBox({ message, onRetry }: { message: string; onRetry: () =>
         border: "1px solid rgba(239,68,68,.35)",
       }}
     >
-      <AlertTriangle style={{ width: 18, height: 18, color: "#dc2626", flexShrink: 0, marginTop: 2 }} />
+      <AlertTriangle style={{ width: 18, height: 18, color: "var(--tracker-danger)", flexShrink: 0, marginTop: 2 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: "#b91c1c", marginBottom: 4 }}>Не получилось прочитать файл</p>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tracker-danger)", marginBottom: 4 }}>Не получилось прочитать файл</p>
         <p
           style={{
             fontSize: 12,

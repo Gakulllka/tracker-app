@@ -328,7 +328,7 @@ export function TableView({
       {/* ---- TOOLBAR ---- */}
       {!clientMode && (() => {
         const totalFilters = filterStatuses.size + filterPriorities.size + (searchQuery ? 1 : 0);
-        const btnClass = "hidden md:inline-flex h-8 gap-1.5 border-[2px] border-[#17181C] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)]";
+        const btnClass = "hidden md:inline-flex h-8 gap-1.5 border-[2px] border-[var(--tracker-accent)] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)]";
         return (
           <div className="flex flex-wrap items-center gap-2">
 
@@ -339,7 +339,7 @@ export function TableView({
                 placeholder="Поиск задач..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8 pl-8 pr-8 text-[13px] bg-[var(--tracker-bg-card)] border-[2px] border-[#17181C]"
+                className="h-[34px] pl-8 pr-8 text-[13px] bg-[var(--tracker-bg-card)] border-2 border-[var(--tracker-accent)]"
               />
               {searchQuery && (
                 <button
@@ -350,27 +350,6 @@ export function TableView({
                 </button>
               )}
             </div>
-
-            {/* ── МЕТРИКИ inline — между поиском и «Добавить» (оба режима) ── */}
-            {workRows.length > 0 && (
-              <div
-                className="hidden md:flex items-center gap-2.5 px-3 h-8 rounded-md border bg-[var(--tracker-bg-card)] shrink-0"
-                style={{ borderColor: "#17181C", borderWidth: 2 }}
-              >
-                <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>План</span>
-                <span className="delta-num text-[12px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{fmt2(rowsMetrics.totPlan)}ч</span>
-                <div className="w-px h-3.5 shrink-0" style={{ background: "#17181C" }} />
-                <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Факт</span>
-                <span className="delta-num text-[12px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{fmt2(rowsMetrics.totFact)}ч</span>
-                <div className="w-px h-3.5 shrink-0" style={{ background: "#17181C" }} />
-                <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>Итого</span>
-                <span className="delta-num text-[12px] font-semibold" style={{ color: "var(--tracker-accent)" }}>{fmt2(rowsMetrics.totTotalH)}ч</span>
-                <div className="h-1.5 w-16 rounded-full overflow-hidden shrink-0" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
-                  <div className="h-full rounded-full" style={{ width: `${rowsMetrics.avgProg}%`, backgroundColor: "var(--tracker-accent)" }} />
-                </div>
-                <span className="delta-num text-[11px] font-semibold" style={{ color: "var(--tracker-text-main)" }}>{rowsMetrics.avgProg}%</span>
-              </div>
-            )}
 
             {/* ── ФИЛЬТР (только detailed) ─────────────────────────── */}
             {isDetailed && (
@@ -535,7 +514,7 @@ export function TableView({
               <Button
                 variant="outline"
                 size="sm"
-                className="hidden md:inline-flex h-8 gap-1.5 border-[2px] border-[#17181C] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)] bg-[var(--tracker-bg-card)]"
+                className="hidden md:inline-flex h-8 gap-1.5 border-[2px] border-[var(--tracker-accent)] text-[var(--tracker-text-main)] font-medium hover:bg-[var(--tracker-accent-soft)] bg-[var(--tracker-bg-card)]"
                 onClick={onImportXLSX}
               >
                 <Upload className="size-3.5" />
@@ -592,7 +571,7 @@ export function TableView({
 
             {/* ── ГРУППИРОВКА (только detailed) — компактный контрол ── */}
             {isDetailed && (
-              <div className="hidden md:inline-flex items-center gap-1 h-8 rounded-md border border-[2px] border-[#17181C] bg-[var(--tracker-bg-card)] px-1">
+              <div className="hidden md:inline-flex items-center gap-1 h-8 rounded-md border border-[2px] border-[var(--tracker-accent)] bg-[var(--tracker-bg-card)] px-1">
                 <LayoutGrid className="size-3.5 mx-0.5 shrink-0" style={{ color: "var(--tracker-text-muted)" }} />
                 {([
                   ["status", "Статус"],
@@ -620,7 +599,7 @@ export function TableView({
                     style={{
                       background: hideEmptyGroups ? "var(--tracker-accent-bg)" : "transparent",
                       color: hideEmptyGroups ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
-                      borderColor: hideEmptyGroups ? "var(--tracker-accent)" : "#17181C",
+                      borderColor: "var(--tracker-accent)",
                     }}
                     title={hideEmptyGroups ? "Показать пустые категории" : "Скрыть пустые категории"}
                   >
@@ -658,7 +637,7 @@ export function TableView({
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Поиск задач..."
             className="w-full h-9 pl-9 pr-8 text-sm rounded-xl border bg-[var(--tracker-bg-card)] outline-none focus:ring-1 focus:ring-[var(--tracker-accent)]"
-            style={{ borderColor: "#17181C", borderWidth: 2, color: "var(--tracker-text-main)" }}
+            style={{ borderColor: "var(--tracker-accent)", borderWidth: 2, color: "var(--tracker-text-main)" }}
           />
           {searchQuery && (
             <button onClick={() => setSearchQuery("")}
@@ -853,7 +832,7 @@ export function TableView({
       {workRows.length > 0 && (
         <div
           className="md:hidden sticky top-12 z-20 flex items-center gap-3 px-3 py-2 mx-1 rounded-xl border bg-[var(--tracker-bg-card)]/95 backdrop-blur"
-          style={{ borderColor: "#17181C", borderWidth: 2 }}
+          style={{ borderColor: "var(--tracker-accent)", borderWidth: 2 }}
         >
           <div className="flex flex-col leading-tight">
             <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-text-muted)" }}>План</span>
@@ -1013,7 +992,7 @@ export function TableView({
                                 {queueNum !== undefined && (
                                   <span
                                     className="inline-flex items-center justify-center text-[9px] font-bold w-5 h-5 rounded-full text-white"
-                                    style={{ background: "#17181C" }}
+                                    style={{ background: "var(--tracker-accent)" }}
                                   >
                                     {queueNum}
                                   </span>
@@ -1051,7 +1030,7 @@ export function TableView({
                                 /* Executive: status badge is read-only */
                                 <span
                                   className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center justify-center"
-                                  style={{ color: "#17181C", background: "#FFFFFF", border: "1px solid #17181C" }}
+                                  style={{ color: "var(--tracker-text-main)", background: "var(--tracker-bg-card)", border: "1px solid var(--tracker-accent)" }}
                                 >
                                   {task.status}
                                 </span>
@@ -1060,7 +1039,7 @@ export function TableView({
                                   <PopoverTrigger asChild>
                                     <button
                                       className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity"
-                                      style={{ color: "#17181C", background: "#FFFFFF", border: "1px solid #17181C" }}
+                                      style={{ color: "var(--tracker-text-main)", background: "var(--tracker-bg-card)", border: "1px solid var(--tracker-accent)" }}
                                     >
                                       {task.status}
                                     </button>
@@ -1103,7 +1082,7 @@ export function TableView({
                                   <DropdownMenuTrigger asChild>
                                     <button
                                       className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1"
-                                      style={{ color: "#17181C", background: "#FFFFFF", border: "1px solid #17181C" }}
+                                      style={{ color: "var(--tracker-text-main)", background: "var(--tracker-bg-card)", border: "1px solid var(--tracker-accent)" }}
                                     >
                                       {task.priority}
                                     </button>
@@ -1123,7 +1102,7 @@ export function TableView({
                               ) : (
                                 <span
                                   className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center gap-1"
-                                  style={{ color: "#17181C", background: "#FFFFFF", border: "1px solid #17181C" }}
+                                  style={{ color: "var(--tracker-text-main)", background: "var(--tracker-bg-card)", border: "1px solid var(--tracker-accent)" }}
                                 >
                                   {task.priority}
                                 </span>

@@ -227,10 +227,10 @@ export function QuestionsView({
       {(totalQuestions > 0 || archivedCount > 0) && (() => {
         const allTiles = [
             { label: "Всего", value: totalQuestions, color: "var(--tracker-accent)", bg: "var(--tracker-accent-bg)" },
-            { label: "Открытых", value: openCount, color: "#f59e0b", bg: "rgba(245,158,11,0.08)" },
-            { label: "Возобновлённых", value: reopenedCount, color: "#f97316", bg: "rgba(249,115,22,0.08)" },
-            { label: "Отвечено", value: answeredCount, color: "#22c55e", bg: "rgba(34,197,94,0.08)" },
-            { label: "Архив", value: archivedCount, color: "#8b5cf6", bg: "rgba(139,92,246,0.08)", clickable: true },
+            { label: "Открытых", value: openCount, color: "var(--tracker-warning)", bg: "rgba(245,158,11,0.08)" },
+            { label: "Возобновлённых", value: reopenedCount, color: "var(--tracker-warning)", bg: "rgba(249,115,22,0.08)" },
+            { label: "Отвечено", value: answeredCount, color: "var(--tracker-success)", bg: "rgba(34,197,94,0.08)" },
+            { label: "Архив", value: archivedCount, color: "var(--tracker-accent)", bg: "rgba(139,92,246,0.08)", clickable: true },
         ];
         // Нет активных вопросов — показываем только плитку «Архив»,
         // иначе вход в архив недоступен при пустом списке.
@@ -329,7 +329,7 @@ export function QuestionsView({
             <div className="mt-2">
               {linkedTaskId ? (
                 <div className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-lg"
-                  style={{ background: "rgba(99,102,241,0.1)", color: "#6366f1" }}>
+                  style={{ background: "rgba(99,102,241,0.1)", color: "var(--tracker-accent)" }}>
                   <ClipboardList className="size-3" />
                   #{allTasks.find(t => t.id === linkedTaskId)?.num} {linkedTaskName}
                   <button onClick={() => { setLinkedTaskId(null); setLinkedTaskName(""); setTaskSearch(""); }}
@@ -439,17 +439,17 @@ export function QuestionsView({
           {/* ── LEFT: Open questions ── */}
           <div className="space-y-2 min-w-0">
             <div className="flex items-center gap-2 mb-1 px-1">
-              <CircleDot className="size-3.5" style={{ color: "#f59e0b" }} />
-              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#f59e0b" }}>
+              <CircleDot className="size-3.5" style={{ color: "var(--tracker-warning)" }} />
+              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-warning)" }}>
                 Открытые
               </h3>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "rgba(245,158,11,0.1)", color: "#f59e0b" }}>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "rgba(245,158,11,0.1)", color: "var(--tracker-warning)" }}>
                 {unanswered.length}
               </span>
             </div>
             {unanswered.length === 0 && (
               <div className="text-center py-6 rounded-xl border border-dashed" style={{ borderColor: "var(--tracker-border)" }}>
-                <CheckCircle2 className="size-6 mx-auto mb-1.5" style={{ color: "#22c55e", opacity: 0.5 }} />
+                <CheckCircle2 className="size-6 mx-auto mb-1.5" style={{ color: "var(--tracker-success)", opacity: 0.5 }} />
                 <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Нет открытых</p>
               </div>
             )}
@@ -465,17 +465,17 @@ export function QuestionsView({
           {/* ── MIDDLE: Reopened questions ── */}
           <div className="space-y-2 min-w-0">
             <div className="flex items-center gap-2 mb-1 px-1">
-              <Clock className="size-3.5" style={{ color: "#f97316" }} />
-              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#f97316" }}>
+              <Clock className="size-3.5" style={{ color: "var(--tracker-warning)" }} />
+              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-warning)" }}>
                 Возобновлённые
               </h3>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "rgba(249,115,22,0.1)", color: "#f97316" }}>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "rgba(249,115,22,0.1)", color: "var(--tracker-warning)" }}>
                 {reopened.length}
               </span>
             </div>
             {reopened.length === 0 && (
               <div className="text-center py-6 rounded-xl border border-dashed" style={{ borderColor: "var(--tracker-border)" }}>
-                <Clock className="size-6 mx-auto mb-1.5" style={{ color: "#f97316", opacity: 0.5 }} />
+                <Clock className="size-6 mx-auto mb-1.5" style={{ color: "var(--tracker-warning)", opacity: 0.5 }} />
                 <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Нет возобновлённых</p>
               </div>
             )}
@@ -491,17 +491,17 @@ export function QuestionsView({
           {/* ── RIGHT: Answered questions ── */}
           <div className="space-y-2 min-w-0">
             <div className="flex items-center gap-2 mb-1 px-1">
-              <CheckCircle2 className="size-3.5" style={{ color: "#22c55e" }} />
-              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#22c55e" }}>
+              <CheckCircle2 className="size-3.5" style={{ color: "var(--tracker-success)" }} />
+              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-success)" }}>
                 Отвеченные
               </h3>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "rgba(34,197,94,0.1)", color: "var(--tracker-success)" }}>
                 {answered.length}
               </span>
             </div>
             {answered.length === 0 && (
               <div className="text-center py-6 rounded-xl border border-dashed" style={{ borderColor: "var(--tracker-border)" }}>
-                <CircleDot className="size-6 mx-auto mb-1.5" style={{ color: "#f59e0b", opacity: 0.5 }} />
+                <CircleDot className="size-6 mx-auto mb-1.5" style={{ color: "var(--tracker-warning)", opacity: 0.5 }} />
                 <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Пока нет отвеченных</p>
               </div>
             )}
@@ -521,7 +521,7 @@ export function QuestionsView({
         <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Archive className="size-5" style={{ color: "#8b5cf6" }} />Архив вопросов
+              <Archive className="size-5" style={{ color: "var(--tracker-accent)" }} />Архив вопросов
             </DialogTitle>
             <DialogDescription className="text-xs">{archivedCount} вопросов в архиве</DialogDescription>
           </DialogHeader>
@@ -550,7 +550,7 @@ export function QuestionsView({
               <div key={q.id} className="rounded-xl border p-3 flex items-start gap-2.5"
                 style={{ background: "var(--tracker-bg-card)", borderColor: "var(--tracker-border)" }}>
                 <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold"
-                  style={{ background: "rgba(139,92,246,0.12)", color: "#8b5cf6" }}>
+                  style={{ background: "rgba(139,92,246,0.12)", color: "var(--tracker-accent)" }}>
                   {(q.author || "?")[0].toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -558,7 +558,7 @@ export function QuestionsView({
                     <span className="text-[10px] font-semibold" style={{ color: "var(--tracker-accent-fg-dark)" }}>{q.author}</span>
                     {q.questionDate && <span className="text-[9px]" style={{ color: "var(--tracker-text-muted)" }}>{fmtDateUtil(q.questionDate)}</span>}
                     {q.linkedTaskName && (
-                      <span className="text-[8px] font-semibold px-1 py-0.5 rounded-full inline-flex items-center gap-0.5" style={{ background: "rgba(99,102,241,0.1)", color: "#6366f1" }}>
+                      <span className="text-[8px] font-semibold px-1 py-0.5 rounded-full inline-flex items-center gap-0.5" style={{ background: "rgba(99,102,241,0.1)", color: "var(--tracker-accent)" }}>
                         <ClipboardList className="size-2" />{q.linkedTaskName}
                       </span>
                     )}

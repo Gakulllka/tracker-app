@@ -163,7 +163,7 @@ export function OwnerNotificationsPanel({ token, onOpenTask }: OwnerNotification
           {unread > 0 && (
             <span
               className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-4 text-center tabular-nums"
-              style={{ background: "#C6453F", color: "#fff" }}
+              style={{ background: "var(--tracker-danger)", color: "var(--tracker-bg-card)" }}
             >
               {unread > 99 ? "99+" : unread}
             </span>

@@ -96,7 +96,7 @@ export function RolesTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm text-gray-500">Управление ролями и правами доступа</h3>
-        <Button onClick={openCreate} className="gap-2 bg-[#E31937] hover:bg-[#c91530] text-white">
+        <Button onClick={openCreate} className="gap-2 bg-[var(--tracker-danger)] hover:bg-[var(--tracker-danger)] text-white">
           <Plus className="w-4 h-4" /> Новая роль
         </Button>
       </div>
@@ -115,7 +115,7 @@ export function RolesTab() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-[#E31937]" />
+                      <Shield className="w-4 h-4 text-[var(--tracker-danger)]" />
                       <span className="font-semibold text-gray-900">{role.name}</span>
                       {role.isSystem && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Системная</span>}
                     </div>
@@ -210,7 +210,7 @@ export function RolesTab() {
             </div>
             <div className="flex gap-3 justify-end mt-5">
               <Button variant="outline" onClick={() => setShowModal(false)}>Отмена</Button>
-              <Button onClick={handleSave} disabled={saving} className="bg-[#E31937] hover:bg-[#c91530] text-white gap-2">
+              <Button onClick={handleSave} disabled={saving} className="bg-[var(--tracker-danger)] hover:bg-[var(--tracker-danger)] text-white gap-2">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                 Сохранить
               </Button>

@@ -73,7 +73,7 @@ export default function AdminPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <Shield className="w-5 h-5 text-[#E31937]" />
+              <Shield className="w-5 h-5 text-[var(--tracker-danger)]" />
               <h1 className="text-lg font-bold text-gray-900">Панель администратора</h1>
             </div>
             <Button variant="outline" size="sm" onClick={() => (window.location.href = "/")}>
@@ -88,7 +88,7 @@ export default function AdminPage() {
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.key
-                    ? "border-[#E31937] text-[#E31937]"
+                    ? "border-[var(--tracker-danger)] text-[var(--tracker-danger)]"
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >

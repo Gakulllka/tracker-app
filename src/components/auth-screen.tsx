@@ -13,11 +13,11 @@ import React, { useState, useEffect } from "react";
 import { Loader2, ArrowRight, Eye } from "lucide-react";
 
 /* Фиксированные фирменные токены (сознательно не из темы) */
-const INK = "#17181C";
+const INK = "var(--tracker-accent)";
 const INK_SOFT = "#26282E";
-const PAPER = "#FAFAF8";
-const CARD = "#FFFFFF";
-const LINE = "#E8E7E2";
+const PAPER = "var(--tracker-bg-main)";
+const CARD = "var(--tracker-bg-card)";
+const LINE = "var(--tracker-border)";
 const TEXT = "#1C1D21";
 const MUTED = "#8B8A84";
 const MONO = "var(--font-geist-mono, ui-monospace, monospace)";
@@ -233,7 +233,7 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
               <input
                 type="text" value={username} onChange={(e) => setUsername(e.target.value)}
                 placeholder="ivan" autoComplete="username" disabled={loading}
-                className="h-11 rounded-[10px] px-3.5 text-[14px] outline-none transition-shadow focus:shadow-[0_0_0_3px_rgba(23,24,28,0.10)] focus:border-[#17181C]"
+                className="h-11 rounded-[10px] px-3.5 text-[14px] outline-none transition-shadow focus:shadow-[0_0_0_3px_rgba(23,24,28,0.10)] focus:border-[var(--tracker-accent)]"
                 style={inputStyle}
               />
             </div>
@@ -246,7 +246,7 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
                 <input
                   type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Иван Петров" autoComplete="name" disabled={loading}
-                  className="h-11 rounded-[10px] px-3.5 text-[14px] outline-none transition-shadow focus:shadow-[0_0_0_3px_rgba(23,24,28,0.10)] focus:border-[#17181C]"
+                  className="h-11 rounded-[10px] px-3.5 text-[14px] outline-none transition-shadow focus:shadow-[0_0_0_3px_rgba(23,24,28,0.10)] focus:border-[var(--tracker-accent)]"
                   style={inputStyle}
                 />
               </div>
@@ -262,7 +262,7 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
                 type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••" disabled={loading}
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
-                className="h-11 rounded-[10px] px-3.5 text-[14px] outline-none transition-shadow focus:shadow-[0_0_0_3px_rgba(23,24,28,0.10)] focus:border-[#17181C]"
+                className="h-11 rounded-[10px] px-3.5 text-[14px] outline-none transition-shadow focus:shadow-[0_0_0_3px_rgba(23,24,28,0.10)] focus:border-[var(--tracker-accent)]"
                 style={inputStyle}
               />
             </div>

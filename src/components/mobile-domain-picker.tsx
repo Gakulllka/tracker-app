@@ -73,7 +73,7 @@ export function MobileDomainPicker({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="rounded-t-2xl ink-pop p-0 max-h-[80vh]">
         <SheetHeader className="px-4 pt-4 pb-2">
-          <SheetTitle className="text-[15px] font-semibold" style={{ color: "#FAFAF8" }}>
+          <SheetTitle className="text-[15px] font-semibold" style={{ color: "var(--tracker-bg-main)" }}>
             Выберите домен
           </SheetTitle>
         </SheetHeader>
@@ -95,10 +95,10 @@ export function MobileDomainPicker({
                 {/* Иконка */}
                 <div
                   className="flex items-center justify-center size-9 rounded-lg shrink-0"
-                  style={{ background: editable ? "#FAFAF8" : "rgba(250,250,248,0.08)" }}
+                  style={{ background: editable ? "var(--tracker-bg-main)" : "rgba(250,250,248,0.08)" }}
                 >
                   {editable ? (
-                    <svg width="16" height="14" viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg" style={{ color: "#17181C" }}>
+                    <svg width="16" height="14" viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg" style={{ color: "var(--tracker-accent)" }}>
                       <polygon points="20,2 38,34 2,34" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
                     </svg>
                   ) : (
@@ -108,7 +108,7 @@ export function MobileDomainPicker({
 
                 {/* Название */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[14px] font-medium truncate" style={{ color: "#FAFAF8" }}>
+                  <p className="text-[14px] font-medium truncate" style={{ color: "var(--tracker-bg-main)" }}>
                     {domain.name}
                   </p>
                   <p className="text-[11px]" style={{ color: "rgba(250,250,248,0.45)" }}>
@@ -124,7 +124,7 @@ export function MobileDomainPicker({
                     <button
                       onClick={() => { onSelectDomain(domain.id); onOpenChange(false); }}
                       className="h-8 px-3 rounded-lg text-[12px] font-semibold flex items-center gap-1 transition-colors active:scale-[0.95]"
-                      style={{ background: "#FAFAF8", color: "#17181C" }}
+                      style={{ background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }}
                     >
                       Войти <ArrowRight className="size-3" />
                     </button>
@@ -135,7 +135,7 @@ export function MobileDomainPicker({
                       className="h-8 px-3 rounded-lg text-[12px] font-medium flex items-center gap-1 transition-colors disabled:opacity-50 active:scale-[0.95]"
                       style={{
                         background: isRequested ? "rgba(250,250,248,0.08)" : "transparent",
-                        color: isRequested ? "rgba(250,250,248,0.45)" : "#FAFAF8",
+                        color: isRequested ? "rgba(250,250,248,0.45)" : "var(--tracker-bg-main)",
                         border: "1px solid rgba(250,250,248,0.15)",
                       }}
                     >
@@ -164,7 +164,7 @@ export function MobileDomainPicker({
                   placeholder="Название домена"
                   autoFocus
                   className="w-full h-10 rounded-lg px-3 text-[14px] outline-none"
-                  style={{ background: "rgba(250,250,248,0.08)", color: "#FAFAF8", border: "1px solid rgba(250,250,248,0.12)" }}
+                  style={{ background: "rgba(250,250,248,0.08)", color: "var(--tracker-bg-main)", border: "1px solid rgba(250,250,248,0.12)" }}
                   onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
                 />
                 <div className="flex gap-2 mt-2">
@@ -172,7 +172,7 @@ export function MobileDomainPicker({
                     onClick={handleCreate}
                     disabled={!newDomainName.trim() || creating}
                     className="flex-1 h-9 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-1 active:scale-[0.95] disabled:opacity-40"
-                    style={{ background: "#FAFAF8", color: "#17181C" }}
+                    style={{ background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }}
                   >
                     {creating ? <Loader2 className="size-3.5 animate-spin" /> : "Создать"}
                   </button>

@@ -8,8 +8,8 @@
  */
 import React from "react";
 
-const INK = "#17181C";
-const PAPER = "#FAFAF8";
+const INK = "var(--tracker-accent)";
+const PAPER = "var(--tracker-bg-main)";
 
 interface BrandSplashProps {
   /** Показан ли сплэш (false — плавно растворяется и отпускает клики). */
