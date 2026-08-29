@@ -1,6 +1,6 @@
 import React from "react";
 import { Check, ClipboardList, Ruler, Timer, Wallet } from "lucide-react";
-import { getTaskMetrics, evalExpr } from "@/lib/metrics";
+import { getTaskMetrics, evalExpr, fmt2 } from "@/lib/metrics";
 import { PCOL, scolText } from "@/lib/tokens";
 import type { Task, Status } from "@/lib/types";
 
@@ -139,9 +139,9 @@ export function MobileTaskCards({
                   <Wallet className="size-3 inline" /> {task.budgetAllocated}ч
                 </span>
               )}
-              <span className="flex items-center gap-1 delta-num"><Ruler className="size-3" /> {task.planH || "0"}ч</span>
+              <span className="flex items-center gap-1 delta-num" title={task.planH}><Ruler className="size-3" /> {fmt2(metrics.plan)}ч</span>
               <span className={`flex items-center gap-1 delta-num ${isOver ? "text-[var(--tracker-danger)] font-semibold" : ""}`}>
-                <Timer className="size-3" /> {task.factH || "0"}ч
+                <Timer className="size-3" /> {fmt2(metrics.fact)}ч
               </span>
             </div>
           </div>

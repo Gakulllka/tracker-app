@@ -1014,6 +1014,14 @@ html, body {
   color: var(--tracker-text-muted);
 }
 
+/* Исходная формула под полем часов: значение видно вычисленным,
+   но запись не должна теряться из виду. */
+.task-dialog-formula {
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--tracker-text-muted);
+}
+
 .task-dialog-label {
   display: block;
   margin-bottom: 3px;

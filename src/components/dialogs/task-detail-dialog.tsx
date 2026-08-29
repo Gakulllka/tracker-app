@@ -336,10 +336,10 @@ export function TaskDetailDialog({
 
             <div className="grid grid-cols-2 gap-2">
               <EditField label="Номер" value={task.num} onChange={(v) => handleFieldUpdate("num", v)} />
-              <EditField label="План (ч)" value={task.planH} onChange={(v) => handleFieldUpdate("planH", v)} />
+              <HoursField label="План (ч)" value={task.planH} onChange={(v) => handleFieldUpdate("planH", v)} />
             </div>
 
-            <EditField label="Факт (ч)" value={task.factH} onChange={(v) => handleFieldUpdate("factH", v)} />
+            <HoursField label="Факт (ч)" value={task.factH} onChange={(v) => handleFieldUpdate("factH", v)} />
 
             <div>
               <label className="task-dialog-label">Статус</label>
@@ -481,5 +481,58 @@ function ActionButton({ icon, label, active, onClick }: { icon: React.ReactNode;
       onClick={onClick}>
       {icon} {label}
     </button>
+  );
+}
+
+/**
+ * Поле часов: хранит формулу, показывает результат.
+ *
+ * Часы можно вводить выражением — «8*3» или «2+3,5». Раньше поле всегда
+ * показывало исходную запись, и в реквизитах стояло «8*3» вместо 24:
+ * чтобы узнать число, приходилось считать в уме.
+ *
+ * Пока поле не в фокусе, видно вычисленное значение. При клике
+ * возвращается исходная запись — иначе формулу нельзя было бы поправить,
+ * и первая же правка молча превратила бы её в обычное число.
+ */
+function HoursField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  // Значение могло измениться снаружи — например, формулой в заметке.
+  useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [value, editing]);
+
+  const computed = value.trim() === "" ? "" : fmt2(evalExpr(value));
+  const isFormula = computed !== "" && computed !== value.trim();
+
+  return (
+    <div>
+      <label className="task-dialog-label">{label}</label>
+      <input
+        className="field-input h-9 w-full delta-num"
+        value={editing ? draft : computed}
+        title={isFormula ? `Записано как ${value}` : undefined}
+        onFocus={() => { setDraft(value); setEditing(true); }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { setEditing(false); if (draft !== value) onChange(draft); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") { setDraft(value); setEditing(false); }
+        }}
+      />
+      {isFormula && !editing && (
+        <p className="task-dialog-formula delta-num" aria-hidden="true">{value}</p>
+      )}
+    </div>
   );
 }
