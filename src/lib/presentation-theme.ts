@@ -2,6 +2,11 @@ import type { Task } from "./types";
 import { scolText } from "./tokens";
 import type { PresBgSettings } from "./presentation-bg";
 import { LIGHT, DARK } from "./tokens";
+
+/* Презентация уходит в файл и не имеет доступа к CSS-переменным,
+   поэтому семантика состояния здесь задана значениями. */
+const LIGHT_STATE = { success: "#3F9E6E", danger: "#C6453F", warning: "#C08A2D" } as const;
+const DARK_STATE = { success: "#5FBE8E", danger: "#E0706A", warning: "#D9A84E" } as const;
 import { INK } from "./tokens";
 
 /**
@@ -25,6 +30,10 @@ export interface PresentationTheme {
   textColor: string;
   mutedColor: string;
   cardColors: string[];
+  /** Семантика состояния — каноничные цвета ДНК, подобранные под светлоту. */
+  successColor: string;
+  dangerColor: string;
+  warningColor: string;
   isLight: boolean;
   bg: PresBgSettings;
 }
@@ -110,6 +119,12 @@ export function buildTheme(
     rgb, styleId: bg.styleId, bodyBg: resolved.bgMain, overlayBg,
     textColor: resolved.textMain, mutedColor,
     cardColors, isLight: !resolved.isDark, bg,
+    // Каноничные цвета ДНК: на светлом — приглушённые, на тёмном — светлее,
+    // иначе на графите они теряются. Раньше здесь стояли #22c55e и #ef4444
+    // из палитры Tailwind, и слайд выглядел ярче самого трекера.
+    successColor: resolved.isDark ? DARK_STATE.success : LIGHT_STATE.success,
+    dangerColor: resolved.isDark ? DARK_STATE.danger : LIGHT_STATE.danger,
+    warningColor: resolved.isDark ? DARK_STATE.warning : LIGHT_STATE.warning,
   };
 }
 

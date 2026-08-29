@@ -10,7 +10,7 @@
  * с компактным знаком сверху.
  */
 import React, { useState, useEffect } from "react";
-import { RAIL } from "@/lib/tokens";
+import { RAIL, DOOR } from "@/lib/tokens";
 import { Loader2, ArrowRight, Eye } from "lucide-react";
 
 /* Фиксированные фирменные токены (сознательно не из темы) */
@@ -18,12 +18,12 @@ import { Loader2, ArrowRight, Eye } from "lucide-react";
    Раньше часть цветов бралась из токенов темы, а часть была захардкожена
    светлой: в тёмной теме тёмный текст ложился на тёмный фон. */
 const INK = RAIL.bg;
-const INK_SOFT = "#26282E";
+const INK_SOFT = DOOR.inkSoft;
 const PAPER = RAIL.text;
-const CARD = "#FFFFFF";
-const LINE = "#DEDDD6";
-const TEXT = "#1C1D21";
-const MUTED = "#8B8A84";
+const CARD = DOOR.card;
+const LINE = DOOR.line;
+const TEXT = DOOR.text;
+const MUTED = DOOR.muted;
 const MONO = "var(--font-geist-mono, ui-monospace, monospace)";
 
 interface AuthScreenProps {
@@ -279,7 +279,7 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
             {error && (
               <div
                 className="text-[13px] px-3.5 py-2.5 rounded-[10px]"
-                style={{ background: "#FDF1F1", color: "#B3403C", border: "1px solid #F3D9D8" }}
+                style={{ background: `color-mix(in srgb, ${DOOR.danger} 8%, ${DOOR.card})`, color: DOOR.danger, border: `1px solid color-mix(in srgb, ${DOOR.danger} 30%, ${DOOR.card})` }}
               >
                 {error}
               </div>

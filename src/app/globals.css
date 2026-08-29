@@ -1354,7 +1354,75 @@ kbd {
 /*  токены рельсы, поэтому задаём их классом на контенте меню.       */
 /* ================================================================ */
 
-.ink-pop {
+
+
+/* ── Окна остальных вкладок ────────────────────────────────────────────
+   Беклог, вопросы, чат, протоколы, слайды рисовали свои панели волосяной
+   серой линией, пока задачи уже перешли на чернильный контур. Один класс
+   вместо правок в пяти файлах.                                          */
+
+.ink-window {
+  border: 2px solid var(--tracker-accent);
+  background: var(--tracker-bg-card);
+  border-radius: var(--radius-card, 14px);
+}
+
+/* Вложенное окно внутри окна — волосяная линия, иначе контуры сливаются
+   в кашу. Тот же приём, что в манге: внешний контур толстый, внутренние
+   детали тоньше. */
+.ink-window .ink-window,
+.ink-inset {
+  border: 1px solid var(--tracker-border);
+  border-radius: 10px;
+}
+
+/* ── Всплывающие слои ──────────────────────────────────────────────────
+   Меню, списки, подсказки — то же белое «окно», что карточка и диалог:
+   чернильный контур 2px. Задаётся один раз для всех слотов shadcn,
+   а не в каждом месте вызова.
+
+   Исключение — .ink-pop: всплывашки, вылетающие из графитовой рельсы,
+   остаются графитовыми, иначе рядом с рельсой возникает белая заплата. */
+
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="context-menu-content"],
+[data-slot="context-menu-sub-content"],
+[data-slot="popover-content"],
+[data-slot="select-content"],
+[data-slot="command"] {
+  border: 2px solid var(--tracker-accent);
+  background: var(--tracker-bg-card);
+  color: var(--tracker-text-main);
+}
+
+/* Подсказка мелкая — контур на ней смотрится грубо, она инвертирована. */
+[data-slot="tooltip-content"] {
+  background: var(--tracker-accent);
+  color: var(--tracker-accent-contrast);
+  font-size: 0.72rem;
+}
+
+/* Заголовки групп внутри меню — та же бровь, что и в заголовках групп задач. */
+[data-slot="dropdown-menu-label"],
+[data-slot="select-label"],
+[data-slot="context-menu-label"] {
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--tracker-text-muted);
+}
+
+/* Разделители — волосяная линия, а не серая плашка. */
+[data-slot="dropdown-menu-separator"],
+[data-slot="select-separator"],
+[data-slot="context-menu-separator"] {
+  background: var(--tracker-border);
+}
+
+.ink-pop,
+[data-slot="sheet-content"].ink-pop {
   --popover: #1C1D22;
   --popover-foreground: #FAFAF8;
   --accent: rgba(250, 250, 248, 0.09);
@@ -1363,7 +1431,7 @@ kbd {
   --muted-foreground: rgba(250, 250, 248, 0.60);
   background: #1C1D22 !important;
   color: #FAFAF8;
-  border-color: rgba(250, 250, 248, 0.14) !important;
+  border: 2px solid rgba(250, 250, 248, 0.16) !important;
   box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.55), 0 3px 10px rgba(0, 0, 0, 0.35) !important;
 }
 .ink-pop [data-slot="dropdown-menu-separator"],

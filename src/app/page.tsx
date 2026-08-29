@@ -903,39 +903,42 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
           </div>
         )}
 
-        {/* ---- VIEWS ---- */}
-        {view === "table" && (
-          <div className="month-masthead view-enter" key={`head-${currentMonth}-${currentYear}`}>
-            <div>
-              <p className="paper-eyebrow">{currentYear} · {(activeDomain?.name || "").toUpperCase()}</p>
-              <h1 className="month-masthead-title">{MONTHS[currentMonth]}</h1>
-            </div>
-
-            {/* Метрики месяца. Раньше жили в тулбаре узкой плашкой рядом с
-                поиском — числа месяца важнее инструментов и должны стоять
-                на одной линии с заголовком. */}
-            {visibleRows.length > 0 && (
-              <dl className="month-masthead-metrics">
-                <div>
-                  <dt>План</dt>
-                  <dd>{fmt2(rowsMetrics.totPlan)}</dd>
-                </div>
-                <div>
-                  <dt>Факт</dt>
-                  <dd>{fmt2(rowsMetrics.totFact)}</dd>
-                </div>
-                <div>
-                  <dt>Итого</dt>
-                  <dd>{fmt2(rowsMetrics.totTotalH)}</dd>
-                </div>
-                <div className="text-right">
-                  <dt>Месяц</dt>
-                  <dd>{rowsMetrics.avgProg}%</dd>
-                </div>
-              </dl>
-            )}
+        {/* ---- Шапка вкладки ----
+             Титул разворота есть у каждой вкладки, а не только у задач:
+             без него остальные разделы начинались сразу с содержания
+             и выглядели как чужие экраны. */}
+        <div className="month-masthead view-enter" key={`head-${view}-${currentMonth}-${currentYear}`}>
+          <div>
+            <p className="paper-eyebrow">{currentYear} · {(activeDomain?.name || "").toUpperCase()}</p>
+            <h1 className="month-masthead-title">
+              {view === "table" ? MONTHS[currentMonth] : (sidebarTabs.find((t) => t.key === view)?.label ?? "")}
+            </h1>
           </div>
-        )}
+
+          {/* Метрики только на задачах: в остальных вкладках они не про то,
+              что на экране. Раньше жили в тулбаре узкой плашкой рядом
+              с поиском — числа месяца важнее инструментов. */}
+          {view === "table" && visibleRows.length > 0 && (
+            <dl className="month-masthead-metrics">
+              <div>
+                <dt>План</dt>
+                <dd>{fmt2(rowsMetrics.totPlan)}</dd>
+              </div>
+              <div>
+                <dt>Факт</dt>
+                <dd>{fmt2(rowsMetrics.totFact)}</dd>
+              </div>
+              <div>
+                <dt>Итого</dt>
+                <dd>{fmt2(rowsMetrics.totTotalH)}</dd>
+              </div>
+              <div className="text-right">
+                <dt>Месяц</dt>
+                <dd>{rowsMetrics.avgProg}%</dd>
+              </div>
+            </dl>
+          )}
+        </div>
 
         {view === "table" && (
           <div className="view-enter" key={`table-${currentMonth}-${currentYear}`}>

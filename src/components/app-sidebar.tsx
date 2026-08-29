@@ -327,6 +327,8 @@ export function AppSidebar({
                             <button
                               key={y}
                               onClick={() => setCurrentYear(y)}
+                              /* Цвета фиксированы: рельса графитовая в обеих
+                                 темах, токены темы внутри неё перевёрнуты. */
                               className={`delta-num text-[11px] font-medium rounded px-2 py-1 transition-colors ${
                                 y === currentYear
                                   ? "bg-[#FAFAF8] text-[#17181C]"

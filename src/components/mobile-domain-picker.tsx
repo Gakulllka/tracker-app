@@ -119,7 +119,7 @@ export function MobileDomainPicker({
                 {/* Кнопки */}
                 <div className="flex items-center gap-2 shrink-0">
                   {isActive ? (
-                    <Check className="size-4" style={{ color: "#3FB574" }} />
+                    <Check className="size-4" style={{ color: "var(--tracker-success)" }} />
                   ) : editable ? (
                     <button
                       onClick={() => { onSelectDomain(domain.id); onOpenChange(false); }}

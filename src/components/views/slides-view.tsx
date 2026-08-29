@@ -136,7 +136,7 @@ export function SlidesView({
 
   /* Sub-tabs header — общий для всех трёх режимов */
   const subTabsHeader = (
-    <div className="flex items-center gap-1 p-1.5 rounded-xl border self-start"
+    <div className="ink-window flex items-center gap-1 p-1.5 self-start"
       style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
       {([
         { key: "slides", icon: Layers, label: "Слайды" },
@@ -260,7 +260,7 @@ export function SlidesView({
 
         {/* Под слайдом — лёгкая подсказка про AI, если выводов ещё нет */}
         {!aiConclusion && !aiDraft && (
-          <div className="rounded-xl border p-3 flex items-center justify-between gap-3 flex-wrap mx-2 sm:mx-0"
+          <div className="ink-window p-3 flex items-center justify-between gap-3 flex-wrap mx-2 sm:mx-0"
             style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
             <div className="text-sm" style={{ color: "var(--tracker-text-muted)" }}>
               <Sparkles className="inline size-3.5 mr-1.5" />Слайд «Итоги» использует шаблонные тезисы — можно заменить AI-выводами.
@@ -281,7 +281,7 @@ export function SlidesView({
     <div className="space-y-4">
       {subTabsHeader}
 
-      <div className="rounded-2xl border p-4 space-y-4" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+      <div className="ink-window p-4 space-y-4">
         <div>
           <h3 className="text-sm font-semibold">Исторический снимок</h3>
           <p className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>{MONTHS[currentMonth]} {currentYear} · данные только текущего домена</p>
@@ -305,7 +305,7 @@ export function SlidesView({
               {snapshot.versions.map((v, index) => {
                 const prev = snapshot.versions[index + 1];
                 const typeLabel = v.versionType === 'system' ? 'Системная версия' : v.versionType === 'rollback' ? 'Откат' : 'Ручное изменение';
-                return <div key={v.id} className="rounded-xl border p-3 flex items-center gap-3 flex-wrap" style={{ borderColor: v.active ? 'var(--tracker-accent)' : 'var(--tracker-border)' }}>
+                return <div key={v.id} className="ink-inset p-3 flex items-center gap-3 flex-wrap" style={{ borderColor: v.active ? 'var(--tracker-accent)' : undefined, borderWidth: v.active ? 2 : undefined }}>
                   <div className="flex-1 min-w-[260px]">
                     <div className="text-xs font-semibold">v{v.versionNumber} · {typeLabel}{v.active ? ' · активная' : ''}</div>
                     <div className="text-xs mt-1" style={{ color: "var(--tracker-text-muted)" }}>Задачи {prev ? `${prev.monthlyTasksCount} → ` : ''}{v.monthlyTasksCount} · Бэклог {prev ? `${prev.backlogCount} → ` : ''}{v.backlogCount} · Идеи {prev ? `${prev.ideasCount} → ` : ''}{v.ideasCount} · Всего {v.total}</div>

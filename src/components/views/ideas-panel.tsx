@@ -55,7 +55,7 @@ export function IdeasPanel({
   if (ideaRows.length === 0) return null;
 
   return (
-<div className="rounded-2xl border" style={{ borderColor: "var(--tracker-accent)", borderWidth: 2, background: "var(--tracker-bg-card)" }}>
+<div className="ink-window">
   <button type="button" onClick={() => setIdeasOpen(v => !v)} className="w-full flex items-center gap-2 px-4 py-3 text-left cursor-pointer select-none hover:bg-black/5 transition-colors">
     <Lightbulb className="size-4" style={{ color: "var(--tracker-warning)" }} />
     <span className="font-semibold text-sm">Идеи</span>

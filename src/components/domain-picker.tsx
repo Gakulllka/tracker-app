@@ -10,17 +10,17 @@
  */
 import React, { useState, useEffect, useCallback } from "react";
 import { Loader2, Plus, Lock, ArrowRight, Eye } from "lucide-react";
-import { RAIL } from "@/lib/tokens";
+import { RAIL, DOOR } from "@/lib/tokens";
 
 /* Выбор домена — часть парадной двери, оформление одинаково для всех тем
    (см. auth-screen). Токены темы здесь брать нельзя: TEXT/MUTED светлые. */
 const INK = RAIL.bg;
-const INK_SOFT = "#26282E";
+const INK_SOFT = DOOR.inkSoft;
 const PAPER = RAIL.text;
-const CARD = "#FFFFFF";
-const LINE = "#DEDDD6";
-const TEXT = "#1C1D21";
-const MUTED = "#8B8A84";
+const CARD = DOOR.card;
+const LINE = DOOR.line;
+const TEXT = DOOR.text;
+const MUTED = DOOR.muted;
 const MONO = "var(--font-geist-mono, ui-monospace, monospace)";
 
 interface Domain {

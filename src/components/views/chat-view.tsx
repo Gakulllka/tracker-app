@@ -238,7 +238,7 @@ export function ChatView({
       )}
 
       {/* Messages */}
-      <div className="flex-1 flex flex-col gap-3 overflow-y-auto rounded-xl border p-4 min-h-0"
+      <div className="ink-window flex-1 flex flex-col gap-3 overflow-y-auto p-4 min-h-0"
         style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-main)" }}>
         {!log.length && !busy && (
           <div className="flex-1 flex flex-col items-center justify-center text-center py-8 animate-fade-in">
@@ -274,7 +274,7 @@ export function ChatView({
         ))}
         {busy && (
           <div className="flex items-start gap-1 animate-fade-in">
-            <div className="rounded-2xl rounded-tl-sm px-4 py-3 border" style={{ background: "var(--tracker-bg-card)", borderColor: "var(--tracker-border)" }}>
+            <div className="ink-inset rounded-2xl rounded-tl-sm px-4 py-3" style={{ background: "var(--tracker-bg-card)" }}>
               <div className="flex gap-1.5 items-center h-5">
                 {[0, 1, 2].map(i => <span key={i} className="w-2 h-2 rounded-full animate-bounce" style={{ background: "var(--tracker-accent)", animationDelay: `${i * 120}ms`, opacity: 0.7 }} />)}
               </div>
@@ -286,7 +286,7 @@ export function ChatView({
 
       {/* Input */}
       <div className="flex gap-2 shrink-0">
-        <div className="flex-1 flex items-end gap-2 rounded-xl border px-3 py-2" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
+        <div className="ink-window flex-1 flex items-end gap-2 px-3 py-2">
           <Textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={hasKey ? "Спросите что угодно..." : "Сначала введите API ключ →"}

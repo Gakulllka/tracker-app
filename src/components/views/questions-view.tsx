@@ -312,7 +312,7 @@ export function QuestionsView({
       </Dialog>
 
       {/* ── Input area ── */}
-      <div className="rounded-2xl border p-4" style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card, var(--background))", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+      <div className="ink-window p-4">
         <div className="flex gap-3">
           <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
             style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>
@@ -448,7 +448,7 @@ export function QuestionsView({
               </span>
             </div>
             {unanswered.length === 0 && (
-              <div className="text-center py-6 rounded-xl border border-dashed" style={{ borderColor: "var(--tracker-border)" }}>
+              <div className="ink-inset text-center py-6 border-dashed">
                 <CheckCircle2 className="size-6 mx-auto mb-1.5" style={{ color: "var(--tracker-success)", opacity: 0.5 }} />
                 <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Нет открытых</p>
               </div>
@@ -474,7 +474,7 @@ export function QuestionsView({
               </span>
             </div>
             {reopened.length === 0 && (
-              <div className="text-center py-6 rounded-xl border border-dashed" style={{ borderColor: "var(--tracker-border)" }}>
+              <div className="ink-inset text-center py-6 border-dashed">
                 <Clock className="size-6 mx-auto mb-1.5" style={{ color: "var(--tracker-warning)", opacity: 0.5 }} />
                 <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Нет возобновлённых</p>
               </div>
@@ -500,7 +500,7 @@ export function QuestionsView({
               </span>
             </div>
             {answered.length === 0 && (
-              <div className="text-center py-6 rounded-xl border border-dashed" style={{ borderColor: "var(--tracker-border)" }}>
+              <div className="ink-inset text-center py-6 border-dashed">
                 <CircleDot className="size-6 mx-auto mb-1.5" style={{ color: "var(--tracker-warning)", opacity: 0.5 }} />
                 <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Пока нет отвеченных</p>
               </div>
@@ -547,7 +547,7 @@ export function QuestionsView({
               </div>
             )}
             {filteredArchived.map(q => (
-              <div key={q.id} className="rounded-xl border p-3 flex items-start gap-2.5"
+              <div key={q.id} className="ink-inset p-3 flex items-start gap-2.5"
                 style={{ background: "var(--tracker-bg-card)", borderColor: "var(--tracker-border)" }}>
                 <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold"
                   style={{ background: "rgba(139,92,246,0.12)", color: "var(--tracker-accent)" }}>

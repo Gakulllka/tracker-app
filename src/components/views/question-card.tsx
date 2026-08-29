@@ -59,8 +59,7 @@ export function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAns
   }, [q.linkedTaskId, allData]);
 
   return (
-    <div className="rounded-xl border overflow-hidden transition-all duration-200 hover:shadow-md"
-      style={{ background: "var(--tracker-bg-card, var(--background))", borderColor: "var(--tracker-border)" }}>
+    <div className="ink-window overflow-hidden transition-all duration-200 hover:shadow-md">
       <div className="p-3">
         <div className="flex items-start gap-2.5">
           <div className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold"

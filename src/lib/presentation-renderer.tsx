@@ -142,7 +142,8 @@ export interface PresentationSlideProps {
 }
 
 export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSlideProps) {
-  const { rgb, textColor, mutedColor, cardColors, isLight } = theme;
+  const { rgb, textColor, mutedColor, cardColors, isLight,
+    successColor, dangerColor } = theme;
   const [r, g, b] = rgb;
 
   const acA = `rgba(${r},${g},${b},1)`;
@@ -150,7 +151,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
   const BDR = `2px solid rgba(${r},${g},${b},1)`; // манга: сплошная чернильная рамка
   const F = FONT_FAMILY;
   const numColor = isLight ? "rgba(23,24,28,0.55)" : "rgba(245,245,242,0.60)";
-  const nameColor = isLight ? "#17181C" : "#F5F5F2";
+  const nameColor = textColor;
 
   const sectionH2 = (text: string): React.ReactNode => (
     <h2 style={{
@@ -196,7 +197,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
             <p style={{ fontFamily: F, fontSize: "18px", color: mutedColor, marginTop: "6px" }}>Всего задач</p>
           </div>
           <div style={{ textAlign: "center" }}>
-            <p style={{ fontFamily: F, fontSize: "64px", fontWeight: 900, color: "#22c55e", lineHeight: 1 }}>{completed}</p>
+            <p style={{ fontFamily: F, fontSize: "64px", fontWeight: 900, color: successColor, lineHeight: 1 }}>{completed}</p>
             <p style={{ fontFamily: F, fontSize: "18px", color: mutedColor, marginTop: "6px" }}>Завершено</p>
           </div>
           <div style={{ position: "relative", width: "120px", height: "120px", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -217,7 +218,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     const c = slide.content;
     const planN = Number(c.planH) || 0;
     const factN = Number(c.factH) || 0;
-    const factCol = planN > 0 ? (factN > planN ? "#ef4444" : "#22c55e") : acA;
+    const factCol = planN > 0 ? (factN > planN ? dangerColor : successColor) : acA;
     const overPct = Number(c.overPct) || 0;
     const prevOverPct = Number(c.prevOverPct) || 0;
     const completed = Number(c.completed) || 0;
@@ -241,15 +242,15 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
       { l: "План, ч", v: String(planN), col: acA, sub: `${total} задач` },
       { l: "Факт, ч", v: fmt2(factN), col: factCol,
         sub: deltaHours !== 0 ? `${deltaHours > 0 ? "+" : ""}${fmt2(deltaHours)}ч к плану` : "в рамках плана",
-        subCol: deltaHours > 0 ? "#ef4444" : deltaHours < 0 ? "#22c55e" : mutedColor },
+        subCol: deltaHours > 0 ? dangerColor : deltaHours < 0 ? successColor : mutedColor },
       { l: "Загрузка", v: `${Math.abs(overPct)}%`,
-        col: overPct > 0 ? "#ef4444" : "#22c55e",
+        col: overPct > 0 ? dangerColor : successColor,
         sub: deltaOverPct !== 0 ? `${deltaOverPct > 0 ? "↑" : "↓"}${Math.abs(deltaOverPct)}% к прошлому` : "как в прошлом месяце",
-        subCol: deltaOverPct > 0 ? "#ef4444" : deltaOverPct < 0 ? "#22c55e" : mutedColor },
+        subCol: deltaOverPct > 0 ? dangerColor : deltaOverPct < 0 ? successColor : mutedColor },
       { l: "Выполнение", v: `${compPct}%`,
-        col: compPct >= 70 ? "#22c55e" : compPct < 40 ? "#ef4444" : acA,
+        col: compPct >= 70 ? successColor : compPct < 40 ? dangerColor : acA,
         sub: deltaCompPct !== 0 ? `${deltaCompPct > 0 ? "↑" : "↓"}${Math.abs(deltaCompPct)}% к прошлому` : "как в прошлом месяце",
-        subCol: deltaCompPct > 0 ? "#22c55e" : deltaCompPct < 0 ? "#ef4444" : mutedColor,
+        subCol: deltaCompPct > 0 ? successColor : deltaCompPct < 0 ? dangerColor : mutedColor,
         extra: `${completed} из ${total} задач` },
     ];
 
@@ -279,8 +280,8 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
               { label: "Всего", value: totalAll, note: totalPrev > 0 ? `было ${totalPrev}` : "—", color: acA },
               ...(backlogCount > 0 ? [{ label: "Бэклог", value: backlogCount, note: "", color: acA }] : []),
               ...(ideasCount > 0 ? [{ label: "Идеи", value: ideasCount, note: "", color: acA }] : []),
-              { label: "Невыполнено", value: currentUncompleted, note: deltaUncompleted > 0 ? `+${deltaUncompleted}` : deltaUncompleted < 0 ? `${deltaUncompleted}` : "—", color: currentUncompleted > prevUncompleted ? "#ef4444" : currentUncompleted < prevUncompleted ? "#22c55e" : acA },
-              { label: "Завершено", value: completed, note: completedPrev > 0 ? `было ${completedPrev}` : "—", color: "#22c55e" },
+              { label: "Невыполнено", value: currentUncompleted, note: deltaUncompleted > 0 ? `+${deltaUncompleted}` : deltaUncompleted < 0 ? `${deltaUncompleted}` : "—", color: currentUncompleted > prevUncompleted ? dangerColor : currentUncompleted < prevUncompleted ? successColor : acA },
+              { label: "Завершено", value: completed, note: completedPrev > 0 ? `было ${completedPrev}` : "—", color: successColor },
             ].map((item, index, all) => <React.Fragment key={item.label}>
               <div style={{ textAlign: "center", minWidth: "110px" }}>
                 <p style={{ fontFamily: F, fontSize: "16px", color: mutedColor }}>{item.label}</p>
@@ -350,7 +351,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
                   </span>
                   <span style={{ fontFamily: F, fontSize: "14px", fontWeight: 600, color: mutedColor }}>
                     <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: ".5px" }}>итого </span>
-                    <span style={{ color: item.currentTotal <= evalExpr(t.planH) ? "#22c55e" : "#ef4444", fontSize: "17px", fontWeight: 800 }}>{fmt2(item.currentTotal)}ч</span>
+                    <span style={{ color: item.currentTotal <= evalExpr(t.planH) ? successColor : dangerColor, fontSize: "17px", fontWeight: 800 }}>{fmt2(item.currentTotal)}ч</span>
                   </span>
                 </div>
               </div>
@@ -390,7 +391,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
           </div>
           <div style={{ width: "1px", height: "36px", background: `rgba(${r},${g},${b},1)` }} />
           <div style={{ textAlign: "center" }}>
-            <p style={{ fontFamily: F, fontSize: "30px", fontWeight: 900, color: "#22c55e", lineHeight: 1.2 }}>{completed}</p>
+            <p style={{ fontFamily: F, fontSize: "30px", fontWeight: 900, color: successColor, lineHeight: 1.2 }}>{completed}</p>
             <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>завершено</p>
           </div>
           <div style={{ width: "1px", height: "36px", background: `rgba(${r},${g},${b},1)` }} />
@@ -448,7 +449,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
                         </td>
                         <td style={{ padding: "8px 18px", textAlign: "center", fontWeight: 700, color: nameColor }}>{fmt2(evalExpr(t.planH))}</td>
                         <td style={{ padding: "8px 18px", textAlign: "center", fontWeight: 700, color: nameColor }}>{fmt2(evalExpr(t.factH))}</td>
-                        <td style={{ padding: "8px 18px", textAlign: "center", fontWeight: 700, color: (t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH)) <= evalExpr(t.planH) ? "#22c55e" : "#ef4444" }}>{fmt2(t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH))}</td>
+                        <td style={{ padding: "8px 18px", textAlign: "center", fontWeight: 700, color: (t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH)) <= evalExpr(t.planH) ? successColor : dangerColor }}>{fmt2(t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH))}</td>
                       </tr>
                     ))}
                   </React.Fragment>
@@ -501,8 +502,8 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     };
 
     const sections = [
-      { key: "achievements" as const, label: "Достижения", col: "#22c55e", items: con.achievements },
-      { key: "risks" as const, label: "Риски", col: "#ef4444", items: con.risks },
+      { key: "achievements" as const, label: "Достижения", col: successColor, items: con.achievements },
+      { key: "risks" as const, label: "Риски", col: dangerColor, items: con.risks },
       { key: "inProgress" as const, label: "В процессе", col: "acA", items: con.inProgress },
       { key: "summary" as const, label: "Выводы", col: "acA", items: con.summary },
     ].filter((s) => s.items && s.items.length > 0);
