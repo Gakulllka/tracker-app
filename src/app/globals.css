@@ -1020,9 +1020,13 @@ html, body {
 
 /* Медленное вращение лучей. Заметно, только если смотреть — а смотрят
    на заставку не дольше секунды. */
-.brand-speedlines {
+/* Вращается ГРУППА линий внутри SVG, а не сам SVG.
+   Если крутить элемент, его углы уходят за экран и по краям появляются
+   прорехи: прямоугольник при повороте перестаёт накрывать окно. */
+.brand-speedlines g {
   animation: brand-speedlines-turn 90s linear infinite;
   transform-origin: 50% 44%;
+  transform-box: view-box;
 }
 
 @keyframes brand-speedlines-turn {
@@ -1031,7 +1035,7 @@ html, body {
 
 /* Если в системе отключена анимация — лучи просто стоят. */
 @media (prefers-reduced-motion: reduce) {
-  .brand-speedlines { animation: none; }
+  .brand-speedlines g { animation: none; }
 }
 
 /* Пустое состояние: рамка со штриховкой вместо серого квадрата.
@@ -1173,8 +1177,13 @@ kbd {
   --sidebar-ring: var(--tracker-accent, #17181C);
 
   /* ── Замораживаем ВСЕ темы-переменные на тёмные значения.
-     applyTheme() ставит --background/--card/--tracker-* на <html>;
-     внутри рельсы они ДОЛЖНЫ оставаться графитовыми. */
+     Светлая тема ставит их на <html>; внутри рельсы они ДОЛЖНЫ
+     оставаться графитовыми независимо от выбранной темы.
+
+     ВНИМАНИЕ: из-за этого переворота внутри рельсы нельзя писать
+     var(--tracker-bg-main) в значении «бумага» — здесь это графит.
+     Для фиксированных цветов рельсы используйте константы RAIL
+     из lib/tokens.ts. */
   --background: #131418;
   --foreground: #F5F5F2;
   --card: #1A1B20;

@@ -67,7 +67,7 @@ const FLAG_LABELS: Record<string, string> = {
   request_status: "Запросить статус",
 };
 const FLAG_COLORS: Record<string, string> = {
-  escalate: "var(--tracker-danger)", pause: "#6b7280", cancel: "var(--tracker-danger)", request_status: "var(--tracker-accent)",
+  escalate: "var(--tracker-danger)", pause: "var(--tracker-text-muted)", cancel: "var(--tracker-danger)", request_status: "var(--tracker-accent)",
 };
 
 const T = { color: "var(--tracker-text-main, var(--foreground))" } as const;

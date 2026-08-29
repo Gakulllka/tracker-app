@@ -57,8 +57,8 @@ export function BrandSplash({ visible, label = "Загрузка..." }: BrandSpl
                 key={i}
                 x1={50 + Math.cos(angle) * 18}
                 y1={44 + Math.sin(angle) * 18}
-                x2={50 + Math.cos(angle) * 110}
-                y2={44 + Math.sin(angle) * 110}
+                x2={50 + Math.cos(angle) * 220}
+                y2={44 + Math.sin(angle) * 220}
               />
             );
           })}

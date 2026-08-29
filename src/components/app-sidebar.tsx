@@ -163,14 +163,14 @@ export function AppSidebar({
       <SidebarHeader className="px-3 pt-4 pb-2 relative">
         <div className="flex items-center gap-2.5 px-1 select-none">
           <svg width="17" height="15" viewBox="0 0 40 36" xmlns="http://www.w3.org/2000/svg"
-            style={{ flexShrink: 0, color: "var(--tracker-bg-main)" }}>
+            style={{ flexShrink: 0, color: RAIL.text }}>
             <polygon points="20,2 38,34 2,34" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round"/>
             <polygon points="20,12 31,32 9,32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" opacity="0.4"/>
           </svg>
           <span
             className="text-[12px] font-semibold uppercase group-data-[collapsible=icon]:hidden"
             style={{
-              color: "var(--tracker-bg-main)",
+              color: RAIL.text,
               letterSpacing: "0.34em",
               fontFamily: "var(--font-geist-mono, ui-monospace, monospace)",
             }}
@@ -190,11 +190,11 @@ export function AppSidebar({
           >
             <SelectTrigger
               className="rail-hoverable h-9 w-full gap-1.5 rounded-[10px] px-2.5 text-[13px] font-semibold border shadow-none transition-colors"
-              style={{ background: "transparent", borderColor: RAIL.line, color: "var(--tracker-bg-main)" }}
+              style={{ background: "transparent", borderColor: RAIL.line, color: RAIL.text }}
             >
               {isReadOnlyDomain
                 ? <Lock className="size-3 shrink-0" style={{ color: RAIL.faint }} />
-                : <span className="size-2 rounded-[4px] shrink-0" style={{ background: "var(--tracker-bg-main)", opacity: 0.9 }} />}
+                : <span className="size-2 rounded-[4px] shrink-0" style={{ background: RAIL.text, opacity: 0.9 }} />}
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="rounded-xl ink-pop">
@@ -241,14 +241,14 @@ export function AppSidebar({
                         className={"rail-nav relative h-10 rounded-lg overflow-hidden text-[13px] font-medium transition-colors"}
                         style={
                           view === tab.key
-                            ? { background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }
+                            ? { background: RAIL.text, color: RAIL.bg }
                             : { color: RAIL.muted }
                         }
                       >
                         {view === tab.key && (
                           <span
                             className="absolute left-0 top-1/2 -translate-y-1/2"
-                            style={{ width: 3, height: 16, borderRadius: 2, background: "var(--tracker-accent)" }}
+                            style={{ width: 3, height: 16, borderRadius: 2, background: RAIL.bg }}
                           />
                         )}
                         <Icon className="size-4" />
@@ -259,8 +259,8 @@ export function AppSidebar({
                         {!isDisabled && "badge" in tab && (tab.badge as number) > 0 && (
                           <span className="ml-auto min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center"
                             style={view === tab.key
-                              ? { background: "var(--tracker-accent)", color: "var(--tracker-bg-main)" }
-                              : { background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }}>
+                              ? { background: RAIL.bg, color: RAIL.text }
+                              : { background: RAIL.text, color: RAIL.bg }}>
                             {tab.badge}
                           </span>
                         )}
@@ -288,7 +288,7 @@ export function AppSidebar({
                       }`}
                       style={
                         currentMonth === i
-                          ? { background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }
+                          ? { background: RAIL.text, color: RAIL.bg }
                           : { color: RAIL.muted }
                       }
                       title={m}
@@ -297,7 +297,7 @@ export function AppSidebar({
                       <span
                         className="absolute bottom-1 size-1 rounded-full transition-opacity"
                         style={{
-                          background: currentMonth === i ? "var(--tracker-accent)" : "var(--tracker-bg-main)",
+                          background: currentMonth === i ? RAIL.bg : RAIL.text,
                           opacity: monthHasData(i) ? (currentMonth === i ? 0.85 : 0.65) : 0,
                         }}
                       />
@@ -311,7 +311,7 @@ export function AppSidebar({
                     <PopoverTrigger asChild>
                       <button
                         className="rail-hoverable delta-num h-6 px-2 text-[11px] font-medium rounded flex items-center justify-center min-w-[52px] transition-colors"
-                        style={{ border: "1px solid rgba(250,250,248,0.12)", color: "var(--tracker-bg-main)", background: "transparent" }}
+                        style={{ border: "1px solid rgba(250,250,248,0.12)", color: RAIL.text, background: "transparent" }}
                       >
                         {currentYear}
                       </button>
@@ -329,7 +329,7 @@ export function AppSidebar({
                               onClick={() => setCurrentYear(y)}
                               className={`delta-num text-[11px] font-medium rounded px-2 py-1 transition-colors ${
                                 y === currentYear
-                                  ? "bg-[var(--tracker-bg-main)] text-[var(--tracker-accent)]"
+                                  ? "bg-[#FAFAF8] text-[#17181C]"
                                   : "text-[rgba(250,250,248,0.8)] hover:bg-[rgba(250,250,248,0.09)]"
                               }`}
                             >
@@ -357,9 +357,9 @@ export function AppSidebar({
                   <button
                     onClick={() => switchWorkspace(authData.workspaceId)}
                     className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                    style={{ background: RAIL.line, color: "var(--tracker-bg-main)" }}
+                    style={{ background: RAIL.line, color: RAIL.text }}
                   >
-                    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }}>
+                    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: RAIL.text, color: RAIL.bg }}>
                       <span className="text-[9px] font-bold">{initial}</span>
                     </div>
                     <span className="truncate">Моё пространство</span>
@@ -373,7 +373,7 @@ export function AppSidebar({
                         workspaceId === ws.workspaceId ? "font-medium" : "rail-hoverable"
                       }`}
                       style={workspaceId === ws.workspaceId
-                        ? { background: RAIL.line, color: "var(--tracker-bg-main)" }
+                        ? { background: RAIL.line, color: RAIL.text }
                         : { color: RAIL.muted }}
                     >
                       <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: "rgba(250,250,248,0.08)", color: RAIL.muted }}>
@@ -397,7 +397,7 @@ export function AppSidebar({
       {/* ── Подвал: инструменты · команда · пользователь ── */}
       <SidebarFooter
         className="p-2 space-y-1.5 group-data-[collapsible=icon]:hidden"
-        style={{ background: "var(--tracker-accent)", color: "var(--tracker-bg-main)" }}
+        style={{ background: RAIL.bg, color: RAIL.text }}
       >
         {/* Exec-сигналы (кнопка появляется, когда есть запросы) */}
         <ExecSignalsPanel
@@ -469,12 +469,12 @@ export function AppSidebar({
             >
               <span
                 className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
-                style={{ background: "var(--tracker-bg-main)", color: "var(--tracker-accent)" }}
+                style={{ background: RAIL.text, color: RAIL.bg }}
               >
                 {initial}
               </span>
               <span className="flex-1 min-w-0 text-left">
-                <span className="block text-[12px] font-medium truncate" style={{ color: "var(--tracker-bg-main)" }}>{displayName}</span>
+                <span className="block text-[12px] font-medium truncate" style={{ color: RAIL.text }}>{displayName}</span>
                 <span className="block text-[10px] truncate" style={{ color: RAIL.faint }}>{ROLE_LABEL[authData.user.role] || authData.user.role}</span>
               </span>
               <ChevronUp className="size-3 shrink-0" style={{ color: RAIL.faint }} />
@@ -482,7 +482,7 @@ export function AppSidebar({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" side="top" className="w-60 rounded-xl p-1.5 ink-pop">
             <DropdownMenuLabel className="font-normal px-2.5 py-2">
-              <p className="text-[13px] font-semibold truncate" style={{ color: "var(--tracker-bg-main)" }}>{displayName}</p>
+              <p className="text-[13px] font-semibold truncate" style={{ color: RAIL.text }}>{displayName}</p>
               <p className="text-[11px] mt-0.5" style={{ color: "rgba(250,250,248,0.6)" }}>
                 {ROLE_LABEL[authData.user.role] || authData.user.role}
                 {authData.user.username !== displayName ? ` · ${authData.user.username}` : ""}
