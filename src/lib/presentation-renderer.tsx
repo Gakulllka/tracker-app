@@ -4,9 +4,10 @@
 
 import React from "react";
 import type { Task } from "./types";
-import { getPhaseForStatus } from "./types";
+import { getPhaseForStatus, MONTHS } from "./types";
 import type { PresBgSettings } from "./store";
-import { fmt2, evalExpr } from "./metrics";
+import { fmt2, evalExpr, R2 } from "./metrics";
+import { describeMonth } from "./task-history";
 import {
   buildTheme, hexToRgb, isHexDark, statusColor,
   FONT_FAMILY, FONT_MONO, FONT_STYLE,
@@ -99,12 +100,17 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
        кольцевая диаграмма и число 64 пикселя — слайд кричал громче,
        чем говорит весь остальной продукт. */
     return (
-      <div style={{ ...shell, height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <p style={{ fontFamily: FONT_MONO, fontSize: "16px", letterSpacing: "3px", textTransform: "uppercase", color: mutedColor }}>
-          {year}{domain ? ` · ${domain}` : ""}
-        </p>
+      <div style={{
+        ...shell, height: "100%", display: "flex",
+        alignItems: "center", justifyContent: "center",
+      }}>
+        {/* Композиция собрана по центру, как на экране загрузки: титул
+            не растянут по высоте, а стоит цельным блоком. */}
+        <div style={{ maxWidth: "760px", width: "100%" }}>
+          <p style={{ fontFamily: FONT_MONO, fontSize: "16px", letterSpacing: "3px", textTransform: "uppercase", color: mutedColor, marginBottom: "10px" }}>
+            {year}{domain ? ` · ${domain}` : ""}
+          </p>
 
-        <div>
           <h1 style={{
             fontFamily: F, fontSize: "clamp(64px,8vw,104px)", fontWeight: 500,
             lineHeight: 1, letterSpacing: "-3px", color: textColor,
@@ -126,11 +132,11 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
               <p style={{ fontFamily: FONT_MONO, fontSize: "46px", fontWeight: 500, color: textColor, lineHeight: 1.1 }}>{fmt2(factH)}</p>
             </div>
           </div>
-        </div>
 
-        <p style={{ fontFamily: FONT_MONO, fontSize: "14px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor }}>
-          Delta · операционный монитор
-        </p>
+          <p style={{ fontFamily: FONT_MONO, fontSize: "14px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor, marginTop: "34px" }}>
+            Delta · операционный монитор
+          </p>
+        </div>
       </div>
     );
   }
@@ -140,80 +146,71 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     const c = slide.content;
     const planN = Number(c.planH) || 0;
     const factN = Number(c.factH) || 0;
-    const factCol = planN > 0 ? (factN > planN ? dangerColor : successColor) : acA;
-    const overPct = Number(c.overPct) || 0;
-    const prevOverPct = Number(c.prevOverPct) || 0;
     const completed = Number(c.completed) || 0;
-    const completedPrev = Number(c.completedPrev) || 0;
     const total = Number(c.total) || 0;
-    const totalPrev = Number(c.totalPrev) || 0;
-    const compPct = Number(c.compPct) || 0;
-    const compPctPrev = Number(c.compPctPrev) || 0;
-    const currentUncompleted = Number(c.currentUncompleted) || 0;
-    const prevUncompleted = Number(c.prevUncompleted) || 0;
-    const backlogCount = Number(c.backlogCount) || 0;
-    const ideasCount = Number(c.ideasCount) || 0;
-    const totalAll = Number(c.totalAll) || total;
+    const history = (c.history || []) as { month: number; factH: number }[];
+    const peak = Math.max(planN, ...history.map((h) => h.factH), 1);
 
-    const deltaHours = factN - planN;
-    const deltaOverPct = overPct - prevOverPct;
-    const deltaCompPct = compPct - compPctPrev;
-    const deltaUncompleted = currentUncompleted - prevUncompleted;
+    const prevFact = history.length > 1 ? history[history.length - 2].factH : null;
+    const diff = prevFact === null ? 0 : R2(factN - prevFact);
 
-    const kpiItems = [
-      { l: "План, ч", v: String(planN), col: acA, sub: `${total} задач` },
-      { l: "Факт, ч", v: fmt2(factN), col: factCol,
-        sub: deltaHours !== 0 ? `${deltaHours > 0 ? "+" : ""}${fmt2(deltaHours)}ч к плану` : "в рамках плана",
-        subCol: deltaHours > 0 ? dangerColor : deltaHours < 0 ? successColor : mutedColor },
-      { l: "Загрузка", v: `${Math.abs(overPct)}%`,
-        col: overPct > 0 ? dangerColor : successColor,
-        sub: deltaOverPct !== 0 ? `${deltaOverPct > 0 ? "↑" : "↓"}${Math.abs(deltaOverPct)}% к прошлому` : "как в прошлом месяце",
-        subCol: deltaOverPct > 0 ? dangerColor : deltaOverPct < 0 ? successColor : mutedColor },
-      { l: "Выполнение", v: `${compPct}%`,
-        col: compPct >= 70 ? successColor : compPct < 40 ? dangerColor : acA,
-        sub: deltaCompPct !== 0 ? `${deltaCompPct > 0 ? "↑" : "↓"}${Math.abs(deltaCompPct)}% к прошлому` : "как в прошлом месяце",
-        subCol: deltaCompPct > 0 ? successColor : deltaCompPct < 0 ? dangerColor : mutedColor,
-        extra: `${completed} из ${total} задач` },
-    ];
-
+    /* Динамика полосами по месяцам вместо трёх плиток «план / факт /
+       перерасход». Плитки показывали три числа, но не отвечали на главный
+       вопрос: месяц выдался обычным или нет. Полосы отвечают сразу. */
     return (
-      <div style={{ ...shell, textAlign: "center", maxWidth: "1100px", margin: "auto" }}>
-        {sectionH2("Ключевые показатели")}
-        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "20px" }}>
-          {kpiItems.map((k, i) => (
-            <div key={i} style={{
-              borderRadius: "14px", padding: "30px 36px", minWidth: "240px", maxWidth: "320px", flex: "1 1 240px",
-              border: BDR, textAlign: "center",
-            }}>
-              <p style={{ fontFamily: F, fontSize: "20px", color: mutedColor, marginTop: 0, marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase", fontWeight: 600 }}>{k.l}</p>
-              <p style={{ fontFamily: FONT_MONO, fontSize: "48px", fontWeight: 500, letterSpacing: "-1.5px", color: k.col, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{k.v}</p>
-              {k.sub && <p style={{ fontFamily: F, fontSize: "16px", color: k.subCol || mutedColor, marginTop: "10px", fontWeight: 600 }}>{k.sub}</p>}
-              {k.extra && <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor, marginTop: "4px" }}>{k.extra}</p>}
-            </div>
-          ))}
+      <div style={{ ...shell, height: "100%", display: "flex", flexDirection: "column" }}>
+        {sectionH2("Показатели месяца")}
+
+        <div style={{ display: "flex", gap: "56px", flexWrap: "wrap", marginBottom: "28px" }}>
+          <div>
+            <p style={{ fontFamily: F, fontSize: "14px", letterSpacing: "1.6px", textTransform: "uppercase", color: mutedColor }}>Бюджет</p>
+            <p style={{ fontFamily: FONT_MONO, fontSize: "38px", fontWeight: 500, color: textColor, lineHeight: 1.1 }}>{fmt2(planN)}</p>
+          </div>
+          <div>
+            <p style={{ fontFamily: F, fontSize: "14px", letterSpacing: "1.6px", textTransform: "uppercase", color: mutedColor }}>Отработано</p>
+            <p style={{ fontFamily: FONT_MONO, fontSize: "38px", fontWeight: 500, color: factN > planN ? dangerColor : textColor, lineHeight: 1.1 }}>{fmt2(factN)}</p>
+          </div>
+          <div>
+            <p style={{ fontFamily: F, fontSize: "14px", letterSpacing: "1.6px", textTransform: "uppercase", color: mutedColor }}>Завершено</p>
+            <p style={{ fontFamily: FONT_MONO, fontSize: "38px", fontWeight: 500, color: textColor, lineHeight: 1.1 }}>{completed} / {total}</p>
+          </div>
         </div>
 
-        {(totalPrev > 0 || completedPrev > 0 || totalAll > 0) && (
-          <div style={{
-            display: "flex", gap: "28px", marginTop: "20px", flexWrap: "nowrap", justifyContent: "center",
-            padding: "16px 28px", borderRadius: "14px", border: BDR,
-          }}>
-            {[
-              { label: "Всего", value: totalAll, note: totalPrev > 0 ? `было ${totalPrev}` : "—", color: acA },
-              ...(backlogCount > 0 ? [{ label: "Бэклог", value: backlogCount, note: "", color: acA }] : []),
-              ...(ideasCount > 0 ? [{ label: "Идеи", value: ideasCount, note: "", color: acA }] : []),
-              { label: "Невыполнено", value: currentUncompleted, note: deltaUncompleted > 0 ? `+${deltaUncompleted}` : deltaUncompleted < 0 ? `${deltaUncompleted}` : "—", color: currentUncompleted > prevUncompleted ? dangerColor : currentUncompleted < prevUncompleted ? successColor : acA },
-              { label: "Завершено", value: completed, note: completedPrev > 0 ? `было ${completedPrev}` : "—", color: successColor },
-            ].map((item, index, all) => <React.Fragment key={item.label}>
-              <div style={{ textAlign: "center", minWidth: "110px" }}>
-                <p style={{ fontFamily: F, fontSize: "16px", color: mutedColor }}>{item.label}</p>
-                <p style={{ fontFamily: F, fontSize: "32px", fontWeight: 500, color: item.color, lineHeight: 1.2 }}>{item.value}</p>
-                <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>{item.note || " "}</p>
+        <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", justifyContent: "center", gap: "12px" }}>
+          {history.map((h, i) => {
+            const isCurrent = i === history.length - 1;
+            const width = Math.max(2, (h.factH / peak) * 100);
+            return (
+              <div key={`${h.month}-${i}`} style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                <span style={{
+                  fontFamily: F, width: "104px", fontSize: "15px",
+                  letterSpacing: "1.2px", textTransform: "uppercase",
+                  color: isCurrent ? textColor : mutedColor,
+                }}>{MONTHS[h.month]}</span>
+
+                <span style={{
+                  flex: 1, height: "26px", position: "relative", overflow: "hidden",
+                  border: `2px solid rgba(${r},${g},${b},1)`, borderRadius: "4px",
+                }}>
+                  <span style={{
+                    position: "absolute", inset: 0, width: `${width}%`, display: "block",
+                    background: isCurrent && factN > planN ? dangerColor : acA,
+                    opacity: isCurrent ? 1 : 0.45,
+                  }} />
+                </span>
+
+                <span style={{
+                  fontFamily: FONT_MONO, width: "88px", textAlign: "right", fontSize: "20px",
+                  color: isCurrent ? textColor : mutedColor,
+                }}>{fmt2(h.factH)}</span>
               </div>
-              {index < all.length - 1 && <div style={{ width: "1px", background: `rgba(${r},${g},${b},1)` }} />}
-            </React.Fragment>)}
-          </div>
-        )}
+            );
+          })}
+        </div>
+
+        <p style={{ fontFamily: F, fontSize: "19px", lineHeight: 1.5, color: mutedColor, marginTop: "22px" }}>
+          {describeMonth(factN, planN, completed, total, diff)}
+        </p>
       </div>
     );
   }

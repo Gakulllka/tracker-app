@@ -52,6 +52,25 @@ export function generateSlides(
   }
 
   const compPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  /* История отработанных часов за последние шесть месяцев — для полос
+     на слайде показателей. Три плитки «план / факт / перерасход» не
+     показывали динамику: было непонятно, месяц выдался обычным или нет. */
+  const history: { month: number; factH: number }[] = [];
+  for (let back = 5; back >= 0; back--) {
+    const m = month - back;
+    const y = m < 0 ? year - 1 : year;
+    const mm = ((m % 12) + 12) % 12;
+    const key = `${y}-${String(mm + 1).padStart(2, "0")}`;
+    const rowsOfMonth = (dataByYearMonth[key] || []).filter(
+      (r) => !r._deleted && (r.name || r.num),
+    );
+    if (rowsOfMonth.length === 0 && back > 0) continue;
+    history.push({
+      month: mm,
+      factH: R2(rowsOfMonth.reduce((sum, r) => sum + evalExpr(r.factH), 0)),
+    });
+  }
   const monthLabel = `${MONTHS[month]} ${year}`;
   const slides: SlideData[] = [];
 
@@ -146,6 +165,7 @@ export function generateSlides(
       compPctPrev: prevCompPct,
       currentUncompleted,
       prevUncompleted,
+      history,
       accent: INK,
     },
   });

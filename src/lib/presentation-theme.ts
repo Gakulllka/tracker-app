@@ -24,7 +24,6 @@ import { INK } from "./tokens";
 export interface PresentationTheme {
   INK: string;
   rgb: [number, number, number];
-  styleId: PresBgSettings["styleId"];
   bodyBg: string;
   overlayBg: string;
   textColor: string;
@@ -112,7 +111,7 @@ export function buildTheme(
 
   return {
     INK: bwAccent,
-    rgb, styleId: bg.styleId, bodyBg: resolved.bgMain, overlayBg,
+    rgb, bodyBg: resolved.bgMain, overlayBg,
     textColor: resolved.textMain, mutedColor,
     isLight: !resolved.isDark, bg,
     // Каноничные цвета ДНК: на светлом — приглушённые, на тёмном — светлее,

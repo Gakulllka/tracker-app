@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { describeTaskHistory } from "@/lib/task-history";
+import { describeTaskHistory, describeMonth } from "@/lib/task-history";
 
 test("без отработанных часов — честная заглушка", () => {
   assert.match(describeTaskHistory([]), /ещё нет/);
@@ -64,4 +64,37 @@ test("нулевой план не даёт ложного перерасход�
   assert.doesNotMatch(one, /[Пп]ерерасход/);
   assert.doesNotMatch(many, /[Пп]ерерасход/);
   assert.match(many, /Накоплено 8 ч/);
+});
+
+/* --------------------- итог месяца для слайда --------------------- */
+
+test("месяц в пределах бюджета", () => {
+  const text = describeMonth(196.75, 240, 7, 11, 0);
+
+  assert.match(text, /196\.75 ч из 240 ч/);
+  assert.match(text, /Завершено 7 задач из 11/);
+  assert.doesNotMatch(text, /[Пп]ерерасход/);
+});
+
+test("перерасход бюджета назван размером", () => {
+  const text = describeMonth(260, 240, 5, 5, 0);
+
+  assert.match(text, /перерасход 20 ч/);
+});
+
+test("сравнение с прошлым месяцем в обе стороны", () => {
+  assert.match(describeMonth(200, 240, 1, 2, 18), /На 18 ч больше прошлого месяца/);
+  assert.match(describeMonth(200, 240, 1, 2, -17), /На 17 ч меньше прошлого месяца/);
+  assert.doesNotMatch(describeMonth(200, 240, 1, 2, 0), /прошлого месяца/);
+});
+
+test("все задачи закрыты — говорится прямо", () => {
+  assert.match(describeMonth(100, 240, 4, 4, 0), /Закрыты все 4 задач/);
+});
+
+test("без бюджета перерасхода не бывает", () => {
+  const text = describeMonth(50, 0, 1, 1, 0);
+
+  assert.match(text, /Отработали 50 ч/);
+  assert.doesNotMatch(text, /бюджет/);
 });
