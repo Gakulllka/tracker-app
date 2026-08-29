@@ -44,7 +44,7 @@ export interface ExecSignalsPanelProps {
   allTasks: Record<number, Task[]>;
   /** Беклог */
   backlogTasks: Task[];
-  /** Лимит месяца */
+  /** Бюджет месяца */
   monthCapacity: number;
   /** Текущий пользователь — руководитель или БА */
   isAdmin: boolean;

@@ -193,3 +193,25 @@ test("все закрытые статусы перечислены в одно�
   assert.equal(CLOSED_STATUSES.has(STATUSES.PROD_CHECK), true);
   assert.equal(CLOSED_STATUSES.has(STATUSES.DEV), false);
 });
+
+test("итого берётся из накопления по номеру, а не из факта месяца", () => {
+  // Тихая ошибка: без карты накопления getTaskMetrics подставляет факт
+  // текущего месяца. В окне задачи «Итого» показывало 4 ч вместо 20.25.
+  const t = task({ num: "42465", planH: "40", factH: "4" });
+
+  assert.equal(getTaskMetrics(t).totalH, 4, "без карты — факт месяца");
+  assert.equal(getTaskMetrics(t, { "42465": 20.25 }).totalH, 20.25);
+});
+
+test("перерасход считается по накоплению, а не по факту месяца", () => {
+  const t = task({ num: "40209", planH: "50", factH: "5.25", status: STATUSES.DEV });
+
+  assert.equal(getTaskMetrics(t).over, false, "факт месяца плана не превысил");
+  assert.equal(getTaskMetrics(t, { "40209": 61.58 }).over, true, "накопление превысило");
+});
+
+test("задача без номера не может накапливать итог", () => {
+  const t = task({ num: "", planH: "10", factH: "3" });
+
+  assert.equal(getTaskMetrics(t, { "": 99 }).totalH, 3);
+});

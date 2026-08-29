@@ -146,8 +146,6 @@ export function TaskDetailDialog({
     return Math.max(...monthBreakdown.map(r => r.cumulative));
   }, [monthBreakdown]);
 
-  /** Накопленный итог превысил план месяца — единственный повод для красного. */
-  const isOverTotal = evalExpr(task.planH) > 0 && maxCum > evalExpr(task.planH);
 
   const planfixUrl = task.num ? `https://emk.planfix.ru/task/${task.num}` : null;
 
@@ -161,7 +159,13 @@ export function TaskDetailDialog({
   /* Числа шапки считает та же функция, что и карточку в списке, —
      раньше диалог считал прогресс сам и показывал 73% там, где
      карточка показывала 100%: закрытость задачи здесь не учитывалась. */
-  const headMetrics = useMemo(() => getTaskMetrics(task), [task]);
+  /* Накопление по номеру задачи уже посчитано в monthBreakdown — передаём
+     его как карту, иначе getTaskMetrics берёт totalH = факт месяца, и в
+     шапке вместо накопленного итога оказывался факт текущего месяца. */
+  const headMetrics = useMemo(
+    () => getTaskMetrics(task, task.num ? { [task.num]: maxCum } : undefined),
+    [task, maxCum],
+  );
   const totalColor = progColor(
     headMetrics.prog,
     CLOSED_STATUSES.has(task.status as Status),

@@ -469,7 +469,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
 
 
   /** Полный список с сервера (включая archived для админа). */
-  /* ---- Лимит месяца ----
+  /* ---- Бюджет месяца ----
    * Хранится по паре домен + месяц. Правится прямо в шапке списка задач:
    * раньше редактор жил в дашборде, который был удалён как неиспользуемый,
    * и настройка стала недоступна, хотя сеттер в сторе остался. */
@@ -553,7 +553,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     [visibleRows, totalFactMap]
   );
 
-  /** Сколько запланировано от лимита месяца. */
+  /** Сколько запланировано от бюджета месяца. */
   const monthLoad = useMemo(
     () => (monthlyPlan > 0 ? Math.round((rowsMetrics.totPlan / monthlyPlan) * 100) : 0),
     [rowsMetrics.totPlan, monthlyPlan],
@@ -945,7 +945,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
           {view === "table" && visibleRows.length > 0 && (
             <dl className="month-masthead-metrics">
               <div className="month-limit">
-                <dt>Лимит месяца</dt>
+                <dt>Бюджет месяца</dt>
                 <dd>
                   <input
                     className="month-limit-input delta-num"
@@ -956,7 +956,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
                     onBlur={commitMonthLimit}
                     onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                     disabled={clientMode}
-                    aria-label={`Лимит часов на ${MONTHS[currentMonth]}`}
+                    aria-label={`Бюджет часов на ${MONTHS[currentMonth]}`}
                   />
                   <span className="month-limit-unit">ч</span>
                 </dd>
