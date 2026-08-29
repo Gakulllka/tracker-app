@@ -926,6 +926,19 @@ export function TableView({
                       const isOver = pct !== null && pct > 100;
                       const accentColor = "var(--tracker-accent)";
                       const queueNum = localQMap[task.id];
+                      /* Цвет плашек — палитра Planfix: цветовой маячок,
+                         по которому статус узнаётся не читая. */
+                      const statusColor = scolText(task.status, isDark) || "var(--tracker-text-main)";
+                      const prioColor = PCOL[task.priority] || "var(--tracker-text-main)";
+
+                      /* Цвет итога, полосы и процента — единый источник
+                         правды в lib/metrics.ts: перерасход красный,
+                         выполнено в рамках плана зелёное, в работе чернила. */
+                      const barColor = progColor(
+                        metrics.prog,
+                        CLOSED_STATUSES.has(task.status as Status),
+                        metrics.over,
+                      );
                       const phase = getPhaseForStatus(task.status);
                       return (
                         <TaskContextMenu
@@ -1030,7 +1043,7 @@ export function TableView({
                                 /* Executive: status badge is read-only */
                                 <span
                                   className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center justify-center"
-                                  style={{ color: "var(--tracker-text-main)", background: "var(--tracker-bg-card)", border: "1px solid var(--tracker-accent)" }}
+                                  style={{ color: statusColor, background: "var(--tracker-bg-card)", border: `1px solid ${statusColor}` }}
                                 >
                                   {task.status}
                                 </span>
@@ -1039,7 +1052,7 @@ export function TableView({
                                   <PopoverTrigger asChild>
                                     <button
                                       className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity"
-                                      style={{ color: "var(--tracker-text-main)", background: "var(--tracker-bg-card)", border: "1px solid var(--tracker-accent)" }}
+                                      style={{ color: statusColor, background: "var(--tracker-bg-card)", border: `1px solid ${statusColor}` }}
                                     >
                                       {task.status}
                                     </button>
@@ -1082,7 +1095,7 @@ export function TableView({
                                   <DropdownMenuTrigger asChild>
                                     <button
                                       className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1"
-                                      style={{ color: "var(--tracker-text-main)", background: "var(--tracker-bg-card)", border: "1px solid var(--tracker-accent)" }}
+                                      style={{ color: prioColor, background: "var(--tracker-bg-card)", border: `1px solid ${prioColor}` }}
                                     >
                                       {task.priority}
                                     </button>
@@ -1102,7 +1115,7 @@ export function TableView({
                               ) : (
                                 <span
                                   className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center gap-1"
-                                  style={{ color: "var(--tracker-text-main)", background: "var(--tracker-bg-card)", border: "1px solid var(--tracker-accent)" }}
+                                  style={{ color: prioColor, background: "var(--tracker-bg-card)", border: `1px solid ${prioColor}` }}
                                 >
                                   {task.priority}
                                 </span>
@@ -1117,18 +1130,18 @@ export function TableView({
                             {task.num ? (
                               <button
                                 className="task-card-total"
-                                style={metrics.over ? { color: "var(--tracker-danger)" } : undefined}
+                                style={{ color: barColor }}
                                 onClick={(e) => { e.stopPropagation(); setTotalHDialog({ taskNum: task.num, open: true }); }}
                                 title="Разбивка по месяцам"
                               >
                                 {fmt2(metrics.totalH)}
                               </button>
                             ) : (
-                              <span className="task-card-total" style={metrics.over ? { color: "var(--tracker-danger)" } : undefined}>
+                              <span className="task-card-total" style={{ color: barColor }}>
                                 {fmt2(metrics.totalH)}
                               </span>
                             )}
-                            <span className="task-card-total-label" style={metrics.over ? { color: "var(--tracker-danger)" } : undefined}>итого</span>
+                            <span className="task-card-total-label" style={{ color: barColor }}>итого</span>
 
                             <span className="task-card-hours-detail">
                               <span
@@ -1186,11 +1199,11 @@ export function TableView({
                                 className="task-card-progress-fill"
                                 style={{
                                   width: `${Math.min(metrics.prog, 100)}%`,
-                                  backgroundColor: metrics.over ? "var(--tracker-danger)" : "var(--tracker-accent)",
+                                  backgroundColor: barColor,
                                 }}
                               />
                             </div>
-                            <span className="text-[11px] tabular-nums shrink-0" style={{ color: metrics.over ? "var(--tracker-danger)" : "var(--tracker-text-muted)" }}>
+                            <span className="text-[11px] tabular-nums shrink-0" style={{ color: barColor }}>
                               {metrics.prog}%
                             </span>
                           </div>

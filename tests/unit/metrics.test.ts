@@ -11,7 +11,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { evalExpr, fixStatus, fixPriority, R2 } from "@/lib/metrics";
+import { evalExpr, fixStatus, fixPriority, R2, progColor, getTaskMetrics, CLOSED_STATUSES } from "@/lib/metrics";
+import { STATE } from "@/lib/tokens";
 import { computeFirstToCut } from "@/lib/cut-algorithm";
 import { STATUSES, PRIORITIES } from "@/lib/types";
 import type { Task } from "@/lib/types";
@@ -157,4 +158,38 @@ test("budgetAllocated имеет приоритет над планом", () => 
   const cut = computeFirstToCut(tasks, 60);
 
   assert.equal(cut.size, 0, "считается выделенный бюджет, а не исходный план");
+});
+
+/* ------------------------- цвет итога и прогресса ------------------------ */
+
+test("перерасход красный", () => {
+  assert.equal(progColor(100, true, true), STATE.danger);
+  assert.equal(progColor(60, false, true), STATE.danger);
+});
+
+test("выполнено в рамках плана — зелёное", () => {
+  // Закрытым задачам getTaskMetrics ставит prog = 100.
+  assert.equal(progColor(100, true, false), STATE.success);
+});
+
+test("задача в работе — чернильная, а не зелёная", () => {
+  assert.equal(progColor(25, false, false), STATE.neutral);
+  assert.equal(progColor(99, false, false), STATE.neutral);
+});
+
+test("закрытая задача получает 100% прогресса", () => {
+  const closed = task({ status: STATUSES.DONE, planH: "40", factH: "4" });
+  const open = task({ status: STATUSES.DEV, planH: "40", factH: "4" });
+
+  assert.equal(getTaskMetrics(closed).prog, 100, "закрытая — всегда полная полоса");
+  assert.equal(getTaskMetrics(open).prog, 10);
+});
+
+test("все закрытые статусы перечислены в одном месте", () => {
+  // Раньше список дублировался строками в task-detail-dialog и разошёлся:
+  // «Завершена» вместо «Завершенная» — условие не срабатывало.
+  assert.equal(CLOSED_STATUSES.has(STATUSES.DONE), true);
+  assert.equal(CLOSED_STATUSES.has(STATUSES.COMPLETED), true);
+  assert.equal(CLOSED_STATUSES.has(STATUSES.PROD_CHECK), true);
+  assert.equal(CLOSED_STATUSES.has(STATUSES.DEV), false);
 });

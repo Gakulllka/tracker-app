@@ -113,7 +113,7 @@ export function MobileTaskCards({
             </div>
             <span
               className="mobile-task-priority-pill"
-              style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
+              style={{ color: PCOL[task.priority], border: `1px solid ${PCOL[task.priority]}` }}
             >
               {task.priority}
             </span>
@@ -128,7 +128,7 @@ export function MobileTaskCards({
               className="mobile-task-status-pill"
               style={{
                 color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
-                background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
+                border: `1px solid ${scolText(task.status, isDark) || "var(--tracker-border)"}`,
               }}
             >
               {task.status}

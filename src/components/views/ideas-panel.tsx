@@ -98,7 +98,7 @@ export function IdeasPanel({
                       className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity"
                       style={{
                         color: scolText(task.status, isDark) || "var(--tracker-text-muted)",
-                        background: (scolText(task.status, isDark) || "var(--tracker-accent)") + "18",
+                        border: `1px solid ${scolText(task.status, isDark) || "var(--tracker-border)"}`,
                       }}
                     >
                       {task.status}
@@ -152,7 +152,7 @@ export function IdeasPanel({
                   <DropdownMenuTrigger asChild>
                     <button
                       className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 border-none cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1"
-                      style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
+                      style={{ color: PCOL[task.priority], border: `1px solid ${PCOL[task.priority]}` }}
                     >
                       {task.priority}
                     </button>
@@ -172,7 +172,7 @@ export function IdeasPanel({
               ) : (
                 <span
                   className="h-5 text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center gap-1"
-                  style={{ color: PCOL[task.priority], background: PCOL[task.priority] + "18" }}
+                  style={{ color: PCOL[task.priority], border: `1px solid ${PCOL[task.priority]}` }}
                 >
                   {task.priority}
                 </span>

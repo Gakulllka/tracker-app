@@ -16,7 +16,7 @@ import { ChevronDown } from "lucide-react";
 
 import { Task, TaskComment, STATUSES, PRIORITIES, MONTHS, type Status, type Priority, type AllData } from "@/lib/types";
 import { PCOL, scolText } from "@/lib/tokens";
-import { calcRollover, R2, MONTH_CAPACITY, evalExpr, fmt2, getTaskMetrics, progColor } from "@/lib/metrics";
+import { calcRollover, R2, MONTH_CAPACITY, evalExpr, fmt2, getTaskMetrics, progColor, CLOSED_STATUSES } from "@/lib/metrics";
 import { useTaskStore } from "@/lib/store";
 import {
   MessageSquare, Reply, Paperclip, Send, X, Package, Trash2, ExternalLink, Wallet } from "lucide-react";
@@ -409,10 +409,14 @@ export function TaskDetailDialog({
               {(() => {
                 const plan = evalExpr(task.planH);
                 const fact = evalExpr(task.factH);
-                const isClosed = ["Завершена", "Контроль на прод", "Выполненная", "Отменено", "Отложена"].includes(task.status);
+                /* Раньше список закрытых статусов был продублирован строками
+                   прямо здесь и разошёлся с настоящим: «Завершена» вместо
+                   «Завершенная», «Отложена» вместо «Отложенная» — две строки
+                   из пяти не совпадали ни с чем и не срабатывали. */
+                const isClosed = CLOSED_STATUSES.has(task.status as Status);
                 const pct = isClosed ? 100 : (plan > 0 ? Math.min(100, Math.round(fact / plan * 100)) : 0);
                 const over = fact > plan && plan > 0;
-                const barColor = over ? "var(--tracker-danger)" : "var(--tracker-accent)";
+                const barColor = progColor(pct, isClosed, over);
                 return (
                 <div className="mb-3 flex items-center gap-2 flex-wrap">
                   {/* Статус — дропдаун: только действующий в его цвете */}
