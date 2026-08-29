@@ -16,6 +16,7 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { mergeImportedTasks, type ImportPayload } from "@/lib/task-import";
 import { filterTasks, sortTasks, buildMonthBreakdown } from "@/lib/task-filters";
 import { buildBacklogQueue } from "@/lib/backlog-queue";
+import { groupQuestions } from "@/lib/question-buckets";
 import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, undoStore } from "@/lib/store";
 import { useServerSync } from "@/hooks/useServerSync";
 import { useAuth } from "@/hooks/useAuth";
@@ -568,6 +569,9 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     [monthlyPlan, rowsMetrics.totFact],
   );
 
+  /** Счётчики вопросов — для шапки вкладки. */
+  const questionCounts = useMemo(() => groupQuestions(questions).counts, [questions]);
+
   /** Очередь беклога — считаем здесь, чтобы шапка знала итог. */
   const backlogQueue = useMemo(
     () => buildBacklogQueue(backlog, freeHours),
@@ -958,6 +962,25 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
               {view === "table" ? MONTHS[currentMonth] : (sidebarTabs.find((t) => t.key === view)?.label ?? "")}
             </h1>
           </div>
+
+          {view === "questions" && questions.length > 0 && (
+            <dl className="month-masthead-metrics">
+              <div>
+                <dt>Ждут ответа</dt>
+                <dd style={questionCounts.waiting > 0 ? { color: "var(--tracker-warning)" } : undefined}>
+                  {questionCounts.waiting}
+                </dd>
+              </div>
+              <div>
+                <dt>Отвечено</dt>
+                <dd>{questionCounts.answered}</dd>
+              </div>
+              <div>
+                <dt>В архиве</dt>
+                <dd>{questionCounts.archived}</dd>
+              </div>
+            </dl>
+          )}
 
           {/* Беклог: сколько работы лежит в запасе и сколько ещё влезает
               в месяц. Раньше этих чисел не было нигде, хотя это главный

@@ -14,6 +14,7 @@ import { useTaskStore } from "@/lib/store";
 import type { Status, Task } from "@/lib/types";
 import type { Question } from "@/lib/questions";
 import { fmtDate as fmtDateUtil } from "@/lib/questions";
+import { waitingSince } from "@/lib/question-buckets";
 
 /**
  * Карточка вопроса в ленте.
@@ -47,6 +48,7 @@ export function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAns
   const isAnswered = answers.length > 0;
   const isExpanded = expandedId === q.id;
   const isAnswering = answeringId === q.id;
+  const waiting = waitingSince(q.questionDate);
 
   // Find linked task
   const linkedTask = useMemo(() => {
@@ -70,6 +72,19 @@ export function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAns
             <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
               <span className="text-[11px] font-semibold" style={{ color: "var(--tracker-accent-fg-dark)" }}>{q.author}</span>
               {q.questionDate && <span className="text-[9px]" style={{ color: "var(--tracker-text-muted)" }}>{fmtDateUtil(q.questionDate)}</span>}
+              {/* Срок ожидания: дата сама по себе требует счёта в уме,
+                  а «Ждёт 5 дней» отвечает сразу. Цвет — когда неприлично. */}
+              {!isAnswered && waiting.label && (
+                <span
+                  className="ml-auto text-[9px] font-medium px-2 py-0.5 rounded-full"
+                  style={{
+                    color: waiting.overdue ? "var(--tracker-danger)" : "var(--tracker-warning)",
+                    border: `1px solid ${waiting.overdue ? "var(--tracker-danger)" : "var(--tracker-warning)"}`,
+                  }}
+                >
+                  {waiting.label}
+                </span>
+              )}
               {q.linkedTaskName && (
                 <span className="text-[8px] font-semibold px-1 py-0.5 rounded-full inline-flex items-center gap-0.5" style={{ background: "rgba(99,102,241,0.1)", color: "var(--tracker-accent)" }}>
                   <ClipboardList className="size-2" />{q.linkedTaskName}

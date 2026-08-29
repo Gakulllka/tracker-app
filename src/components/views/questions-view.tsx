@@ -9,9 +9,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { EmptyState } from "@/components/empty-state";
 import { QuestionCard } from "@/components/views/question-card";
 import {
-  Plus, Trash2, ChevronUp, ChevronDown, MessageSquare, Send,
-  ClipboardList, Package, Search, Pin, CheckCircle2, Clock,
-  CircleDot, Archive, BarChart3, Sparkles, Ruler, X,
+  groupQuestions, BUCKET_LABELS, BUCKET_ORDER, type QuestionBucket,
+} from "@/lib/question-buckets";
+import {
+  Clock, RotateCcw, CheckCircle2, Archive, MessageSquare, Search, Plus, Trash2,
+  Sparkles, X, ChevronDown, ChevronUp, ListTodo, ClipboardList,
 } from "lucide-react";
 import { STATUSES, PRIORITIES, MONTHS, type Status, type Priority, type Task } from "@/lib/types";
 import { PCOL, scolText } from "@/lib/tokens";
@@ -67,11 +69,27 @@ function getDateGroup(dateStr?: string): string {
 
 const DATE_GROUP_ORDER = ["Сегодня", "Вчера", "На этой неделе", "В этом месяце", "Ранее"];
 
-const FILTER_TABS: { key: FilterTab; label: string; icon: React.ReactNode }[] = [
-  { key: "all", label: "Все", icon: <BarChart3 className="size-3.5" /> },
-  { key: "open", label: "Открытые", icon: <CircleDot className="size-3.5" /> },
-  { key: "answered", label: "Отвеченные", icon: <CheckCircle2 className="size-3.5" /> },
-];
+const BUCKET_ICONS: Record<QuestionBucket, React.ComponentType<{ className?: string }>> = {
+  waiting: Clock,
+  reopened: RotateCcw,
+  answered: CheckCircle2,
+  archived: Archive,
+};
+
+/** Пустая корзина объясняет, чего в ней нет, а не показывает «0». */
+const EMPTY_TITLES: Record<QuestionBucket, string> = {
+  waiting: "Все вопросы отвечены",
+  reopened: "Нет возобновлённых",
+  answered: "Пока нет отвеченных",
+  archived: "Архив пуст",
+};
+
+const EMPTY_HINTS: Record<QuestionBucket, string> = {
+  waiting: "Задайте вопрос команде — он появится здесь",
+  reopened: "Сюда попадают вопросы, к которым вернулись после ответа",
+  answered: "Отвеченные вопросы остаются здесь до отправки в архив",
+  archived: "Отправленные в архив вопросы можно вернуть в работу",
+};
 
 export function QuestionsView({
   questions, newQuestionText, setNewQuestionText, addQuestion, addLinkedQuestion,
@@ -88,11 +106,27 @@ export function QuestionsView({
   const [answeringId, setAnsweringId] = useState<string | null>(null);
   const [answerDraft, setAnswerDraft] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterTab>("all");
+  const [bucket, setBucket] = useState<QuestionBucket>("waiting");
   const [search, setSearch] = useState("");
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveSearch, setArchiveSearch] = useState("");
   const [archiveAuthorFilter, setArchiveAuthorFilter] = useState("");
+  const { byBucket, counts } = useMemo(
+    () => groupQuestions(scopedQuestions),
+    [scopedQuestions],
+  );
+
+  const visible = useMemo(() => {
+    const list = byBucket[bucket];
+    const needle = search.trim().toLowerCase();
+    if (!needle) return list;
+    return list.filter(
+      (q) =>
+        q.text.toLowerCase().includes(needle) ||
+        (q.author || "").toLowerCase().includes(needle),
+    );
+  }, [byBucket, bucket, search]);
+
   const [taskDialog, setTaskDialog] = useState<QuestionToTaskDialog>({
     open: false, questionId: "", questionText: "", num: "", name: "",
     planH: "", month: currentMonth, priority: PRIORITIES.MEDIUM, status: STATUSES.NEW, target: "backlog",
@@ -161,94 +195,8 @@ export function QuestionsView({
     setTaskDialog(d => ({ ...d, open: false }));
   }, [taskDialog, addToBacklog, addToTable]);
 
-  const filtered = useMemo(() => {
-    let result = scopedQuestions.filter(q => q.status !== "archived");
-    if (filter === "open") result = result.filter(q => q.status === "open");
-    if (filter === "reopened") result = result.filter(q => q.status === "reopened");
-    if (filter === "answered") result = result.filter(q => q.status === "answered");
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(r =>
-        r.text.toLowerCase().includes(q) ||
-        r.author.toLowerCase().includes(q) ||
-        (r.linkedTaskName || "").toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [scopedQuestions, filter, search]);
-
-  const groupedQuestions = useMemo(() => {
-    const groups: Record<string, Question[]> = {};
-    for (const q of filtered) {
-      const group = getDateGroup(q.questionDate);
-      if (!groups[group]) groups[group] = [];
-      groups[group].push(q);
-    }
-    return DATE_GROUP_ORDER.filter(g => groups[g]?.length).map(g => ({ label: g, items: groups[g] }));
-  }, [filtered]);
-
-  const { totalQuestions, answered, reopened, unanswered, archived } = useMemo(() => ({
-    totalQuestions: scopedQuestions.filter(q => q.status !== "archived").length,
-    answered: scopedQuestions.filter(q => q.status === "answered"),
-    reopened: scopedQuestions.filter(q => q.status === "reopened"),
-    unanswered: scopedQuestions.filter(q => q.status === "open"),
-    archived: scopedQuestions.filter(q => q.status === "archived"),
-  }), [scopedQuestions]);
-  const answeredCount = answered.length;
-  const reopenedCount = reopened.length;
-  const openCount = unanswered.length;
-  const archivedCount = archived.length;
-
-  const archivedAuthors = useMemo(() => {
-    const authors = new Set(archived.map(q => q.author));
-    return Array.from(authors).sort();
-  }, [archived]);
-
-  const filteredArchived = useMemo(() => {
-    let result = archived;
-    if (archiveSearch.trim()) {
-      const s = archiveSearch.toLowerCase();
-      result = result.filter(q =>
-        q.text.toLowerCase().includes(s) ||
-        (q.linkedTaskName || "").toLowerCase().includes(s) ||
-        (q.linkedTaskId || "").toLowerCase().includes(s)
-      );
-    }
-    if (archiveAuthorFilter) {
-      result = result.filter(q => q.author === archiveAuthorFilter);
-    }
-    return result;
-  }, [archived, archiveSearch, archiveAuthorFilter]);
-
   return (
     <div className="space-y-4">
-
-      {/* ── Stats bar ── */}
-      {(totalQuestions > 0 || archivedCount > 0) && (() => {
-        const allTiles = [
-            { label: "Всего", value: totalQuestions, color: "var(--tracker-accent)", bg: "var(--tracker-accent-bg)" },
-            { label: "Открытых", value: openCount, color: "var(--tracker-warning)", bg: "rgba(245,158,11,0.08)" },
-            { label: "Возобновлённых", value: reopenedCount, color: "var(--tracker-warning)", bg: "rgba(249,115,22,0.08)" },
-            { label: "Отвечено", value: answeredCount, color: "var(--tracker-success)", bg: "rgba(34,197,94,0.08)" },
-            { label: "Архив", value: archivedCount, color: "var(--tracker-accent)", bg: "rgba(139,92,246,0.08)", clickable: true },
-        ];
-        // Нет активных вопросов — показываем только плитку «Архив»,
-        // иначе вход в архив недоступен при пустом списке.
-        const tiles = totalQuestions > 0 ? allTiles : allTiles.filter(t => t.clickable);
-        return (
-          <div className={totalQuestions > 0 ? "grid grid-cols-5 gap-2" : "grid grid-cols-1 gap-2 max-w-[160px]"}>
-            {tiles.map((s) => (
-              <div key={s.label}
-                onClick={s.clickable ? () => setArchiveOpen(true) : undefined}
-                className={`rounded-xl px-3 py-2.5 text-center ${s.clickable ? "cursor-pointer hover:opacity-80 transition-opacity" : ""}`}
-                style={{ background: s.bg }}>
-                <p className="text-lg font-bold tabular-nums" style={{ color: s.color }}>{s.value}</p>
-                <p className="text-[10px] font-medium" style={{ color: "var(--tracker-text-muted)" }}>{s.label}</p>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
 
       {/* ── Create task dialog ── */}
       <Dialog open={taskDialog.open} onOpenChange={open => { if (!open) setTaskDialog(d => ({ ...d, open: false })); }}>
@@ -310,6 +258,93 @@ export function QuestionsView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
+      {/* ── Корзины слева, выбранная справа ──────────────────────────
+           Раньше статус выражался трижды: цветными счётчиками сверху,
+           кнопками фильтра и колонками списка. Теперь одна раскладка.
+           Пустые корзины не рисуют коробок «здесь ничего нет» — они
+           просто показывают ноль в счётчике.                          */}
+      <div className="ink-window questions-shell">
+        <nav className="questions-buckets" aria-label="Разделы вопросов">
+          {BUCKET_ORDER.map((key) => {
+            const Icon = BUCKET_ICONS[key];
+            return (
+              <button
+                key={key}
+                className={`questions-bucket ${bucket === key ? "questions-bucket--on" : ""}`}
+                onClick={() => setBucket(key)}
+                aria-current={bucket === key}
+              >
+                <Icon className="size-4 shrink-0" />
+                <span className="truncate">{BUCKET_LABELS[key]}</span>
+                <span className="delta-num questions-bucket-count">{counts[key]}</span>
+              </button>
+            );
+          })}
+
+          <div className="questions-buckets-foot">
+            <div className="questions-scope">
+              <button
+                className={domainScope === "current" ? "on" : ""}
+                onClick={() => setDomainScope("current")}
+              >
+                {activeDomainName || "Домен"}
+              </button>
+              <button
+                className={domainScope === "all" ? "on" : ""}
+                onClick={() => setDomainScope("all")}
+              >
+                Все
+              </button>
+            </div>
+
+            <div className="questions-search">
+              <Search className="size-3.5 shrink-0" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Поиск…"
+                aria-label="Поиск по вопросам"
+              />
+            </div>
+          </div>
+        </nav>
+
+        <div className="questions-pane">
+          <div className="questions-list">
+            {visible.length === 0 ? (
+              <div className="empty-state py-10">
+                <div className="empty-state-icon"><MessageSquare className="size-6" /></div>
+                <p className="empty-state-title">{EMPTY_TITLES[bucket]}</p>
+                <p className="empty-state-hint">{EMPTY_HINTS[bucket]}</p>
+              </div>
+            ) : (
+              visible.map((q) => (
+                <QuestionCard
+                  key={q.id}
+                  q={q}
+                  expandedId={expandedId}
+                  setExpandedId={setExpandedId}
+                  answeringId={answeringId}
+                  setAnsweringId={setAnsweringId}
+                  answerDraft={answerDraft}
+                  setAnswerDraft={setAnswerDraft}
+                  answerQuestion={answerQuestion}
+                  deleteAnswer={deleteAnswer}
+                  removeQuestion={removeQuestion}
+                  archiveQuestion={archiveQuestion}
+                  openTaskDialog={openTaskDialog}
+                  isDark={isDark}
+                  isGuest={isGuest}
+                  currentUsername={currentUsername}
+                  allData={allData}
+                  updateTask={updateTask}
+                  currentMonth={currentMonth}
+                />
+              ))
+            )}
+          </div>
 
       {/* ── Input area ── */}
       <div className="ink-window p-4">
@@ -376,210 +411,9 @@ export function QuestionsView({
         </div>
       </div>
 
-      {/* ── Domain scope ── */}
-      {activeDomainId && (
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--tracker-bg-card, var(--background))", border: "1px solid var(--tracker-border)" }}>
-            <button onClick={() => setDomainScope("current")}
-              className={`text-xs font-medium px-3 py-1 rounded-lg transition-all ${domainScope === "current" ? "shadow-sm" : "hover:bg-muted/50"}`}
-              style={{
-                background: domainScope === "current" ? "var(--tracker-accent-bg)" : "transparent",
-                color: domainScope === "current" ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
-              }}>
-              <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-[4px]" style={{ background: "var(--tracker-accent)" }} />{activeDomainName || "Текущий домен"}</span>
-            </button>
-            <button onClick={() => setDomainScope("all")}
-              className={`text-xs font-medium px-3 py-1 rounded-lg transition-all ${domainScope === "all" ? "shadow-sm" : "hover:bg-muted/50"}`}
-              style={{
-                background: domainScope === "all" ? "var(--tracker-accent-bg)" : "transparent",
-                color: domainScope === "all" ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
-              }}>
-              Все домены
-            </button>
-          </div>
-          <span className="text-[10px]" style={{ color: "var(--tracker-text-muted)" }}>
-            {domainScope === "current" ? "вопросы текущего домена и общие" : "вопросы всех доменов"}
-          </span>
         </div>
-      )}
+      </div>
 
-      {/* ── Filter tabs + Search ── */}
-      {totalQuestions > 0 && (
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--tracker-bg-card, var(--background))", border: "1px solid var(--tracker-border)" }}>
-            {FILTER_TABS.map((tab) => (
-              <button key={tab.key}
-                onClick={() => setFilter(tab.key)}
-                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${filter === tab.key ? "shadow-sm" : "hover:bg-muted/50"}`}
-                style={{
-                  background: filter === tab.key ? "var(--tracker-accent-bg)" : "transparent",
-                  color: filter === tab.key ? "var(--tracker-accent-fg-dark)" : "var(--tracker-text-muted)",
-                }}>
-                {tab.icon} {tab.label}
-              </button>
-            ))}
-          </div>
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5" style={{ color: "var(--tracker-text-muted)" }} />
-            <input
-              value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Поиск..."
-              className="w-full h-8 pl-8 pr-3 text-xs rounded-lg border bg-transparent outline-none focus:ring-1 focus:ring-[var(--tracker-accent)]"
-              style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ── Three-column layout ── */}
-      {questions.length === 0 && <EmptyState type="questions" />}
-
-      {questions.length > 0 && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)" }}>
-          {/* ── LEFT: Open questions ── */}
-          <div className="space-y-2 min-w-0">
-            <div className="flex items-center gap-2 mb-1 px-1">
-              <CircleDot className="size-3.5" style={{ color: "var(--tracker-warning)" }} />
-              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-warning)" }}>
-                Открытые
-              </h3>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "rgba(245,158,11,0.1)", color: "var(--tracker-warning)" }}>
-                {unanswered.length}
-              </span>
-            </div>
-            {unanswered.length === 0 && (
-              <div className="ink-inset text-center py-6 border-dashed">
-                <CheckCircle2 className="size-6 mx-auto mb-1.5" style={{ color: "var(--tracker-success)", opacity: 0.5 }} />
-                <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Нет открытых</p>
-              </div>
-            )}
-            {unanswered.map((q) => (
-              <QuestionCard key={q.id} q={q} expandedId={expandedId} setExpandedId={setExpandedId}
-                answeringId={answeringId} setAnsweringId={setAnsweringId} answerDraft={answerDraft} setAnswerDraft={setAnswerDraft}
-                currentUsername={currentUsername} answerQuestion={answerQuestion} deleteAnswer={deleteAnswer}
-                removeQuestion={removeQuestion} archiveQuestion={archiveQuestion} openTaskDialog={openTaskDialog} isDark={isDark}
-                allData={allData} updateTask={updateTask} currentMonth={currentMonth} isGuest={isGuest} />
-            ))}
-          </div>
-
-          {/* ── MIDDLE: Reopened questions ── */}
-          <div className="space-y-2 min-w-0">
-            <div className="flex items-center gap-2 mb-1 px-1">
-              <Clock className="size-3.5" style={{ color: "var(--tracker-warning)" }} />
-              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-warning)" }}>
-                Возобновлённые
-              </h3>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "rgba(249,115,22,0.1)", color: "var(--tracker-warning)" }}>
-                {reopened.length}
-              </span>
-            </div>
-            {reopened.length === 0 && (
-              <div className="ink-inset text-center py-6 border-dashed">
-                <Clock className="size-6 mx-auto mb-1.5" style={{ color: "var(--tracker-warning)", opacity: 0.5 }} />
-                <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Нет возобновлённых</p>
-              </div>
-            )}
-            {reopened.map((q) => (
-              <QuestionCard key={q.id} q={q} expandedId={expandedId} setExpandedId={setExpandedId}
-                answeringId={answeringId} setAnsweringId={setAnsweringId} answerDraft={answerDraft} setAnswerDraft={setAnswerDraft}
-                currentUsername={currentUsername} answerQuestion={answerQuestion} deleteAnswer={deleteAnswer}
-                removeQuestion={removeQuestion} archiveQuestion={archiveQuestion} openTaskDialog={openTaskDialog} isDark={isDark}
-                allData={allData} updateTask={updateTask} currentMonth={currentMonth} isGuest={isGuest} />
-            ))}
-          </div>
-
-          {/* ── RIGHT: Answered questions ── */}
-          <div className="space-y-2 min-w-0">
-            <div className="flex items-center gap-2 mb-1 px-1">
-              <CheckCircle2 className="size-3.5" style={{ color: "var(--tracker-success)" }} />
-              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--tracker-success)" }}>
-                Отвеченные
-              </h3>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "rgba(34,197,94,0.1)", color: "var(--tracker-success)" }}>
-                {answered.length}
-              </span>
-            </div>
-            {answered.length === 0 && (
-              <div className="ink-inset text-center py-6 border-dashed">
-                <CircleDot className="size-6 mx-auto mb-1.5" style={{ color: "var(--tracker-warning)", opacity: 0.5 }} />
-                <p className="text-xs" style={{ color: "var(--tracker-text-muted)" }}>Пока нет отвеченных</p>
-              </div>
-            )}
-            {answered.map((q) => (
-              <QuestionCard key={q.id} q={q} expandedId={expandedId} setExpandedId={setExpandedId}
-                answeringId={answeringId} setAnsweringId={setAnsweringId} answerDraft={answerDraft} setAnswerDraft={setAnswerDraft}
-                currentUsername={currentUsername} answerQuestion={answerQuestion} deleteAnswer={deleteAnswer}
-                removeQuestion={removeQuestion} archiveQuestion={archiveQuestion} openTaskDialog={openTaskDialog} isDark={isDark}
-                allData={allData} updateTask={updateTask} currentMonth={currentMonth} isGuest={isGuest} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Archive dialog ── */}
-      <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Archive className="size-5" style={{ color: "var(--tracker-accent)" }} />Архив вопросов
-            </DialogTitle>
-            <DialogDescription className="text-xs">{archivedCount} вопросов в архиве</DialogDescription>
-          </DialogHeader>
-          <div className="flex gap-2 flex-wrap">
-            <div className="relative flex-1 min-w-[150px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5" style={{ color: "var(--tracker-text-muted)" }} />
-              <input value={archiveSearch} onChange={e => setArchiveSearch(e.target.value)}
-                placeholder="Поиск по тексту или задаче..."
-                className="w-full h-8 pl-8 pr-3 text-xs rounded-lg border bg-transparent outline-none focus:ring-1 focus:ring-[var(--tracker-accent)]"
-                style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }} />
-            </div>
-            <select value={archiveAuthorFilter} onChange={e => setArchiveAuthorFilter(e.target.value)}
-              className="h-8 px-2 text-xs rounded-lg border bg-transparent outline-none focus:ring-1 focus:ring-[var(--tracker-accent)]"
-              style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-text-main)" }}>
-              <option value="">Все авторы</option>
-              {archivedAuthors.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </div>
-          <div className="flex-1 overflow-y-auto space-y-2 mt-2 min-h-0">
-            {filteredArchived.length === 0 && (
-              <div className="text-center py-8 text-xs" style={{ color: "var(--tracker-text-muted)" }}>
-                {archivedCount === 0 ? "Архив пуст" : "Ничего не найдено"}
-              </div>
-            )}
-            {filteredArchived.map(q => (
-              <div key={q.id} className="ink-inset p-3 flex items-start gap-2.5"
-                style={{ background: "var(--tracker-bg-card)", borderColor: "var(--tracker-border)" }}>
-                <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold"
-                  style={{ background: "rgba(139,92,246,0.12)", color: "var(--tracker-accent)" }}>
-                  {(q.author || "?")[0].toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                    <span className="text-[10px] font-semibold" style={{ color: "var(--tracker-accent-fg-dark)" }}>{q.author}</span>
-                    {q.questionDate && <span className="text-[9px]" style={{ color: "var(--tracker-text-muted)" }}>{fmtDateUtil(q.questionDate)}</span>}
-                    {q.linkedTaskName && (
-                      <span className="text-[8px] font-semibold px-1 py-0.5 rounded-full inline-flex items-center gap-0.5" style={{ background: "rgba(99,102,241,0.1)", color: "var(--tracker-accent)" }}>
-                        <ClipboardList className="size-2" />{q.linkedTaskName}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] leading-relaxed line-clamp-2" style={{ color: "var(--tracker-text-main)" }}>{q.text}</p>
-                  {q.answers.length > 0 && (
-                    <p className="text-[9px] mt-1" style={{ color: "var(--tracker-text-muted)" }}>
-                      {q.answers.length} {q.answers.length === 1 ? "ответ" : q.answers.length < 5 ? "ответа" : "ответов"}
-                    </p>
-                  )}
-                </div>
-                <button onClick={() => restoreQuestion(q.id)}
-                  className="shrink-0 text-[9px] px-2 py-1 rounded-md border transition-colors hover:bg-[var(--tracker-accent-bg)]"
-                  style={{ borderColor: "var(--tracker-border)", color: "var(--tracker-accent-fg-dark)" }}>
-                  Восстановить
-                </button>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

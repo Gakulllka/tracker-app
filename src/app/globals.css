@@ -1850,6 +1850,151 @@ kbd {
 .hours-chart-key--over { background: var(--tracker-danger); }
 
 
+
+/* ── Вопросы ───────────────────────────────────────────────────────────
+   Корзины слева, выбранная справа. Раньше статус выражался трижды:
+   цветными счётчиками сверху, кнопками фильтра и колонками списка.
+   Колонки к тому же держали коробки «здесь пусто» — две трети экрана
+   занимали надписи об отсутствии содержания.                          */
+
+.questions-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 420px;
+  max-height: calc(100vh - 220px);
+  overflow: hidden;
+}
+
+.questions-buckets {
+  width: 196px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+  border-right: 2px solid var(--tracker-accent);
+}
+
+.questions-bucket {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 13px;
+  font-size: 12.5px;
+  text-align: left;
+  color: var(--tracker-text-muted);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+}
+
+.questions-bucket:hover {
+  background: var(--tracker-accent-soft);
+}
+
+.questions-bucket--on {
+  color: var(--tracker-text-main);
+  font-weight: 500;
+  border-left-color: var(--tracker-accent);
+}
+
+.questions-bucket-count {
+  margin-left: auto;
+  font-size: 11px;
+}
+
+.questions-buckets-foot {
+  margin-top: auto;
+  padding: 10px 13px 0;
+  border-top: 1px solid var(--tracker-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.questions-scope {
+  display: flex;
+  gap: 4px;
+}
+
+.questions-scope button {
+  flex: 1;
+  padding: 3px 6px;
+  font-size: 10.5px;
+  border: 1.5px solid var(--tracker-accent);
+  border-radius: 6px;
+  color: var(--tracker-text-main);
+  background: var(--tracker-bg-card);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.questions-scope button.on {
+  background: var(--tracker-accent);
+  color: var(--tracker-accent-contrast);
+}
+
+.questions-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1.5px solid var(--tracker-border);
+  border-radius: 7px;
+  color: var(--tracker-text-muted);
+}
+
+.questions-search input {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  background: none;
+  border: 0;
+  outline: none;
+  color: var(--tracker-text-main);
+}
+
+.questions-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.questions-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* На телефоне корзины ложатся строкой сверху. */
+@media (max-width: 767px) {
+  .questions-shell {
+    flex-direction: column;
+    max-height: none;
+  }
+  .questions-buckets {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 8px;
+    gap: 6px;
+    border-right: 0;
+    border-bottom: 2px solid var(--tracker-accent);
+  }
+  .questions-bucket {
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .questions-bucket--on { border-bottom-color: var(--tracker-accent); }
+  .questions-buckets-foot { display: none; }
+}
+
 /* ── Беклог ────────────────────────────────────────────────────────────
    Беклог — это очередь, и рисуется он списком, а не сеткой. Порядок
    здесь и есть смысл: номер определяет, что заберут в месяц следующим.
