@@ -1356,6 +1356,98 @@ kbd {
 
 
 
+
+/* ── Диаграмма часов по месяцам (карточка задачи) ──────────────────────
+   План — контур со штриховкой, итого — чернильная заливка, перерасход —
+   красный. Штриховка вместо серой заливки: полутон набирается линиями.
+   Ширина столбца ограничена, иначе при одном месяце он растягивается
+   на всю панель и превращается в бессмысленное пятно.                   */
+
+.hours-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  height: 104px;
+  padding: 0 2px;
+  margin-bottom: 10px;
+  border-bottom: 2px solid var(--tracker-accent);
+}
+
+.hours-chart-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  width: 64px;
+  height: 100%;
+}
+
+.hours-chart-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  flex: 1;
+}
+
+.hours-chart-bar {
+  width: 22px;
+  min-height: 3px;
+  border-radius: 3px 3px 0 0;
+}
+
+.hours-chart-bar--plan {
+  border: 1.5px solid var(--tracker-accent);
+  border-bottom: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--tracker-accent) 34%, transparent) 0 1px,
+    transparent 1px 5px
+  );
+}
+
+.hours-chart-label {
+  margin-top: 6px;
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--tracker-text-muted);
+}
+
+.hours-chart-legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 9px;
+  color: var(--tracker-text-muted);
+}
+
+.hours-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.hours-chart-key {
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.hours-chart-key--plan {
+  border: 1.5px solid var(--tracker-accent);
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--tracker-accent) 34%, transparent) 0 1px,
+    transparent 1px 5px
+  );
+}
+
+.hours-chart-key--fact { background: var(--tracker-accent); }
+.hours-chart-key--over { background: var(--tracker-danger); }
+
 /* ── Окна остальных вкладок ────────────────────────────────────────────
    Беклог, вопросы, чат, протоколы, слайды рисовали свои панели волосяной
    серой линией, пока задачи уже перешли на чернильный контур. Один класс

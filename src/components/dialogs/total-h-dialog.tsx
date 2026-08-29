@@ -42,31 +42,37 @@ export function TotalHDialog({ open, taskNum, taskName, rows, isDark, onClose }:
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {/* Bar chart */}
             <div>
-              <div style={{ display: "flex", alignItems: "flex-end", height: "100px", gap: "6px" }}>
+              <div className="hours-chart">
                 {rows.map((r) => {
                   const maxVal = Math.max(...rows.map(x => Math.max(x.planH, x.cumulative)), 1);
                   const planPx = Math.max((r.planH / maxVal) * 100, 2);
                   const cumPx  = Math.max((r.cumulative / maxVal) * 100, 2);
                   const over   = r.cumulative > r.planH && r.planH > 0;
                   return (
-                    <div key={r.month} style={{ flex: "1", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0, background: "var(--tracker-accent-bg)", borderRadius: "4px 4px 0 0", padding: "0 2px 4px 2px" }}>
-                      <span style={{ fontSize: "12px", color: "var(--tracker-text-muted)", marginBottom: "4px", lineHeight: "1", fontWeight: 600 }}>
+                    <div key={r.month} className="hours-chart-col">
+                      <div className="hours-chart-bars">
+                        <div
+                          className="hours-chart-bar hours-chart-bar--plan"
+                          style={{ height: `${planPx}%` }}
+                          title={`План: ${fmt2(r.planH)} ч`}
+                        />
+                        <div
+                          className="hours-chart-bar hours-chart-bar--fact"
+                          style={{ height: `${cumPx}%`, background: over ? "var(--tracker-danger)" : "var(--tracker-accent)" }}
+                          title={`Итого: ${fmt2(r.cumulative)} ч`}
+                        />
+                      </div>
+                      <span className="hours-chart-label">
                         {MONTHS[r.month].substring(0, 3).toLowerCase()}
                       </span>
-                      <div style={{ width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: "1px", height: "72px" }}>
-                        <div style={{ flex: "1", borderRadius: "2px 2px 0 0", height: `${planPx}%`, background: "var(--tracker-text-muted)", minHeight: "2px" }} title={`План: ${fmt2(r.planH)} ч`} />
-                        <div style={{ flex: "1", borderRadius: "2px 2px 0 0", height: `${cumPx}%`, background: over ? "var(--tracker-danger)" : "var(--tracker-success)", minHeight: "2px" }} title={`Итого: ${fmt2(r.cumulative)} ч`} />
-                      </div>
                     </div>
                   );
                 })}
               </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", fontSize: "10px", color: "var(--tracker-text-muted)", marginTop: "6px" }}>
-                {[["var(--tracker-text-muted)", "План"], ["var(--tracker-success)", "Итого"], ["var(--tracker-danger)", "Превышение"]].map(([bg, label]) => (
-                  <span key={label} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "2px", background: bg }} />{label}
-                  </span>
-                ))}
+              <div className="hours-chart-legend" style={{ justifyContent: "center", marginTop: 8 }}>
+                <span><i className="hours-chart-key hours-chart-key--plan" />План</span>
+                <span><i className="hours-chart-key hours-chart-key--fact" />Итого</span>
+                <span><i className="hours-chart-key hours-chart-key--over" />Перерасход</span>
               </div>
             </div>
 
@@ -88,7 +94,7 @@ export function TotalHDialog({ open, taskNum, taskName, rows, isDark, onClose }:
                         <td style={{ padding: "6px 10px", fontWeight: 500, fontSize: "12px" }}>{MONTHS[r.month]}</td>
                         <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px", color: "var(--tracker-text-muted)" }}>{fmt2(r.planH)} ч</td>
                         <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px" }}>{fmt2(r.factH)} ч</td>
-                        <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px", fontWeight: 600, color: over ? "var(--tracker-danger)" : "var(--tracker-success)" }}>{fmt2(r.cumulative)} ч</td>
+                        <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px", fontWeight: 600, color: over ? "var(--tracker-danger)" : "var(--tracker-text-main)" }}>{fmt2(r.cumulative)} ч</td>
                         <td style={{ textAlign: "center", padding: "6px 10px" }}>
                           <span style={{ fontSize: "10px", fontWeight: 500, color: scolText(r.status as Status, isDark) }}>{r.status}</span>
                         </td>
@@ -105,7 +111,7 @@ export function TotalHDialog({ open, taskNum, taskName, rows, isDark, onClose }:
                         <td style={{ padding: "6px 10px", fontSize: "12px" }}>Итого</td>
                         <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px", color: "var(--tracker-text-muted)" }}>{fmt2(maxPlan)} ч</td>
                         <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px" }}>{fmt2(sumFact)} ч</td>
-                        <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px", fontWeight: 700, color: inPlan ? "var(--tracker-success)" : "var(--tracker-danger)" }}>{fmt2(maxCum)} ч</td>
+                        <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px", fontWeight: 700, color: inPlan ? "var(--tracker-text-main)" : "var(--tracker-danger)" }}>{fmt2(maxCum)} ч</td>
                         <td style={{ textAlign: "center", padding: "6px 10px", fontSize: "10px", color: "var(--tracker-text-muted)" }}>{rows.length} мес.</td>
                       </tr>
                     );
