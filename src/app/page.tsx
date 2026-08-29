@@ -469,6 +469,24 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
 
 
   /** Полный список с сервера (включая archived для админа). */
+  /* ---- Лимит месяца ----
+   * Хранится по паре домен + месяц. Правится прямо в шапке списка задач:
+   * раньше редактор жил в дашборде, который был удалён как неиспользуемый,
+   * и настройка стала недоступна, хотя сеттер в сторе остался. */
+  const storeSetMonthlyPlan = useTaskStore((s) => s.setMonthlyPlan);
+  const [limitDraft, setLimitDraft] = useState(String(monthlyPlan));
+
+  useEffect(() => { setLimitDraft(String(monthlyPlan)); }, [monthlyPlan]);
+
+  const commitMonthLimit = useCallback(() => {
+    const hours = Number(limitDraft);
+    if (!Number.isFinite(hours) || hours <= 0) {
+      setLimitDraft(String(monthlyPlan));
+      return;
+    }
+    if (hours !== monthlyPlan) storeSetMonthlyPlan(currentMonthKey, hours);
+  }, [limitDraft, monthlyPlan, currentMonthKey, storeSetMonthlyPlan]);
+
   /* ---- Домены (реализация — hooks/useDomains.ts) ---- */
   const {
     domains: serverDomains,
@@ -533,6 +551,12 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   const rowsMetrics = useMemo(
     () => getRowsMetrics(visibleRows, totalFactMap),
     [visibleRows, totalFactMap]
+  );
+
+  /** Сколько запланировано от лимита месяца. */
+  const monthLoad = useMemo(
+    () => (monthlyPlan > 0 ? Math.round((rowsMetrics.totPlan / monthlyPlan) * 100) : 0),
+    [rowsMetrics.totPlan, monthlyPlan],
   );
 
   const monthHasData = useCallback(
@@ -920,6 +944,26 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
               с поиском — числа месяца важнее инструментов. */}
           {view === "table" && visibleRows.length > 0 && (
             <dl className="month-masthead-metrics">
+              <div className="month-limit">
+                <dt>Лимит месяца</dt>
+                <dd>
+                  <input
+                    className="month-limit-input delta-num"
+                    type="text"
+                    inputMode="numeric"
+                    value={limitDraft}
+                    onChange={(e) => setLimitDraft(e.target.value.replace(/[^\d]/g, ""))}
+                    onBlur={commitMonthLimit}
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    disabled={clientMode}
+                    aria-label={`Лимит часов на ${MONTHS[currentMonth]}`}
+                  />
+                  <span className="month-limit-unit">ч</span>
+                </dd>
+              </div>
+
+              <div className="month-masthead-sep" aria-hidden="true" />
+
               <div>
                 <dt>План</dt>
                 <dd>{fmt2(rowsMetrics.totPlan)}</dd>
@@ -932,9 +976,18 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
                 <dt>Итого</dt>
                 <dd>{fmt2(rowsMetrics.totTotalH)}</dd>
               </div>
-              <div className="text-right">
-                <dt>Месяц</dt>
-                <dd>{rowsMetrics.avgProg}%</dd>
+
+              {/* Загрузка: сколько запланировано от лимита. Раньше здесь стоял
+                  средний прогресс по задачам — он усредняет проценты задач
+                  разного веса и потому мало о чём говорит. */}
+              <div className="month-load">
+                <dt>Загрузка</dt>
+                <dd>
+                  <span className="month-load-bar" role="img" aria-label={`Загрузка месяца ${monthLoad}%`}>
+                    <i style={{ width: `${Math.min(monthLoad, 100)}%`, background: monthLoad > 100 ? "var(--tracker-danger)" : "var(--tracker-accent)" }} />
+                  </span>
+                  <span style={{ color: monthLoad > 100 ? "var(--tracker-danger)" : undefined }}>{monthLoad}%</span>
+                </dd>
               </div>
             </dl>
           )}
@@ -1210,9 +1263,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             allData={allData}
             onDeleteTask={(m, id) => { deleteTask(m, id); setTaskDetailTask(null); }}
             onMoveToBacklog={(m, id) => { moveToBacklog(m, id); setTaskDetailTask(null); }}
-            usedHoursInMonth={calcMonthBudgetUsed(monthTasks)}
-            monthCapacity={cap}
-            isFirstToCutIds={cutIds}
             onUpdateTask={(month, taskId, key, value) => {
               updateTask(month, taskId, key, value);
               const storeData = useTaskStore.getState().allData;
