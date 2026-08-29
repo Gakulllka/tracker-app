@@ -5,17 +5,20 @@
  */
 import { defineConfig } from "@playwright/test";
 
+const PORT = process.env.PORT ?? "3003";
+const BASE_URL = `http://localhost:${PORT}`;
+
 export default defineConfig({
   testDir: "./tests",
   timeout: 30_000,
   retries: 1,
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: BASE_URL,
     screenshot: "only-on-failure",
   },
   webServer: {
     command: "npm run start",
-    url: "http://localhost:3000",
+    url: BASE_URL,
     reuseExistingServer: true,
     timeout: 120_000,
   },

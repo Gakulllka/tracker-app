@@ -1,6 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
-  // ВАЖНО: без этого Prisma на Netlify Functions падает с
+  // ВАЖНО: без этого Prisma в serverless-окружении (Vercel) падает с
   // "Query engine binary for current platform 'rhel-openssl-3.0.x' could not be found".
   binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }

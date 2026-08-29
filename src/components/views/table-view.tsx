@@ -1,5 +1,6 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { DeleteTaskDialog } from "@/components/dialogs/delete-task-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -1594,36 +1595,15 @@ export function TableView({
         )}
       </div>
 
-      {/* ---- DELETE CONFIRMATION DIALOG ---- */}
-      <Dialog open={deleteConfirm.open} onOpenChange={(open) => { if (!open) setDeleteConfirm({ open: false, taskId: "", taskName: "" }); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader className="text-center sm:text-left">
-            <div className="flex flex-col items-center sm:items-start gap-2">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-50">
-                <AlertTriangle className="size-5 text-red-500" />
-              </div>
-              <div>
-                <DialogTitle className="text-lg">Удалить задачу?</DialogTitle>
-                <DialogDescription className="mt-0.5">
-                  Задача <strong>{deleteConfirm.taskName}</strong> будет удалена безвозвратно. Это действие нельзя отменить.
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          <DialogFooter className="flex flex-row gap-2 sm:justify-end">
-            <Button variant="outline" onClick={() => setDeleteConfirm({ open: false, taskId: "", taskName: "" })}>Отмена</Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                deleteTask(month, deleteConfirm.taskId);
-                setDeleteConfirm({ open: false, taskId: "", taskName: "" });
-              }}
-            >
-              Удалить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteTaskDialog
+        open={deleteConfirm.open}
+        taskName={deleteConfirm.taskName}
+        onCancel={() => setDeleteConfirm({ open: false, taskId: "", taskName: "" })}
+        onConfirm={() => {
+          deleteTask(month, deleteConfirm.taskId);
+          setDeleteConfirm({ open: false, taskId: "", taskName: "" });
+        }}
+      />
     </div>
   );
 }

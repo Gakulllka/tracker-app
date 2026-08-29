@@ -1,41 +1,27 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+/**
+ * Middleware Next.js 16 (в 15-й версии файл назывался middleware.ts).
+ * Единственная задача — не пускать в /admin без токена авторизации.
+ * Полная проверка прав всё равно выполняется на сервере в src/lib/auth.ts.
+ */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/admin")) {
-    const token = request.cookies.get("auth_token")?.value
-      || request.nextUrl.searchParams.get("token");
+    const token =
+      request.cookies.get("auth_token")?.value ||
+      request.nextUrl.searchParams.get("token");
 
     if (!token) {
       return NextResponse.redirect(new URL("/", request.url));
     }
   }
 
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.delete("if-none-match");
-  requestHeaders.delete("if-modified-since");
-  requestHeaders.delete("if-match");
-  requestHeaders.delete("if-unmodified-since");
-  requestHeaders.delete("cache-control");
-  requestHeaders.delete("pragma");
-
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
-
-  response.headers.delete("etag");
-  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-  response.headers.set("Pragma", "no-cache");
-  response.headers.set("Expires", "0");
-  response.headers.set("Surrogate-Control", "no-store");
-
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    "/((?!api|_next/static|_next/image|_next/webpack).*)",
-  ],
+  matcher: ["/admin/:path*"],
 };

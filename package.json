@@ -1,17 +1,19 @@
 {
-  "name": "nextjs_tailwind_shadcn_ts",
+  "name": "delta-tasker",
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3001 --webpack",
+    "dev": "node scripts/run.mjs dev",
     "build": "prisma generate && next build",
-    "start": "next start",
-    "postinstall": "prisma generate",
+    "start": "node scripts/run.mjs start",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "playwright test",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

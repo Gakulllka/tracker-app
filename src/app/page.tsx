@@ -7,6 +7,10 @@ import React, {
   useCallback,
   useRef,
 } from "react";
+import { AuthGate } from "@/app/auth-gate";
+import { useInsightSync } from "@/hooks/useInsightSync";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { mergeImportedTasks, type ImportPayload } from "@/lib/task-import";
 import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, undoStore } from "@/lib/store";
 import { createTheme, applyTheme } from "@/lib/theme";
 import { useServerSync } from "@/hooks/useServerSync";
@@ -108,7 +112,6 @@ import {
 } from "lucide-react";
 import AuthScreen from "@/components/auth-screen";
 import { TaskDetailDialog } from "@/components/dialogs/task-detail-dialog";
-import { DashboardDelta } from "@/components/dashboard-delta";
 import { ExecSignalsPanel } from "@/components/exec-signals-panel";
 import { QuestionsView } from "@/components/views/questions-view";
 import { ChatView } from "@/components/views/chat-view";
@@ -142,127 +145,16 @@ export interface EditingCell {
 
 export default function TaskTrackerPage() {
   return (
-    <React.Suspense fallback={<div className="flex h-screen items-center justify-center text-muted-foreground">Загрузка...</div>}>
-      <AppWithAuth />
+    <React.Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center text-muted-foreground">
+          Загрузка...
+        </div>
+      }
+    >
+      <AuthGate>{(props) => <TaskTrackerInner {...props} />}</AuthGate>
     </React.Suspense>
   );
-}
-
-function AppWithAuth() {
-  const { authData, authChecking, handleAuth, handleLogout, switchWorkspace, refreshAuth } = useAuth();
-  const [showDomainPicker, setShowDomainPicker] = useState(false);
-  const [pickerDomains, setPickerDomains] = useState<Array<{ id: string; name: string }>>([]);
-  const [pickerLoading, setPickerLoading] = useState(false);
-
-  /** Загрузить домены для экрана выбора. */
-  const loadPickerDomains = useCallback(async (token: string) => {
-    setPickerLoading(true);
-    try {
-      const res = await fetch("/api/domains", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.domains)) {
-          setPickerDomains(data.domains.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name })));
-        }
-      }
-    } catch { /* silent */ }
-    setPickerLoading(false);
-  }, []);
-
-  /** Проверить, нужно ли показать экран выбора домена. */
-  useEffect(() => {
-    if (!authData) return;
-    // Показываем экран выбора, если у пользователя нет закэшированного выбора
-    const role = authData.user.role;
-    const hasChosenDomain = localStorage.getItem("domain_picker_chosen");
-    if (!hasChosenDomain) {
-      setShowDomainPicker(true);
-      loadPickerDomains(authData.token);
-    }
-  }, [authData, loadPickerDomains]);
-
-  /** Выбор домена на экране выбора. */
-  const handlePickerSelectDomain = useCallback((domainId: string) => {
-    localStorage.setItem("domain_picker_chosen", "true");
-    setShowDomainPicker(false);
-    // Переключаемся на выбранный домен
-    useTaskStore.getState().setActiveDomain(domainId);
-  }, []);
-
-  /** Создание домена из экрана выбора. */
-  const handlePickerCreateDomain = useCallback(async (name: string) => {
-    if (!authData) return;
-    const res = await fetch("/api/domains", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
-      body: JSON.stringify({ token: authData.token, name }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.domain) {
-      // Обновляем список доменов в экране выбора
-      setPickerDomains((prev) => [...prev, { id: data.domain.id, name: data.domain.name }]);
-      // Обновляем store
-      await refreshAuth();
-      useTaskStore.getState().setActiveDomain(data.domain.id);
-      // Обновляем список доменов в store
-      const domainsRes = await fetch("/api/domains", {
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
-      if (domainsRes.ok) {
-        const domainsData = await domainsRes.json();
-        if (Array.isArray(domainsData.domains)) {
-          useTaskStore.getState().setDomains(domainsData.domains.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name })));
-        }
-      }
-    } else {
-      throw new Error(data.error || "Не удалось создать домен");
-    }
-  }, [authData, refreshAuth]);
-
-  /** Запрос доступа к домену из экрана выбора. */
-  const handlePickerRequestAccess = useCallback(async (domainId: string) => {
-    if (!authData) return;
-    const res = await fetch("/api/domains/access", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
-      body: JSON.stringify({ token: authData.token, domainId }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || "Ошибка запроса");
-    }
-  }, [authData]);
-
-  if (authChecking) {
-    return <BrandSplash visible label="Проверяем доступ..." />;
-  }
-
-  if (!authData) return <AuthScreen onAuth={handleAuth} />;
-
-  // Показать экран выбора домена
-  if (showDomainPicker) {
-    // Скрываем экран выбора, если нет доменов (пользователь создаст первый)
-    // или если загрузка ещё идёт
-    if (pickerLoading) {
-      return <BrandSplash visible label="Загружаем домены..." />;
-    }
-    return (
-      <DomainPickerScreen
-        domains={pickerDomains}
-        editableDomainIds={authData.editableDomainIds}
-        currentUser={authData.user}
-        token={authData.token}
-        onSelectDomain={handlePickerSelectDomain}
-        onCreateDomain={handlePickerCreateDomain}
-        onRequestAccess={handlePickerRequestAccess}
-        onLogout={handleLogout}
-      />
-    );
-  }
-
-  return <TaskTrackerInner authData={authData} onLogout={handleLogout} switchWorkspace={switchWorkspace} refreshAuth={refreshAuth} />;
 }
 
 function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: { authData: AuthData; onLogout: () => void; switchWorkspace: (id: string) => void; refreshAuth: () => Promise<void> | void }) {
@@ -429,99 +321,16 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   const [transferDialog, setTransferDialog] = useState(false);
   const [transferTarget, setTransferTarget] = useState<number>(-1);
 
-  // Import confirmation dialog (только для JSON; для XLSX используется ExcelImportModal со сверкой).
-  const handleSyncApply = useCallback((payload: {
-    updatedTasks: Task[];
-    newTasks: Array<{
-      num: string; name: string; planH: string; factH: string;
-      priority: Priority; status: Status; comment: string;
-    }>;
-  }) => {
-    const { updatedTasks, newTasks } = payload;
+  // Подтверждение импорта (JSON; для XLSX работает ExcelImportModal со сверкой).
+  // Логика слияния — в lib/task-import.ts, здесь только применение результата.
+  const handleSyncApply = useCallback((payload: ImportPayload) => {
     useTaskStore.getState().snapshot();
 
-    const updatedIds = new Set(updatedTasks.map((t) => t.id));
-    const now = Date.now();
-
-    // Карта tombstone'ов текущего месяца — задач с _deleted=true.
-    // Если из файла приходит "новая" задача с тем же номером, мы оживляем
-    // tombstone вместо создания дубликата. Иначе в allData[месяц] появятся
-    // две записи с одним и тем же num, что собьёт серверную синхронизацию.
-    const monthRows = allData[currentMonth] || [];
-    const tombstonesByNum = new Map<string, Task>();
-    for (const r of monthRows) {
-      if (r._deleted && r.num) {
-        tombstonesByNum.set(r.num.trim(), r);
-      }
-    }
-
-    const reviveIds = new Set<string>();
-    const newTaskObjs: Task[] = [];
-    for (const imp of newTasks) {
-      const trimmedNum = (imp.num || "").trim();
-      const tomb = trimmedNum ? tombstonesByNum.get(trimmedNum) : undefined;
-      if (tomb) {
-        // Оживляем: id и commentLog сохраняем (история не теряется),
-        // содержимое перезаписываем импортируемым.
-        reviveIds.add(tomb.id);
-      } else {
-        // Действительно новая задача.
-        newTaskObjs.push({
-          id: crypto.randomUUID(),
-          num: imp.num || "",
-          name: imp.name || "",
-          planH: imp.planH || "",
-          factH: imp.factH || "",
-          priority: imp.priority,
-          status: imp.status,
-          comment: imp.comment || "",
-          commentLog: [],
-          _ts: now,
-        });
-      }
-    }
-
-    // Один проход по месяцу: обновления, оживления, остальное — как было.
-    const mergedRows: Task[] = monthRows.map((row) => {
-      if (updatedIds.has(row.id)) {
-        const updated = updatedTasks.find((t) => t.id === row.id);
-        return updated ? { ...row, ...updated, _ts: now } : row;
-      }
-      if (reviveIds.has(row.id)) {
-        const trimmedNum = (row.num || "").trim();
-        const imp = newTasks.find((n) => (n.num || "").trim() === trimmedNum);
-        if (imp) {
-          return {
-            ...row,
-            num: imp.num,
-            name: imp.name,
-            planH: imp.planH,
-            factH: imp.factH,
-            priority: imp.priority,
-            status: imp.status,
-            comment: imp.comment,
-            _deleted: false,
-            _ts: now,
-          };
-        }
-      }
-      return row;
-    });
-
-    storeSetAllData({ ...allData, [currentMonth]: [...mergedRows, ...newTaskObjs] });
+    const { rows } = mergeImportedTasks(allData[currentMonth] || [], payload);
+    storeSetAllData({ ...allData, [currentMonth]: rows });
 
     setIsImportOpen(false);
     setPendingXlsxFile(null);
-
-    // Понятное резюме без «синхронизация», ближе к языку трекера.
-    const revivedCount = reviveIds.size;
-    const trulyNewCount = newTaskObjs.length;
-    const parts: string[] = [];
-    if (trulyNewCount) parts.push(`добавлено ${trulyNewCount}`);
-    if (revivedCount) parts.push(`восстановлено ${revivedCount}`);
-    if (updatedTasks.length) parts.push(`обновлено ${updatedTasks.length}`);
-    // Резюме импорта доступно через колокольчик/ActivityLog; всплывашка убрана.
-    void parts;
   }, [allData, currentMonth, storeSetAllData]);
 
   // Slide data — Phase 3: больше не state, а useMemo от данных.
@@ -847,42 +656,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   /* Phase 4: monthKey для запросов в /api/insights */
   const insightMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
 
-  /* Phase 4: загрузка AI-инсайта с сервера при смене контекста.
-   * При смене (workspaceId, activeDomainId, currentMonth, currentYear)
-   * сбрасываем aiDraft (он принадлежал предыдущему контексту) и
-   * подтягиваем сохранённый инсайт. */
-  useEffect(() => {
-    if (!workspaceId) return;
-    let cancelled = false;
-    setAiDraft(null);
-    fetchInsight(workspaceId, activeDomainId, insightMonthKey)
-      .then((insight) => {
-        if (cancelled) return;
-        setAiConclusion(insight);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setAiConclusion(null);
-      });
-    return () => { cancelled = true; };
-  }, [workspaceId, activeDomainId, insightMonthKey]);
-
-  /* Phase 4: вычисляем хеш текущих задач месяца — для бейджа stale.
-   * Хеш хранится в state, чтобы UI мог его сравнить с aiConclusion.dataHash. */
-  useEffect(() => {
-    let cancelled = false;
-    const monthRows = (allData[currentMonth] || []).filter((r) => !r._deleted && (r.name || r.num));
-    if (monthRows.length === 0) {
-      setCurrentDataHash("");
-      return;
-    }
-    hashTasks(monthRows).then((h) => {
-      if (!cancelled) setCurrentDataHash(h);
-    }).catch(() => { /* crypto.subtle недоступен — оставляем "" */ });
-    return () => { cancelled = true; };
-  }, [allData, currentMonth]);
-
-
   /* TotalH dialog breakdown */
   const monthBreakdown = useMemo(() => {
     if (!totalHDialog.taskNum) return { rows: [], taskName: "" };
@@ -903,61 +676,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     return { rows, taskName };
   }, [totalHDialog.taskNum, allData]);
 
-  /* Dashboard data */
-  const dashboardData = useMemo(() => {
-    const allRows = (allData[currentMonth] || []).filter(r => !r._deleted);
-    let total = 0, completed = 0, planH = 0, factH = 0;
-    const statusCounts: Record<string, number> = {};
-    const priorityCounts: Record<string, number> = {};
-    const atRisk: Task[] = [];
-
-    for (const r of allRows) {
-      if (!r.name && !r.num) continue; // skip empty rows
-      total++;
-      const isCompleted = r.status === STATUSES.DONE || r.status === STATUSES.COMPLETED;
-      if (isCompleted) completed++;
-      const p = evalExpr(r.planH);
-      const f = evalExpr(r.factH);
-      planH += p;
-      factH += f;
-      statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
-      priorityCounts[r.priority] = (priorityCounts[r.priority] || 0) + 1;
-      if (p > 0 && f > p && !isCompleted) atRisk.push(r);
-    }
-
-    // Month-by-month sparkline (fact hours per month, all 12)
-    const monthlyFact = Array.from({ length: 12 }, (_, i) => {
-      const monthRows = (allData[i] || []).filter(r => !r._deleted && (r.name || r.num));
-      return R2(monthRows.reduce((sum, r) => sum + evalExpr(r.factH), 0));
-    });
-    const monthlyPlan = Array.from({ length: 12 }, (_, i) => {
-      const monthRows = (allData[i] || []).filter(r => !r._deleted && (r.name || r.num));
-      return R2(monthRows.reduce((sum, r) => sum + evalExpr(r.planH), 0));
-    });
-    const monthlyTotal = Array.from({ length: 12 }, (_, i) =>
-      (allData[i] || []).filter(r => !r._deleted && (r.name || r.num)).length
-    );
-    const monthlyCompleted = Array.from({ length: 12 }, (_, i) =>
-      (allData[i] || []).filter(r => !r._deleted && (r.status === STATUSES.DONE || r.status === STATUSES.COMPLETED)).length
-    );
-
-    // Top tasks by fact hours in current month
-    const topTasks = [...allRows]
-      .filter(r => evalExpr(r.factH) > 0 && (r.name || r.num))
-      .sort((a, b) => evalExpr(b.factH) - evalExpr(a.factH))
-      .slice(0, 5);
-
-    return {
-      total, completed, planH: R2(planH), factH: R2(factH),
-      statusCounts, priorityCounts, atRisk,
-      monthlyFact, monthlyPlan, monthlyTotal, monthlyCompleted,
-      topTasks,
-      // Delta: суммарный budgetAllocated по месяцам
-      monthlyAllocated: Array.from({ length: 12 }, (_, i) =>
-        calcMonthBudgetUsed((allData[i] || []).filter(r => !r._deleted))
-      ),
-    };
-  }, [allData, currentMonth]);
 
   /* ---- Handlers ---- */
   const startEditing = useCallback(
@@ -1084,12 +802,13 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     monthCapacity: monthlyPlan > 0 ? monthlyPlan : 240,
   });
 
-  /* Phase 4: stale-флаг — данные изменились с момента генерации инсайта */
-  const aiInsightStale = useMemo(() => {
-    if (!aiConclusion) return false;
-    if (!aiConclusion.dataHash || !currentDataHash) return false;
-    return aiConclusion.dataHash !== currentDataHash;
-  }, [aiConclusion, currentDataHash]);
+  /* Инсайт: загрузка с сервера + пометка «устарел» (hooks/useInsightSync.ts) */
+  const { isStale: aiInsightStale } = useInsightSync({
+    workspaceId, activeDomainId, monthKey: insightMonthKey,
+    monthTasks: allData[currentMonth] || [],
+    insight: aiConclusion, setInsight: setAiConclusion, setDraft: setAiDraft,
+    currentDataHash, setCurrentDataHash,
+  });
 
   const handleTransfer = useCallback(() => {
     if (transferTarget < 0 || transferTarget === currentMonth) return;
@@ -1098,56 +817,31 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     setTransferTarget(-1);
   }, [currentMonth, transferTarget, storeTransferIncomplete]);
 
-  /* ---- Keyboard shortcuts ---- */
-  useEffect(() => {
-    const handler = (e: globalThis.KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-
-      if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "л")) {
-        e.preventDefault();
-        setPaletteOpen(o => !o);
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        storeUndo();
-      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "Z") {
-        e.preventDefault();
-        storeRedo();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "y") {
-        e.preventDefault();
-        storeRedo();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "n") {
-        e.preventDefault();
-        if (!clientMode) setNewTaskDialog({ open: true, month: currentMonth });
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-        e.preventDefault();
-        handleExportJSON();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        e.preventDefault();
-        const searchInput = document.querySelector('input[placeholder*="Поиск задач"]') as HTMLInputElement | null;
-        if (searchInput) searchInput.focus();
-      } else if ((e.ctrlKey || e.metaKey) && e.key >= "1" && e.key <= "7") {
-        e.preventDefault();
-        const viewKeys = ["table", "backlog", "questions", "slides", "protocols"] as const;
-        const idx = parseInt(e.key) - 1;
-        if (idx < viewKeys.length && (!allowedTabs || allowedTabs.has(viewKeys[idx]))) {
-          setView(viewKeys[idx]);
-        }
-      } else if (e.key === "Escape") {
-        if (settingsOpen) setSettingsOpen(false);
-        else if (newTaskDialog.open) setNewTaskDialog({ open: false, month: 0 });
-        else if (transferDialog) { setTransferDialog(false); setTransferTarget(-1); }
-        else if (apiKeyDialogOpen) setApiKeyDialogOpen(false);
-        else if (editingCell) stopEditing();
-      } else if (e.key === "Delete" && selectedRowId && !editingCell) {
-        e.preventDefault();
-        deleteTask(currentMonth, selectedRowId);
-        setSelectedRowId(null);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [storeUndo, storeRedo, clientMode, currentMonth, setNewTaskDialog, handleExportJSON, selectedRowId, editingCell, deleteTask, allowedTabs, setView, settingsOpen, setSettingsOpen, newTaskDialog, transferDialog, setTransferDialog, setTransferTarget, apiKeyDialogOpen, setApiKeyDialogOpen, editingCell, stopEditing]);
+  /* ---- Горячие клавиши (реализация — hooks/useKeyboardShortcuts.ts) ---- */
+  useKeyboardShortcuts({
+    togglePalette: () => setPaletteOpen((o) => !o),
+    undo: storeUndo,
+    redo: storeRedo,
+    createTask: () => setNewTaskDialog({ open: true, month: currentMonth }),
+    exportJson: handleExportJSON,
+    setView: setView as (v: string) => void,
+    allowedTabs: allowedTabs ?? undefined,
+    readOnly: clientMode,
+    isEditing: Boolean(editingCell),
+    closeTopDialog: () => {
+      if (settingsOpen) { setSettingsOpen(false); return true; }
+      if (newTaskDialog.open) { setNewTaskDialog({ open: false, month: 0 }); return true; }
+      if (transferDialog) { setTransferDialog(false); setTransferTarget(-1); return true; }
+      if (apiKeyDialogOpen) { setApiKeyDialogOpen(false); return true; }
+      if (editingCell) { stopEditing(); return true; }
+      return false;
+    },
+    deleteSelected: () => {
+      if (!selectedRowId) return;
+      deleteTask(currentMonth, selectedRowId);
+      setSelectedRowId(null);
+    },
+  });
 
   /* ================================================================ */
   /*  RENDER                                                           */
@@ -1323,7 +1017,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         <main className="flex-1 w-full px-4 md:px-5 py-4 md:py-5 pb-20 md:pb-5 space-y-4 md:space-y-5">
 
         {/* ---- MONTH SELECTOR (mobile / inline fallback) ---- */}
-        {(view === "table" || view === "dashboard" || view === "slides") && (
+        {(view === "table" || view === "slides") && (
           <div className="w-full space-y-2 md:hidden">
             <ScrollArea className="w-full" type="scroll">
               <div className="flex gap-2 pb-1">
@@ -1433,27 +1127,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             setCommentArchiveDialog={setCommentArchiveDialog}
             isDark={customDark}
             isGuest={viewOnly}
-          />
-          </div>
-        )}
-
-        {view === "dashboard" && (
-          <div className="view-enter">
-          <DashboardDelta
-            tasks={(allData[currentMonth] || []).filter(t => !t._deleted)}
-            backlogTasks={backlog}
-            monthCapacity={monthlyPlan > 0 ? monthlyPlan : 240}
-            onSetMonthCapacity={(h) => setMonthlyPlan(currentMonthKey, h)}
-            monthlyFact={dashboardData.monthlyFact}
-            monthlyAllocated={dashboardData.monthlyAllocated}
-            currentMonth={currentMonth}
-            currentYear={currentYear}
-            isDark={customDark}
-            onUpdateTask={(taskId, updates) => {
-              Object.entries(updates).forEach(([k, v]) => {
-                updateTask(currentMonth, taskId, k as keyof Task, v);
-              });
-            }}
           />
           </div>
         )}

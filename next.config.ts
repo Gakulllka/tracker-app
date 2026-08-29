@@ -1,22 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  generateEtags: false,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  reactStrictMode: false,
+  // Prisma нельзя бандлить: Turbopack вырезает нативный движок запросов
+  // и обращения к моделям падают с "Cannot read properties of undefined".
   serverExternalPackages: ["@prisma/client", ".prisma/client"],
 
+  reactStrictMode: false,
+
+  // Данные приложения приходят через /api и кешироваться не должны.
+  // Статика (_next) кешируется браузером как обычно.
   async headers() {
     return [
       {
-        source: "/(.*)",
-        headers: [
-          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, max-age=0" },
-          { key: "Pragma",        value: "no-cache" },
-          { key: "Expires",       value: "0" },
-        ],
+        source: "/api/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
       },
     ];
   },

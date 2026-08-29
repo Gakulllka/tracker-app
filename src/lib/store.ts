@@ -4,6 +4,12 @@ import type { StateStorage } from "zustand/middleware";
 import { Task, Domain, AllData, Status, Priority, PRIORITIES, STATUSES, MONTHS, PRIO_START, STATUS_ORDER, type CommentEntry } from "./types";
 import { createNewTask } from "./metrics";
 import { createUndoHelpers } from "./undo";
+import { monthKey, parseMonthKey, buildAllDataForYear, listYearsWithData, type MonthKey } from "./month-keys";
+import { DEFAULT_PRES_BG, type PresBgSettings } from "./presentation-bg";
+
+// Реэкспорт: раньше эти сущности жили здесь, и на них ссылается много файлов.
+export { DEFAULT_PRES_BG };
+export type { PresBgSettings, MonthKey };
 
 const undoHelpers = createUndoHelpers();
 
@@ -42,134 +48,6 @@ function getStateSnapshot() {
   return { allData: s.allData, backlog: s.backlog };
 }
 
-export interface PresBgSettings {
-  emojis: string;
-  emojiCount: number;
-  emojiMinSize: number;
-  emojiMaxSize: number;
-  pattern: "none" | "grid" | "diagonal" | "diamond" | "waves" | "zigzag";
-  patternSize: number;
-  patternOpacity: number;
-  styleId: "dark" | "spring" | "ocean" | "night" | "fire" | "minimal";
-  /** Phase 5: режим анимации эмодзи. */
-  emojiAnim?: "off" | "drift" | "fall";
-  /** Phase 5: скорость анимации, 0.25..2 (1 = базовая). */
-  emojiSpeed?: number;
-  /** Phase 5: прозрачность эмодзи, 5..50 (% числом). Если undefined — рандомная как раньше (для совместимости со старым state). */
-  emojiOpacity?: number;
-  /** Толщина линий паттерна, px (1..4). */
-  patternLineThickness?: number;
-}
-
-interface PresStylePreset {
-  id: PresBgSettings["styleId"];
-  label: string;
-  emoji: string;
-  desc: string;
-  bodyBg: string;
-  overlayBg: string;
-  cardColors: string[];
-  defaultEmojis: string;
-  defaultPattern: PresBgSettings["pattern"];
-  textColor: string;
-  mutedColor: string;
-}
-
-const PRES_STYLE_PRESETS: PresStylePreset[] = [
-  {
-    id: "dark",
-    label: "Тёмный",
-    emoji: "🌑",
-    desc: "Тёмный фон, чёрно-белый",
-    bodyBg: "#131418",
-    overlayBg: "linear-gradient(160deg,#131418 0%,#1A1B20 100%)",
-    cardColors: ["#1e1e22", "#1c1c20", "#1a1a1e"],
-    defaultEmojis: "🚀 ✨ 💡 🎯 ⚡ 🎯 💼 📊",
-    defaultPattern: "grid",
-    textColor: "#F5F5F2",
-    mutedColor: "rgba(171,171,165,.55)",
-  },
-  {
-    id: "spring",
-    label: "Весна",
-    emoji: "🌿",
-    desc: "Тёмный фон, чёрно-белый",
-    bodyBg: "#131418",
-    overlayBg: "linear-gradient(160deg,#131418 0%,#1A1B20 100%)",
-    cardColors: ["#1e1e22", "#1c1c20", "#1a1a1e"],
-    defaultEmojis: "🚀 ✨ 💡 🎯 ⚡ 🎯 💼 📊",
-    defaultPattern: "grid",
-    textColor: "#F5F5F2",
-    mutedColor: "rgba(171,171,165,.55)",
-  },
-  {
-    id: "ocean",
-    label: "Океан",
-    emoji: "🌊",
-    desc: "Тёмный фон, чёрно-белый",
-    bodyBg: "#131418",
-    overlayBg: "linear-gradient(160deg,#131418 0%,#1A1B20 100%)",
-    cardColors: ["#1e1e22", "#1c1c20", "#1a1a1e"],
-    defaultEmojis: "🚀 ✨ 💡 🎯 ⚡ 🎯 💼 📊",
-    defaultPattern: "grid",
-    textColor: "#F5F5F2",
-    mutedColor: "rgba(171,171,165,.55)",
-  },
-  {
-    id: "night",
-    label: "Ночь",
-    emoji: "🌙",
-    desc: "Тёмный фон, чёрно-белый",
-    bodyBg: "#131418",
-    overlayBg: "linear-gradient(160deg,#131418 0%,#1A1B20 100%)",
-    cardColors: ["#1e1e22", "#1c1c20", "#1a1a1e"],
-    defaultEmojis: "🚀 ✨ 💡 🎯 ⚡ 🎯 💼 📊",
-    defaultPattern: "grid",
-    textColor: "#F5F5F2",
-    mutedColor: "rgba(171,171,165,.55)",
-  },
-  {
-    id: "fire",
-    label: "Огонь",
-    emoji: "🔥",
-    desc: "Тёмный фон, чёрно-белый",
-    bodyBg: "#131418",
-    overlayBg: "linear-gradient(160deg,#131418 0%,#1A1B20 100%)",
-    cardColors: ["#1e1e22", "#1c1c20", "#1a1a1e"],
-    defaultEmojis: "🚀 ✨ 💡 🎯 ⚡ 🎯 💼 📊",
-    defaultPattern: "grid",
-    textColor: "#F5F5F2",
-    mutedColor: "rgba(171,171,165,.55)",
-  },
-  {
-    id: "minimal",
-    label: "Минимал",
-    emoji: "⬜",
-    desc: "Светлый фон, чёрно-белый",
-    bodyBg: "#FAFAF8",
-    overlayBg: "linear-gradient(160deg,#FAFAF8 0%,#FFFFFF 100%)",
-    cardColors: ["#f5f5f5", "#f0f0f0", "#ebebeb"],
-    defaultEmojis: "🚀 ✨ 💡 🎯 ⚡ 🎯 💼 📊",
-    defaultPattern: "grid",
-    textColor: "#17181C",
-    mutedColor: "rgba(93,93,87,.7)",
-  },
-];
-
-export const DEFAULT_PRES_BG: PresBgSettings = {
-  // Эмодзи убраны по умолчанию (минимализм Delta). Пользователь может включить в настройках.
-  emojis: "",
-  emojiCount: 0,
-  emojiMinSize: 12,
-  emojiMaxSize: 32,
-  pattern: "none",
-  patternSize: 40,
-  patternOpacity: 5,
-  styleId: "dark",
-  emojiAnim: "off",
-  emojiSpeed: 1,
-  emojiOpacity: 25,
-};
 
 /* ================================================================ *
  *  Phase 2 (multi-year): добавлено хранение задач по ключам YYYY-MM. *
@@ -195,51 +73,7 @@ export const DEFAULT_PRES_BG: PresBgSettings = {
  *  onRehydrateStorage.                                                *
  * ================================================================ */
 
-/** Год + месяц как строка "YYYY-MM" (zero-padded). */
-type MonthKey = string;
-
 /** Constructs "2025-10" from (2025, 9). Внимание: month 0..11. */
-function monthKey(year: number, month: number): MonthKey {
-  return `${year}-${String(month + 1).padStart(2, "0")}`;
-}
-
-/** Парсит "2025-10" → { year: 2025, month: 9 }. Возвращает null если невалидно. */
-function parseMonthKey(key: MonthKey): { year: number; month: number } | null {
-  const m = /^(\d{4})-(\d{2})$/.exec(key);
-  if (!m) return null;
-  const year = Number(m[1]);
-  const month = Number(m[2]) - 1;
-  if (Number.isNaN(year) || Number.isNaN(month) || month < 0 || month > 11) return null;
-  return { year, month };
-}
-
-/** Из полного dataByYearMonth собирает срез для одного года. */
-function buildAllDataForYear(
-  dataByYearMonth: Record<MonthKey, Task[]>,
-  year: number,
-): AllData {
-  const out: AllData = {};
-  for (let m = 0; m < 12; m++) {
-    const key = monthKey(year, m);
-    out[m] = dataByYearMonth[key] || [];
-  }
-  // Если ровно ничего не было за этот год — оставляем пустым
-  return out;
-}
-
-/** Список годов, в которых есть хоть одна задача. Текущий год всегда включён. */
-function listYearsWithData(dataByYearMonth: Record<MonthKey, Task[]>): number[] {
-  const years = new Set<number>();
-  years.add(new Date().getFullYear());
-  for (const [k, tasks] of Object.entries(dataByYearMonth)) {
-    if (!tasks || tasks.length === 0) continue;
-    const parsed = parseMonthKey(k);
-    if (parsed) years.add(parsed.year);
-  }
-  return Array.from(years).sort((a, b) => b - a);
-}
-
-/** Per-domain isolated data */
 interface DomainData {
   /** Срез текущего года для UI (Record<0..11, Task[]>). Производное от dataByYearMonth. */
   allData: AllData;
@@ -517,7 +351,7 @@ export const useTaskStore = create<AppState>()(
       presSubTab: "slides" as const,
       uiMode: "simple" as const,
       clientMode: false,
-      themeId: "#9B72CF",
+      themeId: "#17181C",
       customColor: "",
       customDark: false,
       presBg: DEFAULT_PRES_BG,
