@@ -69,17 +69,17 @@ export function OnlineTab() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-sm font-medium text-gray-700">Онлайн: {onlineCount}</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-[var(--tracker-success)] animate-pulse" />
+            <span className="text-sm font-medium text-[var(--tracker-text-main)]">Онлайн: {onlineCount}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-gray-300" />
-            <span className="text-sm font-medium text-gray-500">Неактивны: {inactiveCount}</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-[var(--tracker-border)]" />
+            <span className="text-sm font-medium text-[var(--tracker-text-muted)]">Неактивны: {inactiveCount}</span>
           </div>
-          <span className="text-xs text-gray-400">Считается онлайн ≤ 2 мин с последнего пинга</span>
+          <span className="text-xs text-[var(--tracker-text-muted)]">Считается онлайн ≤ 2 мин с последнего пинга</span>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+          <label className="flex items-center gap-1.5 text-xs text-[var(--tracker-text-muted)] cursor-pointer select-none">
             <input
               type="checkbox"
               checked={autoRefresh}
@@ -95,51 +95,51 @@ export function OnlineTab() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+        <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-[var(--tracker-text-muted)]" /></div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <div className="overflow-x-auto rounded-xl border border-[var(--tracker-border)]">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Статус</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Пользователь</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Где</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">IP-адрес</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Последняя активность</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Длительность</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Действия</th>
+              <tr className="bg-[var(--tracker-bg-main)] border-b border-[var(--tracker-border)]">
+                <th className="text-left px-4 py-3 font-medium text-[var(--tracker-text-muted)]">Статус</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--tracker-text-muted)]">Пользователь</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--tracker-text-muted)]">Где</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--tracker-text-muted)]">IP-адрес</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--tracker-text-muted)]">Последняя активность</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--tracker-text-muted)]">Длительность</th>
+                <th className="text-right px-4 py-3 font-medium text-[var(--tracker-text-muted)]">Действия</th>
               </tr>
             </thead>
             <tbody>
               {sessions.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-12 text-gray-400">Нет активных сессий</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-[var(--tracker-text-muted)]">Нет активных сессий</td></tr>
               )}
               {sessions.map((s) => (
-                <tr key={s.id} className={`border-b border-gray-100 ${s.isOnline ? "bg-green-50/30" : "bg-gray-50/30"}`}>
+                <tr key={s.id} className={`border-b border-[var(--tracker-border)] ${s.isOnline ? "bg-[color-mix(in_srgb,var(--tracker-success)_10%,transparent)]/30" : "bg-[var(--tracker-bg-main)]/30"}`}>
                   <td className="px-4 py-3">
                     <span
-                      className={`w-2.5 h-2.5 rounded-full inline-block ${s.isOnline ? "bg-green-500" : "bg-gray-300"}`}
+                      className={`w-2.5 h-2.5 rounded-full inline-block ${s.isOnline ? "bg-[var(--tracker-success)]" : "bg-[var(--tracker-border)]"}`}
                       title={s.isOnline ? "Онлайн" : "Неактивен"}
                     />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900">{s.user.displayName || s.user.username}</div>
-                    <div className="text-xs text-gray-400">@{s.user.username} ({s.user.role.name})</div>
+                    <div className="font-medium text-[var(--tracker-text-main)]">{s.user.displayName || s.user.username}</div>
+                    <div className="text-xs text-[var(--tracker-text-muted)]">@{s.user.username} ({s.user.role.name})</div>
                   </td>
                   <td className="px-4 py-3">
                     {s.currentPage ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-mono text-xs">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--tracker-accent-bg)] text-[var(--tracker-text-muted)] font-mono text-xs">
                         {s.currentPage.length > 36 ? s.currentPage.slice(0, 34) + "…" : s.currentPage}
                       </span>
                     ) : (
-                      <span className="text-xs text-gray-300">—</span>
+                      <span className="text-xs text-[var(--tracker-text-muted)]">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 font-mono text-xs">{s.ipAddress || "—"}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500" title={formatDate(s.lastActivity)}>
+                  <td className="px-4 py-3 text-[var(--tracker-text-muted)] font-mono text-xs">{s.ipAddress || "—"}</td>
+                  <td className="px-4 py-3 text-xs text-[var(--tracker-text-muted)]" title={formatDate(s.lastActivity)}>
                     {timeAgo(s.lastActivity)}
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-500">
+                  <td className="px-4 py-3 text-xs text-[var(--tracker-text-muted)]">
                     {(() => {
                       const ms = Date.now() - new Date(s.createdAt).getTime();
                       const h = Math.floor(ms / 3600000);

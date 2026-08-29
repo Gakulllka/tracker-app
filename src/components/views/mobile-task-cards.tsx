@@ -140,7 +140,7 @@ export function MobileTaskCards({
                 </span>
               )}
               <span className="flex items-center gap-1 delta-num"><Ruler className="size-3" /> {task.planH || "0"}ч</span>
-              <span className={`flex items-center gap-1 delta-num ${isOver ? "text-red-500 font-semibold" : ""}`}>
+              <span className={`flex items-center gap-1 delta-num ${isOver ? "text-[var(--tracker-danger)] font-semibold" : ""}`}>
                 <Timer className="size-3" /> {task.factH || "0"}ч
               </span>
             </div>

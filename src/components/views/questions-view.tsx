@@ -333,7 +333,7 @@ export function QuestionsView({
                   <ClipboardList className="size-3" />
                   #{allTasks.find(t => t.id === linkedTaskId)?.num} {linkedTaskName}
                   <button onClick={() => { setLinkedTaskId(null); setLinkedTaskName(""); setTaskSearch(""); }}
-                    className="ml-0.5 hover:text-red-500"><X className="size-3" /></button>
+                    className="ml-0.5 hover:text-[var(--tracker-danger)]"><X className="size-3" /></button>
                 </div>
               ) : (
                 <div className="relative">

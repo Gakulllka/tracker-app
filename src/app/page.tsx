@@ -893,7 +893,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
                     }`}
                   >
                     {monthHasData(i) && (
-                      <span className={`size-2 rounded-full shrink-0 ${currentMonth === i ? "bg-white/70" : "bg-[var(--tracker-accent)]"}`} />
+                      <span className={`size-2 rounded-full shrink-0 ${currentMonth === i ? "bg-[var(--tracker-bg-card)]/70" : "bg-[var(--tracker-accent)]"}`} />
                     )}
                     <span className="text-xs font-semibold">{MONTHS_SHORT[i]}</span>
                   </button>

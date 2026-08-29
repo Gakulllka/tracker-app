@@ -306,17 +306,17 @@ export function TaskDetailDialog({
                   )}
                   {planfixUrl && (
                     <a href={planfixUrl} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white"
+                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-[var(--tracker-bg-card)]"
                       style={{ border: "2px solid var(--tracker-accent)", color: "var(--tracker-accent)" }}>
                       <ExternalLink className="size-4" /> PlanFix
                     </a>
                   )}
-                  <button className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white"
+                  <button className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-[var(--tracker-bg-card)]"
                     style={{ border: "2px solid var(--tracker-accent)", color: "var(--tracker-accent)" }}
                     onClick={() => { snapshot(); onMoveToBacklog(month, task.id); onOpenChange(false); }}>
                     <Package className="size-4" /> В беклог
                   </button>
-                  <button className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white"
+                  <button className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-[var(--tracker-bg-card)]"
                     style={{ border: "2px solid var(--tracker-accent)", color: "#C6453F" }}
                     onClick={() => { snapshot(); onDeleteTask(month, task.id); onOpenChange(false); }}>
                     <Trash2 className="size-4" /> Удалить
@@ -327,7 +327,7 @@ export function TaskDetailDialog({
               {isPending && (
                 <div className="mt-2.5 rounded-xl p-2.5 border flex items-center justify-between"
                   style={{ background: "rgba(251,191,36,0.07)", borderColor: "rgba(251,191,36,0.3)" }}>
-                  <span className="text-xs font-medium" style={{ color: "#854F0B" }}>Ожидает подтверждения БА</span>
+                  <span className="text-xs font-medium" style={{ color: "var(--tracker-warning)" }}>Ожидает подтверждения БА</span>
                   <div className="flex gap-2">
                     <Button size="sm" className="h-7 text-[11px] rounded-lg px-3" style={{ background: "var(--tracker-success)", color: "#fff" }} onClick={handleAccept}>Принять</Button>
                     <Button size="sm" variant="outline" className="h-7 text-[11px] rounded-lg px-3" style={{ borderColor: "var(--tracker-danger)", color: "var(--tracker-danger)" }} onClick={handleReject}>Отклонить</Button>
@@ -401,7 +401,7 @@ export function TaskDetailDialog({
                   <Popover>
                     <PopoverTrigger asChild>
                       <button
-                        className="h-9 text-xs font-semibold rounded-lg px-3 inline-flex items-center gap-1.5 bg-white cursor-pointer hover:opacity-80 transition-opacity"
+                        className="h-9 text-xs font-semibold rounded-lg px-3 inline-flex items-center gap-1.5 bg-[var(--tracker-bg-card)] cursor-pointer hover:opacity-80 transition-opacity"
                         style={{ border: "2px solid var(--tracker-accent)", color: scolText(task.status, isDark) || "var(--tracker-accent)" }}
                       >
                         {task.status}
@@ -443,7 +443,7 @@ export function TaskDetailDialog({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="h-9 text-xs font-semibold rounded-lg px-3 inline-flex items-center gap-1.5 bg-white cursor-pointer hover:opacity-80 transition-opacity"
+                        className="h-9 text-xs font-semibold rounded-lg px-3 inline-flex items-center gap-1.5 bg-[var(--tracker-bg-card)] cursor-pointer hover:opacity-80 transition-opacity"
                         style={{ border: "2px solid var(--tracker-accent)", color: PCOL[task.priority] || "var(--tracker-accent)" }}
                       >
                         {task.priority}
@@ -461,7 +461,7 @@ export function TaskDetailDialog({
                   </DropdownMenu>
 
                   {/* Прогресс — компактный, белый с чёрной рамкой */}
-                  <div className="flex items-center gap-2 flex-1 min-w-[160px] h-9 px-3 rounded-lg bg-white" style={{ border: "2px solid var(--tracker-accent)" }}>
+                  <div className="flex items-center gap-2 flex-1 min-w-[160px] h-9 px-3 rounded-lg bg-[var(--tracker-bg-card)]" style={{ border: "2px solid var(--tracker-accent)" }}>
                     <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0" style={{ color: "var(--tracker-text-muted)" }}>Прогресс</span>
                     <div className="h-1.5 flex-1 rounded-full overflow-hidden" style={{ background: "color-mix(in srgb, var(--tracker-text-muted, #8a8378) 16%, transparent)" }}>
                       <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: barColor }} />

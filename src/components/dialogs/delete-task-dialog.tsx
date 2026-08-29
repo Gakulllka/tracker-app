@@ -35,8 +35,8 @@ export function DeleteTaskDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader className="text-center sm:text-left">
           <div className="flex flex-col items-center sm:items-start gap-2">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-50">
-              <AlertTriangle className="size-5 text-red-500" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[color-mix(in_srgb,var(--tracker-danger)_10%,transparent)]">
+              <AlertTriangle className="size-5 text-[var(--tracker-danger)]" />
             </div>
             <div>
               <DialogTitle className="text-lg">Удалить задачу?</DialogTitle>

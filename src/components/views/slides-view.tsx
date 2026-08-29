@@ -230,7 +230,7 @@ export function SlidesView({
               <button
                 onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
                 disabled={currentSlide === 0}
-                className="size-8 rounded-full flex items-center justify-center text-white/90 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                className="size-8 rounded-full flex items-center justify-center text-white/90 hover:bg-[var(--tracker-bg-card)]/20 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
                 aria-label="Назад"
               >
                 <ChevronLeft className="size-5" />
@@ -238,7 +238,7 @@ export function SlidesView({
               <div className="flex items-center gap-1.5">
                 {slides.map((_, i) => (
                   <button key={i} onClick={() => setCurrentSlide(i)}
-                    className={`rounded-full transition-all ${i === currentSlide ? "h-2 w-6 bg-white" : "h-2 w-2 bg-white/40 hover:bg-white/60"}`}
+                    className={`rounded-full transition-all ${i === currentSlide ? "h-2 w-6 bg-[var(--tracker-bg-card)]" : "h-2 w-2 bg-[var(--tracker-bg-card)]/40 hover:bg-[var(--tracker-bg-card)]/60"}`}
                     aria-label={`Слайд ${i + 1}`}
                   />
                 ))}
@@ -249,7 +249,7 @@ export function SlidesView({
               <button
                 onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))}
                 disabled={currentSlide >= slides.length - 1}
-                className="size-8 rounded-full flex items-center justify-center text-white/90 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                className="size-8 rounded-full flex items-center justify-center text-white/90 hover:bg-[var(--tracker-bg-card)]/20 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
                 aria-label="Далее"
               >
                 <ChevronRight className="size-5" />
@@ -456,7 +456,7 @@ export function SlidesView({
           style={{ borderColor: "var(--tracker-border)", background: "var(--tracker-bg-card)" }}>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <p className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--tracker-text-main)" }}>
-              <Check className="size-4 text-green-600" />Применено
+              <Check className="size-4 text-[var(--tracker-success)]" />Применено
             </p>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"

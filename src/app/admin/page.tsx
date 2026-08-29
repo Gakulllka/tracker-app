@@ -47,19 +47,19 @@ export default function AdminPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      <div className="min-h-screen flex items-center justify-center bg-[var(--tracker-bg-main)]">
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--tracker-text-muted)]" />
       </div>
     );
   }
 
   if (!isAllowed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--tracker-bg-main)]">
         <div className="text-center">
-          <Shield className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Доступ запрещён</h2>
-          <p className="text-sm text-gray-500">Эта страница доступна только администраторам.</p>
+          <Shield className="w-12 h-12 text-[var(--tracker-danger)] mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-[var(--tracker-text-main)] mb-2">Доступ запрещён</h2>
+          <p className="text-sm text-[var(--tracker-text-muted)]">Эта страница доступна только администраторам.</p>
           <Button variant="outline" className="mt-4" onClick={() => (window.location.href = "/")}>На главную</Button>
         </div>
       </div>
@@ -67,14 +67,14 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--tracker-bg-main)]">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <div className="bg-[var(--tracker-bg-card)] border-b border-[var(--tracker-border)] sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <Shield className="w-5 h-5 text-[var(--tracker-danger)]" />
-              <h1 className="text-lg font-bold text-gray-900">Панель администратора</h1>
+              <h1 className="text-lg font-bold text-[var(--tracker-text-main)]">Панель администратора</h1>
             </div>
             <Button variant="outline" size="sm" onClick={() => (window.location.href = "/")}>
               ← Назад к приложению
@@ -89,7 +89,7 @@ export default function AdminPage() {
                 className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.key
                     ? "border-[var(--tracker-danger)] text-[var(--tracker-danger)]"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    : "border-transparent text-[var(--tracker-text-muted)] hover:text-[var(--tracker-text-main)] hover:border-[var(--tracker-border)]"
                 }`}
               >
                 {tab.icon} {tab.label}

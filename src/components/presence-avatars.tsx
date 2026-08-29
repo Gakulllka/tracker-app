@@ -65,7 +65,7 @@ export function PresenceAvatars({ token, currentUserId }: { token: string; curre
           <span className="text-[8px] font-bold" style={{ color: "rgba(250,250,248,0.8)" }}>+{rest}</span>
         </div>
       )}
-      <span className="ml-3 mr-1 size-1.5 rounded-full bg-green-500 shrink-0" />
+      <span className="ml-3 mr-1 size-1.5 rounded-full bg-[var(--tracker-success)] shrink-0" />
     </div>
   );
 }

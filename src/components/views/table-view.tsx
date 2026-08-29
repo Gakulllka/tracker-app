@@ -679,7 +679,7 @@ export function TableView({
           })}
           {(filterStatuses.size > 0 || filterPriorities.size > 0) && (
             <button onClick={clearFilters}
-              className="shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-full border border-red-200 text-red-500">
+              className="shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-full border border-red-200 text-[var(--tracker-danger)]">
               Сбросить
             </button>
           )}
@@ -998,7 +998,7 @@ export function TableView({
                                   </span>
                                 )}
                                 {task.approvalStatus === "pending" && (
-                                  <span className="inline-flex items-center text-[9px] font-bold px-1 py-0.5 rounded bg-amber-100 text-amber-700 border border-dashed border-amber-300" title="Ожидает согласования">БА</span>
+                                  <span className="inline-flex items-center text-[9px] font-bold px-1 py-0.5 rounded bg-[color-mix(in_srgb,var(--tracker-warning)_16%,transparent)] text-[var(--tracker-warning)] border border-dashed border-amber-300" title="Ожидает согласования">БА</span>
                                 )}
                                 {task._hidden && (
                                   <span className="inline-flex items-center text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">скрыта</span>

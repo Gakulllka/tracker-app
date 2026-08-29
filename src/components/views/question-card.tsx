@@ -122,7 +122,7 @@ export function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAns
               )}
               {!isGuest && (
                 <button onClick={() => removeQuestion(q.id)}
-                  className="text-[10px] px-1.5 py-1 rounded-md transition-colors hover:bg-red-50 hover:text-red-500 ml-auto"
+                  className="text-[10px] px-1.5 py-1 rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--tracker-danger)_10%,transparent)] hover:text-[var(--tracker-danger)] ml-auto"
                   style={{ color: "var(--tracker-text-muted)" }}>
                   <Trash2 className="size-2.5" />
                 </button>
@@ -203,7 +203,7 @@ export function QuestionCard({ q, expandedId, setExpandedId, answeringId, setAns
                 <p className="text-[11px] leading-relaxed whitespace-pre-wrap" style={{ color: "var(--tracker-text-main)" }}>{ans.text}</p>
               </div>
               <button onClick={() => deleteAnswer(q.id, ans.id)}
-                className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-red-50 hover:text-red-500"
+                className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[color-mix(in_srgb,var(--tracker-danger)_10%,transparent)] hover:text-[var(--tracker-danger)]"
                 style={{ color: "var(--tracker-text-muted)" }}>
                 <Trash2 className="size-2.5" />
               </button>

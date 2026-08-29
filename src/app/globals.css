@@ -844,6 +844,35 @@ html, body {
   }
 }
 
+
+/* ── Диалоги ───────────────────────────────────────────────────────────
+   Модальное окно — то же белое «окно», что и карточка: чернильный контур
+   2px. Задаётся здесь один раз, а не в каждом из девяти диалогов.       */
+
+[data-slot="dialog-content"],
+[data-slot="sheet-content"],
+[data-slot="alert-dialog-content"] {
+  border: 2px solid var(--tracker-accent);
+  background: var(--tracker-bg-card);
+}
+
+/* Шапка диалога отбита от содержания — как титул от разворота. */
+[data-slot="dialog-header"] {
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--tracker-accent);
+}
+
+[data-slot="dialog-title"] {
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--tracker-text-main);
+}
+
+[data-slot="dialog-description"] {
+  color: var(--tracker-text-muted);
+}
+
 /* ── Questions View — мобильный ──────────────────────────────── */
 @media (max-width: 767px) {
   .questions-input-area {

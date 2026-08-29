@@ -312,7 +312,7 @@ export function DomainAccessDialog({
                     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{roleLabel}</span>
                   )}
                   {canManage && r.userId !== currentUser.id && (
-                    <Button size="icon" variant="ghost" className="size-6 text-red-400 hover:text-red-600"
+                    <Button size="icon" variant="ghost" className="size-6 text-[var(--tracker-danger)] hover:text-[var(--tracker-danger)]"
                       disabled={busy} onClick={() => revoke(r.userId)} title="Отозвать доступ">
                       <Trash2 className="size-3" />
                     </Button>
@@ -356,11 +356,11 @@ export function DomainAccessDialog({
                 {domainRequests.filter(r => r.userId !== currentUser.id).map((r) => (
                   <div key={r.id} className="flex items-center gap-2 text-xs">
                     <span className="flex-1 truncate font-medium">{userLabel(r)}</span>
-                    <Button size="icon" variant="ghost" className="size-6 text-green-600 hover:text-green-700"
+                    <Button size="icon" variant="ghost" className="size-6 text-[var(--tracker-success)] hover:text-[var(--tracker-success)]"
                       disabled={busy} onClick={() => resolve(r.id, "approve")} title="Одобрить">
                       <Check className="size-3.5" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="size-6 text-red-500 hover:text-red-600"
+                    <Button size="icon" variant="ghost" className="size-6 text-[var(--tracker-danger)] hover:text-[var(--tracker-danger)]"
                       disabled={busy} onClick={() => resolve(r.id, "reject")} title="Отклонить">
                       <X className="size-3.5" />
                     </Button>
@@ -372,7 +372,7 @@ export function DomainAccessDialog({
             {/* Запросить доступ себе */}
             {!canEditThisDomain && !["viewer", "guest"].includes(currentUser.role) && (
               myPendingRequest ? (
-                <div className="flex items-center gap-2 text-xs text-amber-600">
+                <div className="flex items-center gap-2 text-xs text-[var(--tracker-warning)]">
                   <Clock className="size-3.5" /> Ваш запрос отправлен и ожидает решения
                 </div>
               ) : (

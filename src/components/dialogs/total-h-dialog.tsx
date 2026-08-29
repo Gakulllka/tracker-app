@@ -25,10 +25,10 @@ export interface TotalHDialogProps {
 export function TotalHDialog({ open, taskNum, taskName, rows, isDark, onClose }: TotalHDialogProps) {
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-lg" style={{ background: "#ffffff", color: "#1a1a2e", border: "1px solid #e2e8f0" }}>
+      <DialogContent className="sm:max-w-lg" style={{ background: "var(--tracker-bg-card)", color: "var(--tracker-text-main)", border: "1px solid var(--tracker-border)" }}>
         <DialogHeader className="gap-0.5">
           <span style={{ fontSize: "12px", color: "var(--tracker-text-muted)" }}>Задача #{taskNum}</span>
-          <DialogTitle className="text-base leading-tight" style={{ color: "#1a1a2e" }}>
+          <DialogTitle className="text-base leading-tight" style={{ color: "var(--tracker-text-main)" }}>
             {taskName || "Задача"}
           </DialogTitle>
           <DialogDescription>Разбивка часов по месяцам для задачи</DialogDescription>
@@ -50,7 +50,7 @@ export function TotalHDialog({ open, taskNum, taskName, rows, isDark, onClose }:
                   const over   = r.cumulative > r.planH && r.planH > 0;
                   return (
                     <div key={r.month} style={{ flex: "1", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0, background: "var(--tracker-accent-bg)", borderRadius: "4px 4px 0 0", padding: "0 2px 4px 2px" }}>
-                      <span style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px", lineHeight: "1", fontWeight: 600 }}>
+                      <span style={{ fontSize: "12px", color: "var(--tracker-text-muted)", marginBottom: "4px", lineHeight: "1", fontWeight: 600 }}>
                         {MONTHS[r.month].substring(0, 3).toLowerCase()}
                       </span>
                       <div style={{ width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: "1px", height: "72px" }}>
@@ -71,10 +71,10 @@ export function TotalHDialog({ open, taskNum, taskName, rows, isDark, onClose }:
             </div>
 
             {/* Table */}
-            <div style={{ borderRadius: "8px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+            <div style={{ borderRadius: "8px", border: "1px solid var(--tracker-border)", overflow: "hidden" }}>
               <table style={{ width: "100%", fontSize: "14px", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ background: "var(--tracker-accent-bg)", fontSize: "10px", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <tr style={{ background: "var(--tracker-accent-bg)", fontSize: "10px", color: "var(--tracker-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {["Месяц", "План", "Факт", "Итого", "Статус"].map((h, i) => (
                       <th key={h} style={{ textAlign: i === 0 ? "left" : i === 4 ? "center" : "right", padding: "6px 10px", fontWeight: 500 }}>{h}</th>
                     ))}
@@ -101,7 +101,7 @@ export function TotalHDialog({ open, taskNum, taskName, rows, isDark, onClose }:
                     const maxCum  = Math.max(...rows.map(r => r.cumulative));
                     const inPlan  = maxCum <= maxPlan;
                     return (
-                      <tr style={{ borderTop: "2px solid #e2e8f0", background: "#f8fafc", fontWeight: 700 }}>
+                      <tr style={{ borderTop: "2px solid var(--tracker-accent)", background: "var(--tracker-accent-bg)", fontWeight: 700 }}>
                         <td style={{ padding: "6px 10px", fontSize: "12px" }}>Итого</td>
                         <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px", color: "var(--tracker-text-muted)" }}>{fmt2(maxPlan)} ч</td>
                         <td style={{ textAlign: "right", padding: "6px 10px", fontSize: "12px" }}>{fmt2(sumFact)} ч</td>
