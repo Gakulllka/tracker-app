@@ -20,6 +20,8 @@ export function generateSlides(
   previousSnapshot?: { monthlyTasksCount: number; backlogCount: number; ideasCount: number } | null,
   /** Полная база по ключам "YYYY-MM" — для кумулятивного итога на конец прошлого месяца. */
   dataByYearMonth: Record<string, Task[]> = {},
+  /** Домен для брови на титульном слайде. */
+  domainName = "",
 ): SlideData[] {
   const monthRows = (allData[month] || []).filter((r) => !r._deleted && (r.name || r.num));
   const rows = monthRows.filter((r) => r.status !== STATUSES.IDEA);
@@ -113,7 +115,16 @@ export function generateSlides(
   // 1) Title
   slides.push({
     type: "title",
-    content: { month: monthLabel, total, secondaryTotal: backlogCount + ideasCount, completed, pct: compPct, accent: INK },
+    content: {
+      month: MONTHS[month],
+      year,
+      domain: domainName,
+      total,
+      completed,
+      factH: R2(factH),
+      pct: compPct,
+      accent: INK,
+    },
   });
 
   // 2) KPI — Plan (Dashboard budget), Fact, dynamics

@@ -33,100 +33,20 @@ export interface AiConclusion {
   source?: string;
 }
 
+/**
+ * Фоновый слой слайда.
+ *
+ * Был генератором эмодзи и паттернов: раскидывал ракеты и лампочки
+ * случайными позициями, умел ронять их сверху или дрейфовать. Всё это
+ * удалено вместе с настройками — по канону слайд не украшают.
+ * Остался ровный фон.
+ */
 export function PresentationBgLayer({ theme }: { theme: PresentationTheme }) {
-  const { bg, rgb } = theme;
-  const [r, g, b] = rgb;
-  const sz = bg.patternSize;
-  const op = (bg.patternOpacity / 100).toFixed(2);
-  const lw = bg.patternLineThickness ?? 1;
-  const pcol = `rgba(${r},${g},${b},${op})`;
-
-  let patternStyle: React.CSSProperties = {};
-  switch (bg.pattern) {
-    case "grid":
-      patternStyle = {
-        backgroundImage: `linear-gradient(${pcol} ${lw}px, transparent ${lw}px), linear-gradient(90deg, ${pcol} ${lw}px, transparent ${lw}px)`,
-        backgroundSize: `${sz}px ${sz}px`,
-      };
-      break;
-    case "diagonal": {
-      const diag = encodeURIComponent(`<svg width="${sz}" height="${sz}" xmlns="http://www.w3.org/2000/svg"><line x1="0" y1="${sz}" x2="${sz}" y2="0" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/><line x1="${-sz}" y1="${sz}" x2="0" y2="0" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/><line x1="${sz}" y1="${sz}" x2="${sz * 2}" y2="0" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/></svg>`);
-      patternStyle = { backgroundImage: `url("data:image/svg+xml,${diag}")`, backgroundSize: `${sz}px ${sz}px` };
-      break;
-    }
-    case "diamond": {
-      const half = sz / 2;
-      const dia = encodeURIComponent(`<svg width="${sz}" height="${sz}" xmlns="http://www.w3.org/2000/svg"><line x1="0" y1="0" x2="${sz}" y2="${sz}" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/><line x1="${sz}" y1="0" x2="0" y2="${sz}" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/><line x1="${-half}" y1="0" x2="${half}" y2="${sz}" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/><line x1="${half}" y1="0" x2="${sz + half}" y2="${sz}" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/></svg>`);
-      patternStyle = { backgroundImage: `url("data:image/svg+xml,${dia}")`, backgroundSize: `${sz}px ${sz}px` };
-      break;
-    }
-    case "waves": {
-      const wh = Math.round(sz / 2);
-      const mid = Math.round(wh / 2);
-      const waves = encodeURIComponent(`<svg width="${sz}" height="${wh}" xmlns="http://www.w3.org/2000/svg"><path d="M0 ${mid} Q ${sz / 4} 0 ${sz / 2} ${mid} T ${sz} ${mid}" fill="none" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}"/></svg>`);
-      patternStyle = { backgroundImage: `url("data:image/svg+xml,${waves}")`, backgroundSize: `${sz}px ${wh}px` };
-      break;
-    }
-    case "zigzag": {
-      const zh = Math.round(sz / 2);
-      const zz = encodeURIComponent(`<svg width="${sz}" height="${zh}" xmlns="http://www.w3.org/2000/svg"><polyline points="0,${zh} ${sz / 4},0 ${sz / 2},${zh} ${sz * 3 / 4},0 ${sz},${zh}" fill="none" stroke="rgba(${r},${g},${b},${op})" stroke-width="${lw}" stroke-linejoin="round"/></svg>`);
-      patternStyle = { backgroundImage: `url("data:image/svg+xml,${zz}")`, backgroundSize: `${sz}px ${zh}px` };
-      break;
-    }
-  }
-
-  const animMode: "off" | "drift" | "fall" = bg.emojiAnim || "drift";
-  const speedMul = bg.emojiSpeed && bg.emojiSpeed > 0 ? bg.emojiSpeed : 1;
-  const fixedOpacity = typeof bg.emojiOpacity === "number" ? Math.max(0, Math.min(1, bg.emojiOpacity / 100)) : null;
-  const emojiList = (bg.emojis || "").split(" ").filter(Boolean);
-  type EmojiItem = { e: string; x: number; y: number; size: number; opacity: number; rotate: number; duration: number; delay: number; sway: number; key: number };
-  const emojis: EmojiItem[] = [];
-  if (emojiList.length > 0 && bg.emojiCount > 0) {
-    let seed = 42;
-    const rand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
-    for (let i = 0; i < bg.emojiCount; i++) {
-      const r1=rand(),r2=rand(),r3=rand(),r4=rand(),r5=rand(),r6=rand(),r7=rand(),r8=rand();
-      const baseDur = animMode === "fall" ? 12 + r6 * 13 : 6 + r6 * 8;
-      emojis.push({
-        e: emojiList[Math.floor(r1 * emojiList.length)],
-        x: r2 * 100, y: r3 * 100,
-        size: Math.round(bg.emojiMinSize + r4 * (bg.emojiMaxSize - bg.emojiMinSize)),
-        opacity: fixedOpacity != null ? fixedOpacity : 0.1 + r5 * 0.2,
-        rotate: Math.floor(r5 * 40 - 20),
-        duration: +(baseDur / speedMul).toFixed(2),
-        delay: +(-(r7 * baseDur / speedMul)).toFixed(2) as unknown as number,
-        sway: Math.round((r8 * 2 - 1) * (25 + r1 * 45)),
-        key: i,
-      });
-    }
-  }
-
   return (
-    <>
-      <style>{FONT_STYLE}</style>
-      {animMode !== "off" && emojis.length > 0 && (
-        <style>{`
-          .pres-emoji{position:absolute;pointer-events:none;user-select:none;z-index:0;will-change:transform,opacity}
-          .pres-emoji[data-anim="drift"]{animation-name:pres-emoji-drift;animation-timing-function:ease-in-out;animation-iteration-count:infinite;animation-direction:alternate}
-          .pres-emoji[data-anim="fall"]{top:-10vh !important;animation-name:pres-emoji-fall;animation-timing-function:linear;animation-iteration-count:infinite}
-          @keyframes pres-emoji-drift{from{transform:translate3d(0,0,0) rotate(var(--rot,0deg))}to{transform:translate3d(18px,12px,0) rotate(calc(var(--rot,0deg)+6deg))}}
-          @keyframes pres-emoji-fall{0%{transform:translate3d(0,0,0) rotate(var(--rot,0deg));opacity:0}10%{opacity:var(--op,0.25)}50%{transform:translate3d(var(--sway,0px),60vh,0) rotate(calc(var(--rot,0deg)+180deg));opacity:var(--op,0.25)}90%{opacity:var(--op,0.25)}100%{transform:translate3d(0,130vh,0) rotate(calc(var(--rot,0deg)+360deg));opacity:0}}
-          @media(prefers-reduced-motion:reduce){.pres-emoji[data-anim]{animation:none!important}}
-          @media print{.pres-emoji[data-anim]{animation:none!important}}
-        `}</style>
-      )}
-      <div style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", background:theme.overlayBg }} />
-      {bg.pattern !== "none" && <div style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", ...patternStyle }} />}
-      {emojis.map((em) => (
-        <span key={em.key} className="pres-emoji" data-anim={animMode==="off"?undefined:animMode} style={{
-          left:`${em.x.toFixed(1)}%`, top:`${em.y.toFixed(1)}%`, fontSize:`${em.size}px`,
-          opacity:em.opacity, transform:`rotate(${em.rotate}deg)`,
-          ["--rot" as never]:`${em.rotate}deg`, ["--op" as never]:em.opacity, ["--sway" as never]:`${em.sway}px`,
-          animationDuration:animMode!=="off"?`${em.duration}s`:undefined,
-          animationDelay:animMode!=="off"?`${em.delay}s`:undefined,
-        }}>{em.e}</span>
-      ))}
-    </>
+    <div
+      aria-hidden="true"
+      style={{ position: "absolute", inset: 0, background: theme.bodyBg }}
+    />
   );
 }
 
@@ -142,7 +62,7 @@ export interface PresentationSlideProps {
 }
 
 export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSlideProps) {
-  const { rgb, textColor, mutedColor, cardColors, isLight,
+  const { rgb, textColor, mutedColor, isLight,
     successColor, dangerColor } = theme;
   const [r, g, b] = rgb;
 
@@ -155,7 +75,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
 
   const sectionH2 = (text: string): React.ReactNode => (
     <h2 style={{
-      fontFamily: F, fontSize: "54px", fontWeight: 800, marginBottom: "24px",
+      fontFamily: F, fontSize: "54px", fontWeight: 500, marginBottom: "24px",
       textAlign: "center", flexShrink: 0,
       color: textColor,
     }}>{text}</h2>
@@ -169,46 +89,48 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     const month = String(c.month || "");
     const total = Number(c.total || 0);
     const completed = Number(c.completed || 0);
-    const secondaryTotal = Number(c.secondaryTotal || 0);
-    const pct = Number(c.pct || 0);
-    const circ = 2 * Math.PI * 38;
-    const dash = circ * (1 - pct / 100);
+    const factH = Number(c.factH || 0);
+    const domain = String(c.domain || "");
+    const year = String(c.year || "");
 
+    /* Титул разворота — тот же приём, что в шапке месяца и на заставке:
+       бровь, крупное название, жирная черта, числа под ней.
+       Раньше здесь были плашка с точкой, заголовок начертанием 900,
+       кольцевая диаграмма и число 64 пикселя — слайд кричал громче,
+       чем говорит весь остальной продукт. */
     return (
-      <div style={{ ...shell, textAlign: "center", maxWidth: "1100px", margin: "auto" }}>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: "12px",
-          background: acC, border: `1px solid rgba(${r},${g},${b},.7)`,
-          color: acA, padding: "14px 42px", borderRadius: "14px",
-          fontSize: "24px", fontWeight: 600, marginBottom: "36px", fontFamily: F,
-        }}>
-          <span style={{ width: "12px", height: "12px", borderRadius: "50%", background: acA, display: "inline-block" }} />
-          {month}
-        </div>
-        <h1 style={{
-          fontFamily: F, fontSize: "clamp(48px,6vw,80px)", fontWeight: 900, lineHeight: 1.1,
-          letterSpacing: "-2px", marginBottom: "24px",
-          color: textColor,
-        }}>Отчёт по задачам</h1>
-        <div style={{ width: "120px", height: "5px", background: acA, borderRadius: "3px", margin: "0 auto 36px" }} />
-        <div style={{ display: "flex", gap: "48px", justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ textAlign: "center" }}>
-            <p style={{ fontFamily: F, fontSize: "64px", fontWeight: 900, color: acA, lineHeight: 1 }}>{total}{secondaryTotal > 0 ? ` (${secondaryTotal})` : ""}</p>
-            <p style={{ fontFamily: F, fontSize: "18px", color: mutedColor, marginTop: "6px" }}>Всего задач</p>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <p style={{ fontFamily: F, fontSize: "64px", fontWeight: 900, color: successColor, lineHeight: 1 }}>{completed}</p>
-            <p style={{ fontFamily: F, fontSize: "18px", color: mutedColor, marginTop: "6px" }}>Завершено</p>
-          </div>
-          <div style={{ position: "relative", width: "120px", height: "120px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="120" height="120" style={{ transform: "rotate(-90deg)", position: "absolute" }}>
-              <circle cx="60" cy="60" r="48" fill="none" stroke={`rgba(${r},${g},${b},.15)`} strokeWidth="9" />
-              <circle cx="60" cy="60" r="48" fill="none" stroke={acA} strokeWidth="9"
-                strokeDasharray={`${2 * Math.PI * 48}`} strokeDashoffset={`${2 * Math.PI * 48 * (1 - pct / 100)}`} strokeLinecap="round" />
-            </svg>
-            <span style={{ fontFamily: F, fontSize: "28px", fontWeight: 900, color: acA }}>{pct}%</span>
+      <div style={{ ...shell, height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <p style={{ fontFamily: FONT_MONO, fontSize: "16px", letterSpacing: "3px", textTransform: "uppercase", color: mutedColor }}>
+          {year}{domain ? ` · ${domain}` : ""}
+        </p>
+
+        <div>
+          <h1 style={{
+            fontFamily: F, fontSize: "clamp(64px,8vw,104px)", fontWeight: 500,
+            lineHeight: 1, letterSpacing: "-3px", color: textColor,
+          }}>{month}</h1>
+
+          <div style={{ width: "96px", height: "4px", background: acA, margin: "28px 0 26px" }} />
+
+          <div style={{ display: "flex", gap: "64px", flexWrap: "wrap" }}>
+            <div>
+              <p style={{ fontFamily: F, fontSize: "15px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor }}>Задач</p>
+              <p style={{ fontFamily: FONT_MONO, fontSize: "46px", fontWeight: 500, color: textColor, lineHeight: 1.1 }}>{total}</p>
+            </div>
+            <div>
+              <p style={{ fontFamily: F, fontSize: "15px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor }}>Завершено</p>
+              <p style={{ fontFamily: FONT_MONO, fontSize: "46px", fontWeight: 500, color: textColor, lineHeight: 1.1 }}>{completed}</p>
+            </div>
+            <div>
+              <p style={{ fontFamily: F, fontSize: "15px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor }}>Часов</p>
+              <p style={{ fontFamily: FONT_MONO, fontSize: "46px", fontWeight: 500, color: textColor, lineHeight: 1.1 }}>{fmt2(factH)}</p>
+            </div>
           </div>
         </div>
+
+        <p style={{ fontFamily: FONT_MONO, fontSize: "14px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor }}>
+          Delta · операционный монитор
+        </p>
       </div>
     );
   }
@@ -261,10 +183,10 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
           {kpiItems.map((k, i) => (
             <div key={i} style={{
               borderRadius: "14px", padding: "30px 36px", minWidth: "240px", maxWidth: "320px", flex: "1 1 240px",
-              background: cardColors[i % cardColors.length], border: BDR, textAlign: "center",
+              border: BDR, textAlign: "center",
             }}>
               <p style={{ fontFamily: F, fontSize: "20px", color: mutedColor, marginTop: 0, marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase", fontWeight: 600 }}>{k.l}</p>
-              <p style={{ fontFamily: FONT_MONO, fontSize: "48px", fontWeight: 700, letterSpacing: "-1.5px", color: k.col, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{k.v}</p>
+              <p style={{ fontFamily: FONT_MONO, fontSize: "48px", fontWeight: 500, letterSpacing: "-1.5px", color: k.col, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{k.v}</p>
               {k.sub && <p style={{ fontFamily: F, fontSize: "16px", color: k.subCol || mutedColor, marginTop: "10px", fontWeight: 600 }}>{k.sub}</p>}
               {k.extra && <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor, marginTop: "4px" }}>{k.extra}</p>}
             </div>
@@ -274,7 +196,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
         {(totalPrev > 0 || completedPrev > 0 || totalAll > 0) && (
           <div style={{
             display: "flex", gap: "28px", marginTop: "20px", flexWrap: "nowrap", justifyContent: "center",
-            padding: "16px 28px", borderRadius: "14px", background: cardColors[1], border: BDR,
+            padding: "16px 28px", borderRadius: "14px", border: BDR,
           }}>
             {[
               { label: "Всего", value: totalAll, note: totalPrev > 0 ? `было ${totalPrev}` : "—", color: acA },
@@ -285,7 +207,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
             ].map((item, index, all) => <React.Fragment key={item.label}>
               <div style={{ textAlign: "center", minWidth: "110px" }}>
                 <p style={{ fontFamily: F, fontSize: "16px", color: mutedColor }}>{item.label}</p>
-                <p style={{ fontFamily: F, fontSize: "32px", fontWeight: 900, color: item.color, lineHeight: 1.2 }}>{item.value}</p>
+                <p style={{ fontFamily: F, fontSize: "32px", fontWeight: 500, color: item.color, lineHeight: 1.2 }}>{item.value}</p>
                 <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>{item.note || " "}</p>
               </div>
               {index < all.length - 1 && <div style={{ width: "1px", background: `rgba(${r},${g},${b},1)` }} />}
@@ -306,14 +228,14 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     return (
       <div style={{ ...shell, textAlign: "center", maxWidth: "1100px", margin: "auto" }}>
         {sectionH2(title)}
-        <div style={{ display: "inline-flex", gap: "30px", marginBottom: "20px", padding: "14px 36px", borderRadius: "14px", background: cardColors[1], border: BDR, flexWrap: "wrap", justifyContent: "center" }}>
+        <div style={{ display: "inline-flex", gap: "30px", marginBottom: "20px", padding: "14px 36px", borderRadius: "14px", border: BDR, flexWrap: "wrap", justifyContent: "center" }}>
           <div style={{ textAlign: "center" }}>
-            <p style={{ fontFamily: F, fontSize: "30px", fontWeight: 900, color: acA, lineHeight: 1.2 }}>{totalTasks}</p>
+            <p style={{ fontFamily: F, fontSize: "30px", fontWeight: 500, color: acA, lineHeight: 1.2 }}>{totalTasks}</p>
             <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>задач</p>
           </div>
           <div style={{ width: "1px", background: `rgba(${r},${g},${b},1)` }} />
           <div style={{ textAlign: "center" }}>
-            <p style={{ fontFamily: F, fontSize: "30px", fontWeight: 900, color: acA, lineHeight: 1.2 }}>{fmt2(totalHours)}ч</p>
+            <p style={{ fontFamily: F, fontSize: "30px", fontWeight: 500, color: acA, lineHeight: 1.2 }}>{fmt2(totalHours)}ч</p>
             <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>итого</p>
           </div>
         </div>
@@ -329,12 +251,12 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
             return (
               <div key={t.id} style={{
                 width: "100%", borderRadius: "12px", padding: "16px 20px",
-                background: cardColors[0], border: BDR,
+                border: BDR,
                 display: "flex", flexDirection: "column", gap: "8px",
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                   <span style={{ fontFamily: F, fontSize: "14px", color: numColor, fontWeight: 600 }}>#{t.num || ""}</span>
-                  <span style={{ fontFamily: F, fontSize: "12px", fontWeight: 700, padding: "2px 10px", borderRadius: "8px", border: `1px solid ${acA}`, color: nameColor, display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontFamily: F, fontSize: "12px", fontWeight: 500, padding: "2px 10px", borderRadius: "8px", border: `1px solid ${acA}`, color: nameColor, display: "inline-flex", alignItems: "center", gap: "6px" }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block", flexShrink: 0 }} />
                     {t.status}
                   </span>
@@ -343,15 +265,15 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
                 <div style={{ display: "flex", gap: "12px", alignItems: "baseline", flexWrap: "wrap" }}>
                   <span style={{ fontFamily: F, fontSize: "14px", fontWeight: 600, color: mutedColor }}>
                     <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: ".5px" }}>план </span>
-                    <span style={{ color: nameColor, fontSize: "17px", fontWeight: 800 }}>{fmt2(evalExpr(t.planH))}ч</span>
+                    <span style={{ color: nameColor, fontSize: "17px", fontWeight: 500 }}>{fmt2(evalExpr(t.planH))}ч</span>
                   </span>
                   <span style={{ fontFamily: F, fontSize: "14px", fontWeight: 600, color: mutedColor }}>
                     <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: ".5px" }}>факт </span>
-                    <span style={{ color: nameColor, fontSize: "17px", fontWeight: 800 }}>{fmt2(evalExpr(t.factH))}ч</span>
+                    <span style={{ color: nameColor, fontSize: "17px", fontWeight: 500 }}>{fmt2(evalExpr(t.factH))}ч</span>
                   </span>
                   <span style={{ fontFamily: F, fontSize: "14px", fontWeight: 600, color: mutedColor }}>
                     <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: ".5px" }}>итого </span>
-                    <span style={{ color: item.currentTotal <= evalExpr(t.planH) ? successColor : dangerColor, fontSize: "17px", fontWeight: 800 }}>{fmt2(item.currentTotal)}ч</span>
+                    <span style={{ color: item.currentTotal <= evalExpr(t.planH) ? successColor : dangerColor, fontSize: "17px", fontWeight: 500 }}>{fmt2(item.currentTotal)}ч</span>
                   </span>
                 </div>
               </div>
@@ -383,46 +305,30 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
 
     return (
       <div style={{ ...shell, textAlign: "center", maxWidth: "1100px", margin: "auto", display: "flex", flexDirection: "column", height: "100%" }}>
-        {sectionH2("Полный список задач")}
-        <div style={{ display: "inline-flex", gap: "28px", marginBottom: "16px", padding: "14px 36px", borderRadius: "14px", background: cardColors[1], border: BDR, flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
-          <div style={{ textAlign: "center" }}>
-            <p style={{ fontFamily: F, fontSize: "30px", fontWeight: 900, color: acA, lineHeight: 1.2 }}>{total}</p>
-            <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>задач</p>
+        {sectionH2("Задачи месяца")}
+
+        {/* Числа строкой вместо плитки с кольцевой диаграммой:
+            процент завершённых уже виден из «7 / 11». */}
+        <div style={{ display: "flex", gap: "48px", marginBottom: "18px", textAlign: "left" }}>
+          <div>
+            <p style={{ fontFamily: F, fontSize: "13px", letterSpacing: "1.5px", textTransform: "uppercase", color: mutedColor }}>Завершено</p>
+            <p style={{ fontFamily: FONT_MONO, fontSize: "30px", fontWeight: 500, color: textColor, lineHeight: 1.15 }}>{completed} / {total}</p>
           </div>
-          <div style={{ width: "1px", height: "36px", background: `rgba(${r},${g},${b},1)` }} />
-          <div style={{ textAlign: "center" }}>
-            <p style={{ fontFamily: F, fontSize: "30px", fontWeight: 900, color: successColor, lineHeight: 1.2 }}>{completed}</p>
-            <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>завершено</p>
-          </div>
-          <div style={{ width: "1px", height: "36px", background: `rgba(${r},${g},${b},1)` }} />
-          <div style={{ textAlign: "center" }}>
-            <p style={{ fontFamily: F, fontSize: "30px", fontWeight: 900, color: acA, lineHeight: 1.2 }}>{fmt2(totalHours)}ч</p>
-            <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor }}>итого</p>
-          </div>
-          <div style={{ width: "1px", height: "36px", background: `rgba(${r},${g},${b},1)` }} />
-          <div style={{ textAlign: "center" }}>
-            <div style={{ position: "relative", width: "42px", height: "42px", margin: "0 auto" }}>
-              <svg width="42" height="42" style={{ transform: "rotate(-90deg)" }}>
-                <circle cx="21" cy="21" r="16" fill="none" stroke={`rgba(${r},${g},${b},.15)`} strokeWidth="5" />
-                <circle cx="21" cy="21" r="16" fill="none" stroke={acA} strokeWidth="5"
-                  strokeDasharray={`${2 * Math.PI * 16}`}
-                  strokeDashoffset={`${2 * Math.PI * 16 * (1 - compPct / 100)}`} strokeLinecap="round" />
-              </svg>
-              <span style={{ fontFamily: F, position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 900, color: acA }}>{compPct}%</span>
-            </div>
-            <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor, marginTop: "3px" }}>%</p>
+          <div>
+            <p style={{ fontFamily: F, fontSize: "13px", letterSpacing: "1.5px", textTransform: "uppercase", color: mutedColor }}>Отработано</p>
+            <p style={{ fontFamily: FONT_MONO, fontSize: "30px", fontWeight: 500, color: textColor, lineHeight: 1.15 }}>{fmt2(totalHours)}</p>
           </div>
         </div>
 
-        <div style={{ flex: "1 1 auto", overflowX: "hidden", overflowY: "auto", borderRadius: "14px", border: BDR, textAlign: "left", background: cardColors[2] }}>
+        <div style={{ flex: "1 1 auto", overflowX: "hidden", overflowY: "auto", borderRadius: "14px", border: BDR, textAlign: "left" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "18px", fontFamily: F }}>
             <thead>
-              <tr style={{ background: cardColors[0], position: "sticky", top: 0, zIndex: 2 }}>
+              <tr style={{ background: acA, position: "sticky", top: 0, zIndex: 2 }}>
                 {["№", "Наименование", "Этап", "План ч", "Факт ч", "Итого ч"].map((h, i) => (
                   <th key={i} style={{
                     padding: "12px 18px", textAlign: i >= 3 ? "center" : "left",
-                    color: mutedColor, fontSize: "13px", textTransform: "uppercase", letterSpacing: ".8px",
-                    borderBottom: `1px solid rgba(${r},${g},${b},.12)`,
+                    color: theme.bodyBg, fontSize: "13px", fontWeight: 500,
+                    textTransform: "uppercase", letterSpacing: ".8px",
                   }}>{h}</th>
                 ))}
               </tr>
@@ -432,24 +338,24 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
                   <React.Fragment key={group.phase}>
                     <tr>
                       <td colSpan={6} style={{
-                        padding: "8px 18px", fontSize: "13px", fontWeight: 700,
+                        padding: "8px 18px", fontSize: "13px", fontWeight: 500,
                         textTransform: "uppercase", letterSpacing: ".8px",
-                        color: mutedColor, background: cardColors[0], borderBottom: BDR,
+                        color: mutedColor, borderBottom: BDR, borderTop: BDR,
                       }}>{group.label} ({group.tasks.length})</td>
                     </tr>
                     {group.tasks.map((t, i) => (
-                      <tr key={t.id} style={{ background: i % 2 === 0 ? cardColors[2] : cardColors[1] }}>
+                      <tr key={t.id} style={{ borderBottom: `1px solid rgba(${r},${g},${b},.18)` }}>
                         <td style={{ padding: "8px 18px", color: numColor, fontSize: "16px" }}>{t.num || ""}</td>
                         <td style={{ padding: "8px 18px", color: nameColor, maxWidth: "400px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name || "—"}</td>
                         <td style={{ padding: "8px 18px" }}>
-                          <span style={{ fontFamily: F, fontSize: "12px", fontWeight: 700, padding: "2px 10px", borderRadius: "8px", border: `1px solid ${acA}`, color: nameColor, display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ fontFamily: F, fontSize: "12px", fontWeight: 500, padding: "2px 10px", borderRadius: "8px", border: `1px solid ${acA}`, color: nameColor, display: "inline-flex", alignItems: "center", gap: "6px" }}>
                             <span style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor(t.status, theme), display: "inline-block", flexShrink: 0 }} />
                             {t.status}
                           </span>
                         </td>
-                        <td style={{ padding: "8px 18px", textAlign: "center", fontWeight: 700, color: nameColor }}>{fmt2(evalExpr(t.planH))}</td>
-                        <td style={{ padding: "8px 18px", textAlign: "center", fontWeight: 700, color: nameColor }}>{fmt2(evalExpr(t.factH))}</td>
-                        <td style={{ padding: "8px 18px", textAlign: "center", fontWeight: 700, color: (t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH)) <= evalExpr(t.planH) ? successColor : dangerColor }}>{fmt2(t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH))}</td>
+                        <td style={{ padding: "8px 18px", textAlign: "center", fontWeight: 500, color: nameColor }}>{fmt2(evalExpr(t.planH))}</td>
+                        <td style={{ padding: "8px 18px", textAlign: "center", fontWeight: 500, color: nameColor }}>{fmt2(evalExpr(t.factH))}</td>
+                        <td style={{ padding: "8px 18px", textAlign: "center", fontWeight: 500, color: (t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH)) <= evalExpr(t.planH) ? successColor : dangerColor }}>{fmt2(t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH))}</td>
                       </tr>
                     ))}
                   </React.Fragment>
@@ -515,10 +421,10 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
           {sections.map((s) => (
             <div key={s.key} style={{
               borderRadius: "14px", padding: "24px 28px",
-              background: cardColors[0], border: `1px solid ${s.col}40`,
+              border: BDR,
             }}>
               <h4 style={{
-                fontFamily: F, fontSize: "13px", fontWeight: 700, textTransform: "uppercase",
+                fontFamily: F, fontSize: "13px", fontWeight: 500, textTransform: "uppercase",
                 letterSpacing: ".12em", color: s.col, marginBottom: "14px",
                 display: "flex", alignItems: "center", gap: "8px",
               }}>

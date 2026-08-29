@@ -29,7 +29,6 @@ export interface PresentationTheme {
   overlayBg: string;
   textColor: string;
   mutedColor: string;
-  cardColors: string[];
   /** Семантика состояния — каноничные цвета ДНК, подобранные под светлоту. */
   successColor: string;
   dangerColor: string;
@@ -106,9 +105,6 @@ export function buildTheme(
 
   // Манга-стиль: без серых полутонов. Свет — чистая бумага #FFFFFF,
   // тьма — графит #17181C (не серый). Карты отличаются рамкой, не тоном.
-  const cardColors = resolved.isDark
-    ? ["#17181C", "#131418", "#1A1B20"]
-    : ["#FFFFFF", "#FFFFFF", "#FFFFFF"];
 
   // muted — полутон чернил (не серый оттенок): 55% чернил на бумаге /
   // 60% бумаги на графите.
@@ -118,7 +114,7 @@ export function buildTheme(
     INK: bwAccent,
     rgb, styleId: bg.styleId, bodyBg: resolved.bgMain, overlayBg,
     textColor: resolved.textMain, mutedColor,
-    cardColors, isLight: !resolved.isDark, bg,
+    isLight: !resolved.isDark, bg,
     // Каноничные цвета ДНК: на светлом — приглушённые, на тёмном — светлее,
     // иначе на графите они теряются. Раньше здесь стояли #22c55e и #ef4444
     // из палитры Tailwind, и слайд выглядел ярче самого трекера.

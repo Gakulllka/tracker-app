@@ -33,13 +33,15 @@ interface UsePresentationParams {
   setApiKeyDialogOpen: (v: boolean) => void;
   /** План часов на месяц (из Дашборда). */
   monthCapacity: number;
+  /** Домен для брови на титульном слайде. */
+  activeDomainName?: string;
 }
 
 export function usePresentation({
   allData, backlog, currentMonth, currentYear, darkMode,
   totalFactMap, dataByYearMonth, presBg, workspaceId, activeDomainId, insightMonthKey,
   chatModel, apiKeyRef, setView, setApiKeyDialogOpen,
-  monthCapacity,
+  monthCapacity, activeDomainName = "",
 }: UsePresentationParams) {
 
   const [currentSlide, setCurrentSlide]     = useState(0);
@@ -66,6 +68,7 @@ export function usePresentation({
     currentMonth, currentYear, allData, totalFactMap, monthCapacity, backlog,
     snapshot?.closed ? snapshot.active : null, previousSnapshot?.active ?? null,
     dataByYearMonth,
+    activeDomainName,
   );
 
   const openPresentation = useCallback(() => setView("slides"), [setView]);

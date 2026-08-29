@@ -708,6 +708,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     totalFactMap, dataByYearMonth: activeDomainData?.dataByYearMonth || {},
     presBg, workspaceId, activeDomainId, insightMonthKey,
     chatModel, apiKeyRef, setView: setView as (v: string) => void, setApiKeyDialogOpen,
+    activeDomainName: activeDomain?.name,
     monthCapacity: monthlyPlan > 0 ? monthlyPlan : 240,
   });
 
