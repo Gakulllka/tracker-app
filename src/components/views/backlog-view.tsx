@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef , useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AutoResizeTextarea } from "@/components/auto-resize-textarea";
@@ -14,11 +14,12 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/empty-state";
-import { Trash2, Plus, Ruler, MessageSquare, ScrollText, ClipboardList } from "lucide-react";
+import { Trash2, Plus, ClipboardList, CalendarPlus } from "lucide-react";
 import { MONTHS, STATUSES, PRIORITIES, type Status, type Priority, type Task } from "@/lib/types";
 import { PCOL, scolText } from "@/lib/tokens";
-import { evalExpr, fmt2, createNewTask } from "@/lib/metrics";
+import { evalExpr, fmt2, createNewTask, R2 } from "@/lib/metrics";
 import { useTaskStore } from "@/lib/store";
+import { buildBacklogQueue } from "@/lib/backlog-queue";
 
 export interface BacklogViewProps {
   backlog: Task[];
@@ -29,6 +30,8 @@ export interface BacklogViewProps {
   setCommentArchiveDialog: (v: { taskId: string; taskName: string; logs: Array<{ date: string; week: string; text: string; planH: string; factH: string; status: string; author?: string }>; open: boolean }) => void;
   isDark: boolean;
   isGuest?: boolean;
+  /** Свободный остаток бюджета месяца: бюджет − отработанное. */
+  freeHours: number;
 }
 
 interface BacklogDialogState {
@@ -52,6 +55,7 @@ export function BacklogView({
   setCommentArchiveDialog,
   isDark,
   isGuest,
+  freeHours,
 }: BacklogViewProps) {
   const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -172,130 +176,110 @@ export function BacklogView({
     return { background: "transparent", color: "var(--tracker-text-muted)", fontWeight: 500, border: "1px solid var(--tracker-border)" };
   };
 
+  const { rows, thresholdAfter } = useMemo(
+    () => buildBacklogQueue(backlog, freeHours),
+    [backlog, freeHours],
+  );
+
   return (
     <div className="space-y-4">
       {backlog.length === 0 ? (
         <EmptyState type="backlog" onAction={handleAdd} />
       ) : (
-        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))" }}>
-          {backlog.map((task, idx) => {
-            const qBadge = getQueueBadgeStyle(idx);
+        <div className="ink-window overflow-hidden">
+          <div className="backlog-head">
+            <span className="backlog-rank">№</span>
+            <span className="backlog-num">Номер</span>
+            <span className="backlog-name">Задача</span>
+            <span className="backlog-col">План</span>
+            <span className="backlog-col">Факт</span>
+            <span className="backlog-col">Остаток</span>
+            <span className="backlog-col">Накоплено</span>
+            <span className="backlog-actions" />
+          </div>
+
+          {rows.map(({ task, idx, plan, fact, left, running, fitsInMonth }) => {
             const isDragging = dragRowId === task.id;
             const isDropTarget = dropTargetId === task.id && dragRowId !== task.id;
+            const showThreshold = thresholdAfter === idx;
+
             return (
-              <div
-                key={task.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, task.id)}
-                onDragOver={(e) => handleDragOver(e, task.id)}
-                onDrop={(e) => handleDrop(e, task.id)}
-                onDragEnd={handleDragEnd}
-                className={`task-card ${isDragging ? "opacity-30" : ""} ${isDropTarget ? "drag-over" : ""}`}
-                style={{
-                  ...getQueueStyle(idx, backlog.length),
-                  "--card-accent-color": idx < 3 ? ["var(--tracker-danger)", "var(--tracker-warning)", "var(--tracker-warning)"][idx] : "var(--tracker-accent)",
-                } as React.CSSProperties}
-              >
-                <div className="flex items-start gap-2.5">
-                  {/* Queue badge */}
-                  <span
-                    className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold shrink-0"
-                    style={qBadge}
+              <React.Fragment key={task.id}>
+                <div
+                  draggable={!isGuest}
+                  onDragStart={(e) => handleDragStart(e, task.id)}
+                  onDragOver={(e) => handleDragOver(e, task.id)}
+                  onDrop={(e) => handleDrop(e, task.id)}
+                  onDragEnd={handleDragEnd}
+                  className={`backlog-row ${isDragging ? "opacity-30" : ""} ${isDropTarget ? "backlog-row--drop" : ""} ${fitsInMonth ? "" : "backlog-row--over"}`}
+                >
+                  <span className="backlog-rank delta-num">{idx + 1}</span>
+
+                  <span className="backlog-num delta-num">{task.num || "—"}</span>
+
+                  <button
+                    className="backlog-name"
+                    onClick={() => openReturnDialog(task)}
+                    title="Вернуть в месяц"
                   >
-                    {idx + 1}
+                    {task.name || "Без названия"}
+                    
+                  </button>
+
+                  <span className="backlog-col delta-num">{plan > 0 ? fmt2(plan) : "—"}</span>
+
+                  {/* Отработанные часы: задача могла прийти из месяца, где на
+                      неё уже потратили время. Эти часы зафиксированы и
+                      вернутся в месяц вместе с задачей. */}
+                  <span
+                    className="backlog-col delta-num"
+                    style={fact > 0 ? { color: "var(--tracker-text-main)" } : undefined}
+                    title={fact > 0 ? "Уже отработано до попадания в беклог" : undefined}
+                  >
+                    {fact > 0 ? fmt2(fact) : "—"}
                   </span>
-                  {/* Name + meta */}
-                  <div className="flex-1 min-w-0">
-                    {isEdit(task.id, "name") ? (
-                      <AutoResizeTextarea
-                        ref={textareaRef}
-                        className="text-sm w-full"
-                        value={task.name}
-                        onChange={(e) => updateBacklogTask(task.id, "name", e.target.value)}
-                        onBlur={stopEdit}
-                        onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Escape") stopEdit(); }}
-                      />
-                    ) : (
-                      <div
-                        className="cursor-pointer"
-                        onClick={() => startEdit(task.id, "name")}
+
+                  <span className="backlog-col delta-num backlog-col--left">{fmt2(left)}</span>
+
+                  <span className="backlog-col delta-num">{fmt2(running)}</span>
+
+                  <span className="backlog-actions">
+                    <button onClick={() => openReturnDialog(task)} title="Вернуть в месяц">
+                      <CalendarPlus className="size-4" />
+                    </button>
+                    <button
+                      onClick={() => setCommentArchiveDialog({
+                        taskId: task.id,
+                        taskName: task.name,
+                        logs: task.commentLog || [],
+                        open: true,
+                      })}
+                      title="Комментарии"
+                    >
+                      <ClipboardList className="size-4" />
+                    </button>
+                    {!isGuest && (
+                      <button
+                        className="backlog-del"
+                        onClick={() => deleteBacklogTask(task.id)}
+                        title="Удалить"
                       >
-                        {task.num && (
-                          <span className="text-[0.65rem] font-mono font-semibold mb-0.5 inline-block" style={{ color: "var(--tracker-text-muted)" }}>
-                            #{task.num}
-                          </span>
-                        )}
-                        <p className="text-sm font-medium text-[var(--tracker-text-main)] leading-snug line-clamp-2">
-                          {task.name || <span className="italic text-muted-foreground opacity-50">введите название...</span>}
-                        </p>
-                      </div>
+                        <Trash2 className="size-4" />
+                      </button>
                     )}
-                    {/* Bottom row: hours + comment */}
-                    <div className="flex items-center gap-2 mt-2">
-                      {isEdit(task.id, "planH") ? (
-                        <input
-                          ref={inputRef}
-                          type="text"
-                          defaultValue={task.planH}
-                          className="w-14 text-right text-xs font-medium rounded border border-[var(--tracker-border)] bg-transparent outline-none focus:ring-1 focus:ring-[var(--tracker-accent)] p-0.5"
-                          onBlur={(e) => { updateBacklogTask(task.id, "planH", e.target.value); stopEdit(); }}
-                          onKeyDown={(e) => { if (e.key === "Enter") { updateBacklogTask(task.id, "planH", (e.target as HTMLInputElement).value); stopEdit(); } if (e.key === "Escape") stopEdit(); }}
-                        />
-                      ) : (
-                        <span
-                          onClick={() => startEdit(task.id, "planH")}
-                          className="cursor-pointer text-xs font-semibold rounded px-1.5 py-0.5 hover:bg-[var(--tracker-accent-soft)] transition-colors tabular-nums inline-flex items-center gap-1"
-                          style={{ color: "var(--tracker-accent-fg-dark)" }}
-                        >
-                          <Ruler className="size-3" /> {fmt2(evalExpr(task.planH || "0"))}ч
-                        </span>
-                      )}
-                      <span className="text-[10px]" style={{ color: "var(--tracker-border)" }}>|</span>
-                      <div className="flex-1 min-w-0">
-                        {isEdit(task.id, "comment") ? (
-                          <AutoResizeTextarea
-                            ref={textareaRef}
-                            className="text-xs w-full"
-                            value={task.comment}
-                            onChange={(e) => updateBacklogTask(task.id, "comment", e.target.value)}
-                            onBlur={(e) => handleCommentSave(task, e.target.value)}
-                            onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Escape") { handleCommentSave(task, task.comment); } }}
-                          />
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <span
-                              onClick={() => startEdit(task.id, "comment")}
-                              className="cursor-pointer text-[11px] text-[var(--tracker-text-muted)] truncate hover:text-[var(--tracker-text-main)] transition-colors rounded px-1 py-0.5 hover:bg-muted/50 inline-flex items-center gap-1"
-                            >
-                              <MessageSquare className="size-3" /> {task.comment || <span className="italic opacity-40">комментарий...</span>}
-                            </span>
-                            {task.commentLog && task.commentLog.length > 0 && (
-                              <button
-                                onClick={() => openArchive(task)}
-                                className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
-                                title="Архив комментариев"
-                              >
-                                <ScrollText className="size-3" />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Actions */}
-                  {!isGuest && (
-                    <div className="flex flex-col items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openReturnDialog(task)} title="Вернуть в таблицу">
-                        <ClipboardList className="size-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => deleteBacklogTask(task.id)} title="Удалить">
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
-                  )}
+                  </span>
                 </div>
-              </div>
+
+                {/* Порог: до этой черты задачи умещаются в свободный остаток
+                    месяца, ниже — уже нет. Считается по остатку работы,
+                    а не по полному плану: часть часов могла быть отработана. */}
+                {showThreshold && (
+                  <div className="backlog-threshold">
+                    <span>Дальше бюджет {MONTHS[currentMonth].toLowerCase()} исчерпан</span>
+                    <span className="delta-num">{fmt2(freeHours)} ч свободно</span>
+                  </div>
+                )}
+              </React.Fragment>
             );
           })}
         </div>

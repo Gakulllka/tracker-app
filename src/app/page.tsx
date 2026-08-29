@@ -15,6 +15,7 @@ import { useDomains } from "@/hooks/useDomains";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { mergeImportedTasks, type ImportPayload } from "@/lib/task-import";
 import { filterTasks, sortTasks, buildMonthBreakdown } from "@/lib/task-filters";
+import { buildBacklogQueue } from "@/lib/backlog-queue";
 import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, undoStore } from "@/lib/store";
 import { useServerSync } from "@/hooks/useServerSync";
 import { useAuth } from "@/hooks/useAuth";
@@ -561,6 +562,18 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
    * в разы. При бюджете 240 и сумме планов 548 получалось 228%, что
    * ни о чём не говорит.
    */
+  /** Свободный остаток бюджета месяца: бюджет минус отработанное. */
+  const freeHours = useMemo(
+    () => Math.max(0, R2(monthlyPlan - rowsMetrics.totFact)),
+    [monthlyPlan, rowsMetrics.totFact],
+  );
+
+  /** Очередь беклога — считаем здесь, чтобы шапка знала итог. */
+  const backlogQueue = useMemo(
+    () => buildBacklogQueue(backlog, freeHours),
+    [backlog, freeHours],
+  );
+
   const monthLoad = useMemo(
     () => (monthlyPlan > 0 ? Math.round((rowsMetrics.totFact / monthlyPlan) * 100) : 0),
     [rowsMetrics.totFact, monthlyPlan],
@@ -946,6 +959,28 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             </h1>
           </div>
 
+          {/* Беклог: сколько работы лежит в запасе и сколько ещё влезает
+              в месяц. Раньше этих чисел не было нигде, хотя это главный
+              вопрос к беклогу. */}
+          {view === "backlog" && backlog.length > 0 && (
+            <dl className="month-masthead-metrics">
+              <div>
+                <dt>Задач</dt>
+                <dd>{backlog.length}</dd>
+              </div>
+              <div>
+                <dt>Часов в запасе</dt>
+                <dd>{fmt2(backlogQueue.totalLeft)}</dd>
+              </div>
+              <div>
+                <dt>Свободно в {MONTHS[currentMonth].toLowerCase()}</dt>
+                <dd style={{ color: freeHours > 0 ? "var(--tracker-success)" : "var(--tracker-danger)" }}>
+                  {fmt2(freeHours)}
+                </dd>
+              </div>
+            </dl>
+          )}
+
           {/* Метрики только на задачах: в остальных вкладках они не про то,
               что на экране. Раньше жили в тулбаре узкой плашкой рядом
               с поиском — числа месяца важнее инструментов. */}
@@ -1068,6 +1103,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
           <BacklogView
             backlog={backlog}
             currentMonth={currentMonth}
+            freeHours={freeHours}
             updateBacklogTask={updateBacklogTask}
             deleteBacklogTask={deleteBacklogTask}
             reorderBacklog={reorderBacklog}

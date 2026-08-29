@@ -1849,6 +1849,154 @@ kbd {
 .hours-chart-key--fact { background: var(--tracker-accent); }
 .hours-chart-key--over { background: var(--tracker-danger); }
 
+
+/* ── Беклог ────────────────────────────────────────────────────────────
+   Беклог — это очередь, и рисуется он списком, а не сеткой. Порядок
+   здесь и есть смысл: номер определяет, что заберут в месяц следующим.
+   Сетка читалась змейкой и ощущение очереди убивала, а заодно вмещала
+   вшестеро меньше строк.
+
+   Цветные подложки у первых мест убраны: цвет в системе несёт смысл,
+   а не подсвечивает важность — для важности есть сам порядок.        */
+
+.backlog-head,
+.backlog-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+}
+
+.backlog-head {
+  background: var(--tracker-accent);
+  color: var(--tracker-accent-contrast);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.backlog-row {
+  border-top: 1px solid var(--tracker-border);
+  font-size: 12.5px;
+  color: var(--tracker-text-main);
+  cursor: grab;
+}
+
+.backlog-row:first-of-type {
+  border-top: 0;
+}
+
+.backlog-row:hover {
+  background: var(--tracker-accent-soft);
+}
+
+.backlog-row--drop {
+  outline: 2px dashed var(--tracker-accent);
+  outline-offset: -2px;
+}
+
+/* Ниже порога задачи в бюджет месяца уже не умещаются. */
+.backlog-row--over {
+  opacity: 0.62;
+}
+
+.backlog-rank {
+  width: 24px;
+  flex: none;
+  text-align: right;
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  color: var(--tracker-text-muted);
+}
+
+.backlog-num {
+  width: 58px;
+  flex: none;
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--tracker-text-muted);
+}
+
+.backlog-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.backlog-name:hover {
+  text-decoration: underline;
+}
+
+.backlog-col {
+  width: 62px;
+  flex: none;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--tracker-text-muted);
+}
+
+/* Остаток — то, во что задача обойдётся, если взять её в месяц. */
+.backlog-col--left {
+  color: var(--tracker-text-main);
+  font-weight: 500;
+}
+
+.backlog-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+  color: var(--tracker-text-muted);
+}
+
+.backlog-actions button:hover {
+  color: var(--tracker-text-main);
+}
+
+.backlog-del:hover {
+  color: var(--tracker-danger) !important;
+}
+
+.backlog-threshold {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border-top: 2px solid var(--tracker-accent);
+  border-bottom: 2px solid var(--tracker-accent);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--tracker-text-muted);
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--tracker-accent) 8%, transparent) 0 1px,
+    transparent 1px 6px
+  );
+}
+
+.backlog-threshold span:last-child {
+  margin-left: auto;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 11px;
+}
+
+/* На телефоне колонки часов сжимаются, номер прячется. */
+@media (max-width: 767px) {
+  .backlog-head .backlog-num,
+  .backlog-row .backlog-num { display: none; }
+  .backlog-col { width: 46px; font-size: 11px; }
+}
+
 /* ── Окна остальных вкладок ────────────────────────────────────────────
    Беклог, вопросы, чат, протоколы, слайды рисовали свои панели волосяной
    серой линией, пока задачи уже перешли на чернильный контур. Один класс
