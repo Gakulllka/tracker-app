@@ -21,7 +21,8 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Task, STATUSES, PRIORITIES, PCOL, scolText, Status, Priority } from "@/lib/types";
+import { Task, STATUSES, PRIORITIES, Status, Priority } from "@/lib/types";
+import { PCOL, scolText } from "@/lib/tokens";
 import { evalExpr, R2 } from "@/lib/metrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";

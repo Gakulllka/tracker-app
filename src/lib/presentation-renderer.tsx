@@ -4,7 +4,7 @@
 
 import React from "react";
 import type { Task } from "./types";
-import { getPhaseForStatus, PHASE_COLORS } from "./types";
+import { getPhaseForStatus } from "./types";
 import type { PresBgSettings } from "./store";
 import { fmt2, evalExpr } from "./metrics";
 import {
@@ -378,7 +378,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
       if (!phaseMap.has(phase)) phaseMap.set(phase, []);
       phaseMap.get(phase)!.push(t);
     }
-    const groups = phaseOrder.filter(p => phaseMap.has(p)).map(p => ({ phase: p, label: phaseLabels[p], color: PHASE_COLORS[p], tasks: phaseMap.get(p)! }));
+    const groups = phaseOrder.filter(p => phaseMap.has(p)).map(p => ({ phase: p, label: phaseLabels[p], tasks: phaseMap.get(p)! }));
 
     return (
       <div style={{ ...shell, textAlign: "center", maxWidth: "1100px", margin: "auto", display: "flex", flexDirection: "column", height: "100%" }}>
@@ -433,7 +433,7 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
                       <td colSpan={6} style={{
                         padding: "8px 18px", fontSize: "13px", fontWeight: 700,
                         textTransform: "uppercase", letterSpacing: ".8px",
-                        color: group.color, background: cardColors[0], borderBottom: `1px solid ${group.color}20`,
+                        color: mutedColor, background: cardColors[0], borderBottom: BDR,
                       }}>{group.label} ({group.tasks.length})</td>
                     </tr>
                     {group.tasks.map((t, i) => (

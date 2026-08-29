@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown } from "lucide-react";
 
-import { Task, TaskComment, STATUSES, PRIORITIES, MONTHS, PCOL, PHASE_COLORS, scolText, type Status, type Priority, type AllData } from "@/lib/types";
+import { Task, TaskComment, STATUSES, PRIORITIES, MONTHS, type Status, type Priority, type AllData } from "@/lib/types";
+import { PCOL, scolText } from "@/lib/tokens";
 import { calcRollover, R2, MONTH_CAPACITY, evalExpr, fmt2, getTaskMetrics, progColor } from "@/lib/metrics";
 import { useTaskStore } from "@/lib/store";
 import {
@@ -410,13 +411,13 @@ export function TaskDetailDialog({
                     <PopoverContent className="w-[280px] p-2 paper-ctx" align="start" side="bottom">
                       <div className="flex flex-col gap-1.5">
                         {([
-                          { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW], color: PHASE_COLORS.new },
-                          { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS], color: PHASE_COLORS.in_progress },
-                          { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE], color: PHASE_COLORS.done },
-                          { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL], color: PHASE_COLORS.cancel },
+                          { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW] },
+                          { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS] },
+                          { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE] },
+                          { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL] },
                         ]).map((group) => (
                           <div key={group.label}>
-                            <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: group.color }}>{group.label}</div>
+                            <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: "var(--tracker-text-muted)" }}>{group.label}</div>
                             <div className="flex flex-wrap gap-1">
                               {group.items.map((s) => (
                                 <button

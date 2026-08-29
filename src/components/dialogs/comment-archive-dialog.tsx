@@ -4,7 +4,8 @@ import {
   Dialog, DialogContent, DialogHeader,
   DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
-import { scolText, type Status } from "@/lib/types";
+import { type Status } from "@/lib/types";
+import { scolText } from "@/lib/tokens";
 
 export interface CommentLog {
   date: string; week: string; text: string;

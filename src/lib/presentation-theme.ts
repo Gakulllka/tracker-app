@@ -1,7 +1,8 @@
 import type { Task } from "./types";
-import { getPhaseForStatus, PHASE_COLORS } from "./types";
+import { scolText } from "./tokens";
 import type { PresBgSettings } from "./presentation-bg";
-import { createTheme } from "./theme";
+import { LIGHT, DARK } from "./tokens";
+import { INK } from "./tokens";
 
 /**
  * Тема презентации: цвета, шрифты и производные от акцента значения.
@@ -9,14 +10,14 @@ import { createTheme } from "./theme";
  * Отделено от рендерера слайдов, потому что тем пользуются и предпросмотр
  * в приложении, и выгрузка в самостоятельный HTML-файл.
  *
- * Палитра статусов берётся из PHASE_COLORS — тех же четырёх цветов фазы, что
- * и в основном интерфейсе. Раньше здесь был свой набор из шестнадцати
- * произвольных оттенков, и презентация выглядела чужой относительно трекера.
+ * Палитра статусов берётся из lib/tokens.ts — та же, что в основном
+ * интерфейсе, и та же, что в Planfix. Раньше здесь был свой набор из
+ * шестнадцати произвольных оттенков, и презентация выглядела чужой.
  */
 
 
 export interface PresentationTheme {
-  accentHex: string;
+  INK: string;
   rgb: [number, number, number];
   styleId: PresBgSettings["styleId"];
   bodyBg: string;
@@ -51,7 +52,6 @@ export interface TrackerThemeTokens {
 }
 
 export function buildTheme(
-  accentHex: string,
   bg: PresBgSettings,
   tokens?: TrackerThemeTokens,
   isDarkOverride?: boolean,
@@ -60,11 +60,11 @@ export function buildTheme(
   if (tokens) {
     resolved = tokens;
   } else if (isDarkOverride !== undefined) {
-    const synth = createTheme("#17181C", isDarkOverride);
+    const synth = isDarkOverride ? DARK : LIGHT;
     resolved = {
-      bgMain: synth.bgMain,
-      bgCard: synth.bgCard,
-      textMain: synth.textMain,
+      bgMain: synth.bg,
+      bgCard: synth.card,
+      textMain: synth.text,
       textMuted: synth.textMuted,
       border: synth.border,
       isDark: isDarkOverride,
@@ -106,7 +106,7 @@ export function buildTheme(
   const mutedColor = resolved.isDark ? "rgba(245,245,242,0.60)" : "rgba(23,24,28,0.55)";
 
   return {
-    accentHex: bwAccent,
+    INK: bwAccent,
     rgb, styleId: bg.styleId, bodyBg: resolved.bgMain, overlayBg,
     textColor: resolved.textMain, mutedColor,
     cardColors, isLight: !resolved.isDark, bg,
@@ -121,14 +121,14 @@ export function isHexDark(color: string): boolean {
 }
 
 /**
- * Цвет статуса — из единой палитры фаз приложения (PHASE_COLORS).
- * Раньше был хардкод STATUS_COLS из 16 ярких hex, дублирующий scolText.
- * Теперь: new → синий, in_progress → янтарь, done → зелёный, cancel → красный.
- * Fallback — акцент темы (чернила/бумага).
+ * Цвет статуса на слайде — та же палитра, что в трекере и в Planfix.
+ * Запасной вариант — акцент темы, чтобы неизвестный статус не пропал.
  */
 export function statusColor(status: string, theme: PresentationTheme): string {
-  const phase = getPhaseForStatus(status as Task["status"]);
-  return PHASE_COLORS[phase] || `rgba(${theme.rgb[0]},${theme.rgb[1]},${theme.rgb[2]},.8)`;
+  return (
+    scolText(status as Task["status"], theme.isLight === false) ||
+    `rgba(${theme.rgb[0]},${theme.rgb[1]},${theme.rgb[2]},.8)`
+  );
 }
 
 /* ================================================================ *

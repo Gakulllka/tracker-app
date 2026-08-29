@@ -30,7 +30,7 @@ interface SettingsDialogProps {
   onClose: () => void;
   /** Вкладка, на которой открыть диалог (например, "account"). */
   initialTab?: string;
-  customDark: boolean;
+  darkMode: boolean;
   // Domains
   token: string;
   isAdmin: boolean;
@@ -44,7 +44,7 @@ interface SettingsDialogProps {
 
 export function SettingsDialog({
   open, onClose, initialTab,
-  customDark,
+  darkMode,
   token, isAdmin, userRole,
   domains, activeDomainId, onSetActiveDomain, onDomainsChanged,
 }: SettingsDialogProps) {

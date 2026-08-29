@@ -11,7 +11,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { STATUSES, PRIORITIES, MONTHS, type Status, type Priority, type Task } from "@/lib/types";
-import { scolText, PCOL } from "@/lib/types";
+import { scolText, PCOL } from "@/lib/tokens";
 import { useTaskStore } from "@/lib/store";
 import { Tag, Flag, Calendar, Copy, Package, Trash2 } from "lucide-react";
 

@@ -15,7 +15,6 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { mergeImportedTasks, type ImportPayload } from "@/lib/task-import";
 import { filterTasks, sortTasks, buildMonthBreakdown } from "@/lib/task-filters";
 import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, undoStore } from "@/lib/store";
-import { createTheme, applyTheme } from "@/lib/theme";
 import { useServerSync } from "@/hooks/useServerSync";
 import { useAuth } from "@/hooks/useAuth";
 import type { AuthData } from "@/hooks/useAuth";
@@ -194,8 +193,8 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   const getAvailableYears = useTaskStore((s) => s.getAvailableYears);
   const view = useTaskStore((s) => s.view);
   const clientMode = useTaskStore((s) => s.clientMode);
-  const customDark = useTaskStore((s) => s.customDark);
-  const storeSetCustomDark = useTaskStore((s) => s.setCustomDark);
+  const darkMode = useTaskStore((s) => s.darkMode);
+  const storeSetDarkMode = useTaskStore((s) => s.setDarkMode);
   const presBg = useTaskStore((s) => s.presBg);
   const storeSetPresBg = useTaskStore((s) => s.setPresBg);
   const presSubTab = useTaskStore((s) => s.presSubTab);
@@ -373,20 +372,14 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const xlsxInputRef = useRef<HTMLInputElement>(null);
 
-  /* ---- Theme effect ---- */
-  const initialThemeAppliedRef = useRef(false);
+  /* ---- Тёмная тема ----
+   * Значения токенов лежат в globals.css (:root и .dark). Здесь только
+   * переключение класса. Раньше все переменные выставлялись рантаймом
+   * из lib/theme.ts, из-за чего при загрузке мелькала неоформленная
+   * страница, а на /admin тема не применялась вовсе. */
   useEffect(() => {
-    const isDark = customDark;
-    const th = createTheme("#17181C", isDark);
-    applyTheme(th);
-    // Toggle .dark class on <html> for shadcn components
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    initialThemeAppliedRef.current = true;
-  }, [customDark]);
+    document.documentElement.classList.toggle("dark", darkMode);
+  }, [darkMode]);
 
   /* ---- Server Sync (вынесено в хук) ---- */
   const { syncStatus } = useServerSync({
@@ -418,10 +411,6 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   }, [editingCell]);
 
   /* ---- Computed data ---- */
-  const accentHex = useMemo(
-    () => "#17181C",
-    []
-  );
 
   const activeDomain = useMemo(
     () => domains.find((d) => d.id === activeDomainId),
@@ -642,7 +631,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     handleConfirmImport,
     handleDragOver, handleDragLeave, handleDrop,
   } = useExport({
-    allData, backlog, currentMonth, totalFactMap, accentHex,
+    allData, backlog, currentMonth, totalFactMap,
     domains, activeDomainId,
     activeDomainName: activeDomain?.name,
     questions, presBg,
@@ -666,7 +655,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     handleAiAnalysis, handleApproveDraft, handleDiscardDraft, handleRemoveConclusion,
     snapshot: presentationSnapshot, setSnapshot: setPresentationSnapshot,
   } = usePresentation({
-    allData, backlog, currentMonth, currentYear, accentHex, customDark,
+    allData, backlog, currentMonth, currentYear, darkMode,
     totalFactMap, dataByYearMonth: activeDomainData?.dataByYearMonth || {},
     presBg, workspaceId, activeDomainId, insightMonthKey,
     chatModel, apiKeyRef, setView: setView as (v: string) => void, setApiKeyDialogOpen,
@@ -750,8 +739,8 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         requestAccessToActive={requestAccessToActive}
         storeUndo={storeUndo}
         storeRedo={storeRedo}
-        customDark={customDark}
-        storeSetCustomDark={storeSetCustomDark}
+        darkMode={darkMode}
+        setDarkMode={storeSetDarkMode}
         setShareDialogOpen={setShareDialogOpen}
         setSettingsOpen={openSettings}
         refreshAuth={refreshAuth}
@@ -964,8 +953,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             setCommentArchiveDialog={setCommentArchiveDialog}
             selectedRowId={selectedRowId}
             setSelectedRowId={setSelectedRowId}
-            isDark={customDark}
-            accentHex={accentHex}
+            isDark={darkMode}
             onExportJSON={handleExportJSON}
             onExportMonthXLSX={handleExportMonthXLSX}
             onExportAllXLSX={handleExportAllXLSX}
@@ -996,7 +984,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             deleteBacklogTask={deleteBacklogTask}
             reorderBacklog={reorderBacklog}
             setCommentArchiveDialog={setCommentArchiveDialog}
-            isDark={customDark}
+            isDark={darkMode}
             isGuest={viewOnly}
           />
           </div>
@@ -1028,7 +1016,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
               const isEmpty = existing.length === 1 && !existing[0].num && !existing[0].name;
               state.setAllData({ ...state.allData, [month]: isEmpty ? [task] : [...existing, task] });
             }}
-            isDark={customDark}
+            isDark={darkMode}
             isGuest={viewOnly}
             activeDomainId={activeDomainId}
             activeDomainName={activeDomain?.name}
@@ -1063,9 +1051,8 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             slides={slides}
             currentSlide={currentSlide}
             setCurrentSlide={setCurrentSlide}
-            accentHex={accentHex}
             presBg={presBg}
-            customDark={customDark}
+            darkMode={darkMode}
             onSetPresBg={storeSetPresBg}
             onResetPresBg={() => storeSetPresBg(DEFAULT_PRES_BG)}
             onExportHTML={handleExportSlidesHTML}
@@ -1113,7 +1100,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             downloadProtocol={protocolsHook.downloadProtocol}
             getPreviewData={protocolsHook.getPreviewData}
             currentUsername={protocolsHook.currentUsername}
-            isDark={customDark}
+            isDark={darkMode}
             isGuest={isGuest}
           />
           </div>
@@ -1133,7 +1120,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         taskNum={totalHDialog.taskNum}
         taskName={monthBreakdown.taskName}
         rows={monthBreakdown.rows}
-        isDark={customDark}
+        isDark={darkMode}
         onClose={() => setTotalHDialog({ taskNum: "", open: false })}
       />
 
@@ -1142,7 +1129,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         open={commentArchiveDialog.open}
         taskName={commentArchiveDialog.taskName}
         logs={commentArchiveDialog.logs}
-        isDark={customDark}
+        isDark={darkMode}
         onClose={() => setCommentArchiveDialog(prev => ({ ...prev, open: false }))}
       />
 
@@ -1190,7 +1177,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
             }}
             task={taskDetailTask.task}
             month={taskDetailTask.month}
-            isDark={customDark}
+            isDark={darkMode}
             currentUsername={currentUsername}
             allData={allData}
             onDeleteTask={(m, id) => { deleteTask(m, id); setTaskDetailTask(null); }}
@@ -1214,7 +1201,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         initialTab={settingsTab}
-        customDark={customDark}
+        darkMode={darkMode}
         token={authData.token}
         isAdmin={isAdmin}
         userRole={authData.user.role}
@@ -1300,8 +1287,8 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         onRedo={storeRedo}
         onSwitchDomain={() => { setMobileDomainPickerOpen(true); }}
         onSettings={() => openSettings(true)}
-        isDark={customDark}
-        onToggleTheme={() => storeSetCustomDark(!customDark)}
+        isDark={darkMode}
+        onToggleTheme={() => storeSetDarkMode(!darkMode)}
         onExport={handleExportJSON}
         onImport={() => setIsImportOpen(true)}
       />

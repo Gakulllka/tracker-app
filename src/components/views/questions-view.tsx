@@ -13,7 +13,8 @@ import {
   ClipboardList, Package, Search, Pin, CheckCircle2, Clock,
   CircleDot, Archive, BarChart3, Sparkles, Ruler, X,
 } from "lucide-react";
-import { STATUSES, PRIORITIES, MONTHS, PCOL, scolText, type Status, type Priority, type Task } from "@/lib/types";
+import { STATUSES, PRIORITIES, MONTHS, type Status, type Priority, type Task } from "@/lib/types";
+import { PCOL, scolText } from "@/lib/tokens";
 import { useTaskStore } from "@/lib/store";
 import type { Question } from "@/lib/questions";
 import { fmtDate as fmtDateUtil } from "@/lib/questions";

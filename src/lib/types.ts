@@ -27,6 +27,9 @@ export const PRIORITIES = {
 } as const;
 export type Priority = (typeof PRIORITIES)[keyof typeof PRIORITIES];
 
+// Палитра статусов и приоритетов живёт в lib/tokens.ts — там объяснено, почему
+// она цветная и почему её нельзя схлопывать. Импортировать оттуда напрямую.
+
 // Task
 export interface Task {
   id: string;
@@ -134,67 +137,6 @@ export const COLS: Column[] = [
 export const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 export const MONTHS_SHORT = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"];
 
-// Priority colors
-export const PCOL: Record<Priority, string> = {
-  [PRIORITIES.HIGHEST]: "#d45454",
-  [PRIORITIES.HIGH]: "#d48040",
-  [PRIORITIES.MEDIUM]: "#b89830",
-  [PRIORITIES.LOW]: "#4a9a5a",
-  [PRIORITIES.QUEUE]: "#7a6ab0",
-};
-
-// Status colors (default / light)
-export const SCOL: Partial<Record<Status, string>> = {
-  [STATUSES.IDEA]: "#ffad00",
-  [STATUSES.NEW]: "#4fc3f7",
-  [STATUSES.ANALYSIS]: "#ce93d8",
-  [STATUSES.QUEUE_DEV]: "#008796",
-  [STATUSES.DEV]: "#7cc3fc",
-  [STATUSES.TEST]: "#5719a3",
-  [STATUSES.DOCS]: "#f48fb1",
-  [STATUSES.APPROVAL]: "#ff9400",
-  [STATUSES.RELEASE]: "#ea4e98",
-  [STATUSES.PROD_CHECK]: "#d2ff7a",
-  [STATUSES.DONE]: "#042a0f",
-  [STATUSES.POSTPONED]: "#8b8b8b",
-  [STATUSES.COMPLETED]: "#30ab50",
-  [STATUSES.CANCEL]: "#d45454",
-};
-
-// Status colors override for dark theme (better readability on dark bg)
-const SCOL_DARK_FIX: Partial<Record<Status, string>> = {
-  [STATUSES.IDEA]: "#ffc740",
-  [STATUSES.NEW]: "#29b6f6",
-  [STATUSES.COMPLETED]: "#66d880",
-  [STATUSES.QUEUE_DEV]: "#4dd0e1",
-  [STATUSES.ANALYSIS]: "#e1bee7",
-  [STATUSES.DOCS]: "#f8bbd0",
-  [STATUSES.APPROVAL]: "#ffb74d",
-  [STATUSES.RELEASE]: "#f48fb1",
-  [STATUSES.DONE]: "#4caf50",
-  [STATUSES.PROD_CHECK]: "#c8f560",
-  [STATUSES.DEV]: "#90caf9",
-  [STATUSES.TEST]: "#b388ff",
-};
-
-// Status colors override for light theme (better readability on light bg)
-const SCOL_LIGHT_FIX: Partial<Record<Status, string>> = {
-  [STATUSES.IDEA]: "#cc8a00",
-  [STATUSES.NEW]: "#03a9f4",
-  [STATUSES.ANALYSIS]: "#9c27b0",
-  [STATUSES.DOCS]: "#c2185b",
-  [STATUSES.APPROVAL]: "#e65100",
-  [STATUSES.RELEASE]: "#c2185b",
-  [STATUSES.PROD_CHECK]: "#558b2f",
-  [STATUSES.DEV]: "#1976d2",
-};
-
-// Get status color adapted for current theme
-export const scolText = (st: Status, isDark: boolean): string =>
-  isDark
-    ? (SCOL_DARK_FIX[st] || SCOL[st] || "")
-    : (SCOL_LIGHT_FIX[st] || SCOL[st] || "");
-
 export const STATUS_ORDER: Record<Status, number> = {
   [STATUSES.IDEA]: 0,
   [STATUSES.NEW]: 1,
@@ -243,13 +185,6 @@ const STATUS_TO_PHASE: Record<Status, StatusPhase> = {
   [STATUSES.DONE]: "done",
   [STATUSES.POSTPONED]: "cancel",
   [STATUSES.CANCEL]: "cancel",
-};
-
-export const PHASE_COLORS: Record<StatusPhase, string> = {
-  new: "#38bdf8",
-  in_progress: "#f59e0b",
-  done: "#34d399",
-  cancel: "#ef4444",
 };
 
 export const getPhaseForStatus = (status: Status): StatusPhase =>

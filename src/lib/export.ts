@@ -1,8 +1,10 @@
 import "./buffer-polyfill";
 import ExcelJS from "exceljs";
-import { MONTHS, SCOL, PCOL, STATUSES } from "./types";
+import { MONTHS, STATUSES } from "./types";
+import { SCOL, PCOL } from "./tokens";
 import type { Task, AllData, Domain } from "./types";
 import { fixStatus, fixPriority, evalExpr, fmt2, R2 } from "./metrics";
+import { INK } from "./tokens";
 
 /* ------------------------------------------------------------------ */
 /*  JSON Export / Import                                               */
@@ -13,8 +15,6 @@ export interface ImportResult {
   backlog: Task[];
   questions: unknown[];
   presBg: unknown;
-  themeId: string;
-  customColor: string;
   domains: Domain[];
   activeDomainId: string;
 }
@@ -22,8 +22,6 @@ export interface ImportResult {
 export function exportJSON(
   allData: AllData,
   backlog: Task[],
-  themeId: string,
-  customColor: string,
   domains: Domain[],
   activeDomainId: string,
   domainName?: string,
@@ -35,8 +33,6 @@ export function exportJSON(
     backlog,
     questions: questions || [],
     presBg: presBg || null,
-    themeId,
-    customColor,
     domains,
     activeDomainId,
     _version: "1.1.0",
@@ -108,8 +104,6 @@ export async function importJSON(file: File): Promise<ImportResult> {
     backlog,
     questions: Array.isArray(raw.questions) ? raw.questions : [],
     presBg: raw.presBg || null,
-    themeId: String(raw.themeId || "#5B9BD5"),
-    customColor: String(raw.customColor || ""),
     domains: domains.length > 0 ? domains : [{ id: "default", name: "По умолчанию" }],
     activeDomainId: String(raw.activeDomainId || "default"),
   };
@@ -123,13 +117,12 @@ export async function exportMonthXLSX(
   rows: Task[],
   month: number,
   totalFactMap: Record<string, number>,
-  accentHex: string,
 ): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(MONTHS[month]);
 
-  const acc = accentHex.replace("#", "FF");
-  const accLight = accentHex.replace("#", "1A"); // ~10% opacity bg
+  const acc = INK.replace("#", "FF");
+  const accLight = INK.replace("#", "1A"); // ~10% opacity bg
 
   // ── Columns — matching user's format exactly ──────────────────────
   // Номер | Задача | Трудоёмкость предв, ч | Часы фактические | Приоритет | Статус
@@ -279,7 +272,6 @@ export async function exportMonthXLSX(
 export async function exportAllXLSX(
   allData: AllData,
   totalFactMap: Record<string, number>,
-  accentHex: string,
 ): Promise<void> {
   const wb = new ExcelJS.Workbook();
 
@@ -291,7 +283,7 @@ export async function exportAllXLSX(
       properties: { defaultColWidth: 14 },
     });
 
-    const accentRgb = hexToRgbObj(accentHex);
+    const accentRgb = hexToRgbObj(INK);
     const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
     const headerFill: ExcelJS.FillPattern = {
       type: "pattern",

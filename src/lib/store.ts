@@ -111,9 +111,8 @@ interface AppState {
   clientMode: boolean;
 
   // Theme
-  themeId: string;
-  customColor: string;
-  customDark: boolean;
+  /** Тёмная тема. Раньше жила внутри механизма выбора акцента (customDark). */
+  darkMode: boolean;
 
   // Presentation background
   presBg: PresBgSettings;
@@ -175,10 +174,8 @@ interface AppState {
   setActiveDomain: (id: string) => void;
 
   // Theme
-  setTheme: (themeId: string) => void;
-  setCustomColor: (color: string, dark: boolean) => void;
   /** Phase 7: переключить только тёмную тему (без смены акцента). */
-  setCustomDark: (dark: boolean) => void;
+  setDarkMode: (dark: boolean) => void;
 
   // Presentation background
   setPresBg: (bg: Partial<PresBgSettings>) => void;
@@ -202,7 +199,6 @@ interface AppState {
   setBacklog: (backlog: Task[]) => void;
   setDomains: (domains: Domain[]) => void;
   setActiveDomainId: (id: string) => void;
-  setThemeId: (id: string) => void;
 
   // Batch operations
   addTasksToMonth: (month: number, tasks: Task[]) => void;
@@ -307,9 +303,7 @@ export const useTaskStore = create<AppState>()(
       presSubTab: "slides" as const,
       uiMode: "simple" as const,
       clientMode: false,
-      themeId: "#17181C",
-      customColor: "",
-      customDark: false,
+      darkMode: false,
       presBg: DEFAULT_PRES_BG,
       filterStatuses: new Set(),
       filterPriorities: new Set(),
@@ -795,9 +789,7 @@ export const useTaskStore = create<AppState>()(
         };
       }),
 
-      setTheme: (themeId) => set({ themeId, customColor: "" }),
-      setCustomColor: (color, dark) => set({ customColor: color, customDark: dark, themeId: "custom" }),
-      setCustomDark: (dark) => set({ customDark: dark }),
+      setDarkMode: (dark) => set({ darkMode: dark }),
       setPresBg: (bg) => set((s) => ({ presBg: { ...s.presBg, ...bg } })),
 
       /** Phase 7.2: записать план часов в monthlyPlanByYearMonth активного домена. */
@@ -874,7 +866,6 @@ export const useTaskStore = create<AppState>()(
         };
       }),
       setActiveDomainId: (id) => { get().setActiveDomain(id); },
-      setThemeId: (id) => set({ themeId: id }),
 
       // Batch operations
       addTasksToMonth: (month, tasks) => {
@@ -1037,9 +1028,7 @@ export const useTaskStore = create<AppState>()(
         domainData: state.domainData,
         domains: state.domains,
         activeDomainId: state.activeDomainId,
-        themeId: state.themeId,
-        customColor: state.customColor,
-        customDark: state.customDark,
+        darkMode: state.darkMode,
         currentMonth: state.currentMonth,
         currentYear: state.currentYear,
         presBg: state.presBg,

@@ -19,8 +19,7 @@ interface UsePresentationParams {
   backlog: Task[];
   currentMonth: number;
   currentYear: number;
-  accentHex: string;
-  customDark: boolean;
+  darkMode: boolean;
   totalFactMap: Record<string, number>;
   /** Полная база по ключам "YYYY-MM" — для кумулятивного итога в слайдах. */
   dataByYearMonth: Record<string, Task[]>;
@@ -37,7 +36,7 @@ interface UsePresentationParams {
 }
 
 export function usePresentation({
-  allData, backlog, currentMonth, currentYear, accentHex, customDark,
+  allData, backlog, currentMonth, currentYear, darkMode,
   totalFactMap, dataByYearMonth, presBg, workspaceId, activeDomainId, insightMonthKey,
   chatModel, apiKeyRef, setView, setApiKeyDialogOpen,
   monthCapacity,
@@ -64,7 +63,7 @@ export function usePresentation({
   }, [activeDomainId, insightMonthKey]);
 
   const slides: SlideData[] = generateSlides(
-    currentMonth, currentYear, allData, accentHex, totalFactMap, monthCapacity, backlog,
+    currentMonth, currentYear, allData, totalFactMap, monthCapacity, backlog,
     snapshot?.closed ? snapshot.active : null, previousSnapshot?.active ?? null,
     dataByYearMonth,
   );
@@ -80,13 +79,13 @@ export function usePresentation({
     const v = (n: string, f: string) => cs.getPropertyValue(n).trim() || f;
     return {
       bgMain: v("--tracker-bg-main", "#0d1117"),
-      bgCard: v("--tracker-bg-card", customDark ? "#1a1f2a" : "#ffffff"),
-      textMain: v("--tracker-text-main", customDark ? "#e2e8f0" : "#1e293b"),
-      textMuted: v("--tracker-text-muted", customDark ? "rgba(148,163,184,.7)" : "rgba(100,116,139,.75)"),
-      border: v("--tracker-border", customDark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)"),
-      isDark: customDark,
+      bgCard: v("--tracker-bg-card", darkMode ? "#1a1f2a" : "#ffffff"),
+      textMain: v("--tracker-text-main", darkMode ? "#e2e8f0" : "#1e293b"),
+      textMuted: v("--tracker-text-muted", darkMode ? "rgba(148,163,184,.7)" : "rgba(100,116,139,.75)"),
+      border: v("--tracker-border", darkMode ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)"),
+      isDark: darkMode,
     };
-  }, [customDark]);
+  }, [darkMode]);
 
   const handleExportSlidesHTML = useCallback(() => {
     if (!slides.length) return;

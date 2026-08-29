@@ -20,6 +20,7 @@ import type { PresBgSettings } from "@/lib/store";
 import type { AiInsightShape } from "@/lib/ai-insights-client";
 import { MONTHS } from "@/lib/types";
 import { fetchPresentationSnapshot, updatePresentationSnapshot, rollbackPresentationSnapshot, type SnapshotResponse } from "@/lib/presentation-snapshots-client";
+import { INK } from "@/lib/tokens";
 
 type AiConclusionShape = Pick<AiInsightShape, "achievements" | "risks" | "inProgress"> & { summary: string[] } & Partial<Pick<AiInsightShape, "dataHash" | "source" | "updatedAt">>;
 
@@ -27,9 +28,8 @@ export interface SlidesViewProps {
   slides: SlideData[];
   currentSlide: number;
   setCurrentSlide: (i: number) => void;
-  accentHex: string;
   presBg: PresBgSettings;
-  customDark: boolean;
+  darkMode: boolean;
   onSetPresBg: (patch: Partial<PresBgSettings>) => void;
   onResetPresBg: () => void;
   onExportHTML: () => void;
@@ -87,9 +87,8 @@ export function SlidesView({
   slides,
   currentSlide,
   setCurrentSlide,
-  accentHex,
   presBg,
-  customDark,
+  darkMode,
   onSetPresBg,
   onResetPresBg,
   onExportHTML,
@@ -221,7 +220,7 @@ export function SlidesView({
         {/* Slide preview — большой, на всю доступную ширину */}
         <div ref={fullscreenContainerRef} className="relative">
           {slide && (
-            <SlidePreview slide={slide} accentHex={accentHex} presBg={presBg} customDark={customDark} aiConclusion={aiConclusion} />
+            <SlidePreview slide={slide} presBg={presBg} darkMode={darkMode} aiConclusion={aiConclusion} />
           )}
 
           {/* Floating navigation — поверх превью, не отъедает место */}
@@ -497,7 +496,7 @@ export function SlidesView({
         {(() => {
           const summarySlide = slides.find(s => s.type === "summary");
           if (!summarySlide) return null;
-          return <SlidePreview slide={summarySlide} accentHex={accentHex} presBg={presBg} customDark={customDark} aiConclusion={aiConclusion} />;
+          return <SlidePreview slide={summarySlide} presBg={presBg} darkMode={darkMode} aiConclusion={aiConclusion} />;
         })()}
       </div>
     </div>
@@ -516,18 +515,16 @@ export function SlidesView({
 
 export function SlidePreview({
   slide,
-  accentHex,
   presBg,
-  customDark,
+  darkMode,
   aiConclusion,
 }: {
   slide: SlideData;
-  accentHex: string;
   presBg: PresBgSettings;
-  customDark: boolean;
+  darkMode: boolean;
   aiConclusion?: AiConclusion | null;
 }) {
-  const theme = useMemo(() => buildTheme(accentHex, presBg, undefined, customDark), [accentHex, presBg, customDark]);
+  const theme = useMemo(() => buildTheme(presBg, undefined, darkMode), [presBg, darkMode]);
   const [r, g, b] = theme.rgb;
 
   return (

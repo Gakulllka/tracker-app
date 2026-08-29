@@ -69,18 +69,6 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
   const [guestLoading, setGuestLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Тема по умолчанию для нового устройства (визуально на вход не влияет)
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("task-tracker-storage");
-      if (!raw) {
-        localStorage.setItem("task-tracker-storage", JSON.stringify({
-          state: { themeId: "spring", customDark: false },
-          version: 0,
-        }));
-      }
-    } catch { /* silent */ }
-  }, []);
 
   /** Завершение авторизации: сохраняем токен, тянем права, входим. */
   const finishAuth = async (data: {

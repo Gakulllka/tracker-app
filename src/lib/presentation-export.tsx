@@ -25,6 +25,7 @@ import {
   type TrackerThemeTokens,
 } from "./presentation-renderer";
 import type { PresBgSettings } from "./store";
+import { INK } from "./tokens";
 
 /** Главная функция: на вход — данные слайдов и настройки, на выход — готовый HTML.
  *
@@ -38,8 +39,8 @@ export function renderPresentationHtml(
   aiConclusion: AiConclusion | null | undefined,
   tokens: TrackerThemeTokens,
 ): string {
-  const accentHex = String(slides[0]?.content?.accent || "#5B9BD5");
-  const theme = buildTheme(accentHex, presBg, tokens);
+  const INK = String(slides[0]?.content?.accent || "#5B9BD5");
+  const theme = buildTheme(presBg, tokens);
 
   // 1. Слой фона (паттерн + эмодзи) — рендерим один раз, кладём
   //    в body как фиксированный слой. Это идентично тому, что

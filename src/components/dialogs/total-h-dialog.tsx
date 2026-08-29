@@ -4,7 +4,8 @@ import {
   Dialog, DialogContent, DialogHeader,
   DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
-import { MONTHS, scolText, type Status } from "@/lib/types";
+import { MONTHS, type Status } from "@/lib/types";
+import { scolText } from "@/lib/tokens";
 import { fmt2 } from "@/lib/metrics";
 
 interface MonthRow {

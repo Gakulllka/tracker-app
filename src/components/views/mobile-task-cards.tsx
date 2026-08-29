@@ -1,7 +1,7 @@
 import React from "react";
 import { Check, ClipboardList, Ruler, Timer, Wallet } from "lucide-react";
 import { getTaskMetrics, evalExpr } from "@/lib/metrics";
-import { PCOL, scolText } from "@/lib/types";
+import { PCOL, scolText } from "@/lib/tokens";
 import type { Task, Status } from "@/lib/types";
 
 export interface MobileTaskCardsProps {

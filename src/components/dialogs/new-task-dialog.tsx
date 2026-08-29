@@ -11,10 +11,8 @@ import {
   SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Plus } from "lucide-react";
-import {
-  STATUSES, PRIORITIES, MONTHS, PCOL, scolText,
-  type Status, type Priority, type Task,
-} from "@/lib/types";
+import { STATUSES, PRIORITIES, MONTHS, type Status, type Priority, type Task } from "@/lib/types";
+import { PCOL, scolText } from "@/lib/tokens";
 import { useTaskStore } from "@/lib/store";
 
 export interface NewTaskDialogProps {

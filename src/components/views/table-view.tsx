@@ -25,15 +25,12 @@ import {
   Filter, X, ClipboardList, AlertTriangle, History,
   FileSpreadsheet, Upload, ArrowRight, Check,
   ArrowUpDown, Save, FolderOpen, FileText,
-  Package, MessageSquare, Ruler, Timer, Wallet,
+  Package, MessageSquare, Wallet,
   ExternalLink, LayoutGrid, ChevronDown, Lightbulb, Play,
   Rows3, AlignJustify,
 } from "lucide-react";
-import {
-  MONTHS, STATUSES, PRIORITIES, PCOL, scolText,
-  type Status, type Priority, type Task, STATUS_ORDER, PRIO_START,
-  PHASE_COLORS, getPhaseForStatus,
-} from "@/lib/types";
+import { MONTHS, STATUSES, PRIORITIES, type Status, type Priority, type Task, STATUS_ORDER, PRIO_START, getPhaseForStatus } from "@/lib/types";
+import { PCOL, scolText } from "@/lib/tokens";
 import {
   evalExpr, fmt2, progColor,
   getTaskMetrics, CLOSED_STATUSES,
@@ -41,6 +38,7 @@ import {
 import { useTaskStore } from "@/lib/store";
 
 import type { EditingCell } from "@/app/page";
+import { INK } from "@/lib/tokens";
 
 export interface TableViewProps {
   rows: Task[];
@@ -104,7 +102,6 @@ export interface TableViewProps {
   selectedRowId: string | null;
   setSelectedRowId: (id: string | null) => void;
   isDark: boolean;
-  accentHex: string;
   onExportJSON: () => void;
   onExportMonthXLSX: () => void;
   onExportAllXLSX: () => void;
@@ -168,7 +165,6 @@ export function TableView({
   setCommentArchiveDialog,
   selectedRowId,
   setSelectedRowId,
-  accentHex,
   onExportJSON,
   onExportMonthXLSX,
   onExportAllXLSX,
@@ -459,13 +455,13 @@ export function TableView({
                 <DropdownMenuLabel className="text-xs">Статус</DropdownMenuLabel>
                 <div className="px-1 py-0.5">
                   {([
-                    { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW], color: PHASE_COLORS.new },
-                    { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS], color: PHASE_COLORS.in_progress },
-                    { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE], color: PHASE_COLORS.done },
-                    { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL], color: PHASE_COLORS.cancel },
+                    { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW] },
+                    { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS] },
+                    { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE] },
+                    { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL] },
                   ]).map((group) => (
                     <div key={group.label} className="mb-1.5">
-                      <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-1" style={{ color: group.color }}>{group.label}</div>
+                      <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-1" style={{ color: "var(--tracker-text-muted)" }}>{group.label}</div>
                       <div className="flex flex-wrap gap-1 px-1">
                         {group.items.map((s) => (
                           <button
@@ -762,13 +758,13 @@ export function TableView({
               <PopoverContent className="w-[280px] p-2" align="start" side="bottom">
                 <div className="flex flex-col gap-1.5">
                   {([
-                    { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW], color: PHASE_COLORS.new },
-                    { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS], color: PHASE_COLORS.in_progress },
-                    { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE], color: PHASE_COLORS.done },
-                    { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL], color: PHASE_COLORS.cancel },
+                    { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW] },
+                    { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS] },
+                    { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE] },
+                    { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL] },
                   ]).map((group) => (
                     <div key={group.label}>
-                      <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: group.color }}>{group.label}</div>
+                      <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: "var(--tracker-text-muted)" }}>{group.label}</div>
                       <div className="flex flex-wrap gap-1">
                         {group.items.map((s) => (
                           <button
@@ -897,7 +893,7 @@ export function TableView({
                 ? statusOrder.map(status => ({
                     key: status,
                     label: status,
-                    color: scolText(status, isDark) || PHASE_COLORS[getPhaseForStatus(status)],
+                    color: scolText(status, isDark) || "var(--tracker-text-main)",
                     tasks: workRows.filter(t => t.status === status),
                   }))
                 : groupingMode === "priority"
@@ -907,7 +903,7 @@ export function TableView({
                       color: PCOL[priority],
                       tasks: workRows.filter(t => t.priority === priority),
                     }))
-                  : [{ key: "all", label: "Все задачи", color: accentHex, tasks: workRows }];
+                  : [{ key: "all", label: "Все задачи", color: INK, tasks: workRows }];
 
               const visibleGroups = effectiveHideEmpty
                 ? grouped.filter((g) => g.tasks.length > 0)
@@ -919,7 +915,6 @@ export function TableView({
                     <div
                       className={`priority-group-header transition-all duration-200 ${dropGroupKey === group.key ? "ring-2 ring-offset-1" : ""}`}
                       style={{
-                        background: group.color + "18",
                         color: group.color,
                         ...(dropGroupKey === group.key ? { borderColor: group.color } : {}),
                       }}
@@ -950,7 +945,7 @@ export function TableView({
                         ? Math.min(100, (metrics.totalH / evalExpr(task.planH)) * 100)
                         : null;
                       const isOver = pct !== null && pct > 100;
-                      const accentColor = PHASE_COLORS[getPhaseForStatus(task.status)] || "var(--tracker-accent)";
+                      const accentColor = "var(--tracker-accent)";
                       const queueNum = localQMap[task.id];
                       const phase = getPhaseForStatus(task.status);
                       return (
@@ -1051,8 +1046,8 @@ export function TableView({
                               )}
                             </div>
                             <div className="flex flex-col items-end gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                              {/* Статус скрыт при группировке «По статусу» — виден в заголовке группы */}
-                              {groupingMode !== "status" && (isExecutive || isGuest ? (
+                              {/* Статус показывается всегда, независимо от группировки */}
+                              {(isExecutive || isGuest ? (
                                 /* Executive: status badge is read-only */
                                 <span
                                   className="h-5 w-auto min-w-[70px] text-[0.6rem] font-semibold rounded-full px-1.5 inline-flex items-center justify-center"
@@ -1073,13 +1068,13 @@ export function TableView({
                                   <PopoverContent className="w-[280px] p-2" align="end" side="bottom">
                                     <div className="flex flex-col gap-1.5">
                                       {([
-                                        { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW], color: PHASE_COLORS.new },
-                                        { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS], color: PHASE_COLORS.in_progress },
-                                        { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE], color: PHASE_COLORS.done },
-                                        { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL], color: PHASE_COLORS.cancel },
+                                        { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW] },
+                                        { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS] },
+                                        { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE] },
+                                        { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL] },
                                       ]).map((group) => (
                                         <div key={group.label}>
-                                          <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: group.color }}>{group.label}</div>
+                                          <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: "var(--tracker-text-muted)" }}>{group.label}</div>
                                           <div className="flex flex-wrap gap-1">
                                             {group.items.map((s) => (
                                               <button
@@ -1102,8 +1097,8 @@ export function TableView({
                                   </PopoverContent>
                                 </Popover>
                               ))}
-                              {/* Приоритет скрыт при группировке «По приоритету» — виден в заголовке группы */}
-                              {groupingMode !== "priority" && (!isExecutive && !isGuest ? (
+                              {/* Приоритет показывается всегда, независимо от группировки */}
+                              {(!isExecutive && !isGuest ? (
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <button
@@ -1136,74 +1131,89 @@ export function TableView({
                             </div>
                           </div>
 
-                          {/* Прогресс — над часами */}
-                          <div className="flex items-center gap-1.5 mt-2 pl-5">
+                          {/* Часы. Итого крупно: именно по нему считается прогресс
+                              и срабатывает отсечение при перерасходе. План и факт
+                              рядом мелкой строкой — редактируются по клику. */}
+                          <div className="task-card-hours">
+                            {task.num ? (
+                              <button
+                                className="task-card-total"
+                                style={metrics.over ? { color: "var(--tracker-danger)" } : undefined}
+                                onClick={(e) => { e.stopPropagation(); setTotalHDialog({ taskNum: task.num, open: true }); }}
+                                title="Разбивка по месяцам"
+                              >
+                                {fmt2(metrics.totalH)}
+                              </button>
+                            ) : (
+                              <span className="task-card-total" style={metrics.over ? { color: "var(--tracker-danger)" } : undefined}>
+                                {fmt2(metrics.totalH)}
+                              </span>
+                            )}
+                            <span className="task-card-total-label" style={metrics.over ? { color: "var(--tracker-danger)" } : undefined}>итого</span>
+
+                            <span className="task-card-hours-detail">
+                              <span
+                                className="task-card-hours-edit"
+                                onClick={(e) => { e.stopPropagation(); startEditing(task.id, "planH"); }}
+                                title="План"
+                              >
+                                план {isEditing(task.id, "planH") ? (
+                                  <input
+                                    ref={inputEditRef}
+                                    className="w-10 text-right font-semibold bg-transparent border-b-2 border-[var(--tracker-accent)] outline-none"
+                                    value={task.planH}
+                                    onChange={(e) => updateTask(month, task.id, "planH", e.target.value)}
+                                    onBlur={stopEditing}
+                                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") stopEditing(); }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    autoFocus
+                                  />
+                                ) : fmt2(metrics.plan)}
+                              </span>
+                              <span className="task-card-hours-sep">·</span>
+                              <span
+                                className="task-card-hours-edit"
+                                onClick={(e) => { e.stopPropagation(); startEditing(task.id, "factH"); }}
+                                title="Факт за месяц"
+                              >
+                                факт {isEditing(task.id, "factH") ? (
+                                  <input
+                                    ref={inputEditRef}
+                                    className="w-10 text-right font-semibold bg-transparent border-b-2 border-[var(--tracker-accent)] outline-none"
+                                    value={task.factH}
+                                    onChange={(e) => updateTask(month, task.id, "factH", e.target.value)}
+                                    onBlur={stopEditing}
+                                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") stopEditing(); }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    autoFocus
+                                  />
+                                ) : fmt2(metrics.fact)}
+                              </span>
+                              {(task.budgetAllocated ?? 0) > 0 && (
+                                <button
+                                  className="task-card-budget"
+                                  onClick={(e) => { e.stopPropagation(); onOpenBudgetSheet?.(task, month); }}
+                                  title="Бюджет задачи"
+                                >
+                                  <Wallet className="size-3 inline" /> {task.budgetAllocated}ч
+                                </button>
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 mt-2">
                             <div className="task-card-progress flex-1">
                               <div
                                 className="task-card-progress-fill"
                                 style={{
                                   width: `${Math.min(metrics.prog, 100)}%`,
-                                  backgroundColor: "var(--tracker-accent)",
+                                  backgroundColor: metrics.over ? "var(--tracker-danger)" : "var(--tracker-accent)",
                                 }}
                               />
                             </div>
-                            <span className="text-[10px] font-semibold tabular-nums shrink-0" style={{ color: progColor(metrics.prog, CLOSED_STATUSES.has(task.status as Status), metrics.over) }}>
+                            <span className="text-[11px] tabular-nums shrink-0" style={{ color: metrics.over ? "var(--tracker-danger)" : "var(--tracker-text-muted)" }}>
                               {metrics.prog}%
                             </span>
-                          </div>
-
-                          <div className="flex items-center gap-2 mt-1.5 pl-5 text-[13px] delta-num text-[var(--tracker-text-main)] [&_svg]:opacity-45">
-                            <span
-                              className="cursor-pointer hover:text-[var(--tracker-text-main)] transition-colors rounded px-1 hover:bg-[var(--tracker-accent-soft)] flex items-center gap-1 w-[72px]"
-                              onClick={(e) => { e.stopPropagation(); startEditing(task.id, "planH"); }}
-                            >
-                              <Ruler className="size-3.5 shrink-0" /> {isEditing(task.id, "planH") ? (
-                                <input
-                                  ref={inputEditRef}
-                                  className="w-10 text-right font-semibold bg-transparent border-b-2 border-[var(--tracker-accent)] outline-none py-0.5"
-                                  value={task.planH}
-                                  onChange={(e) => updateTask(month, task.id, "planH", e.target.value)}
-                                  onBlur={stopEditing}
-                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") stopEditing(); }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  autoFocus
-                                />
-                              ) : <>{fmt2(metrics.plan)}<span className="text-[var(--tracker-text-muted)]">ч</span></>}
-                            </span>
-                            <span
-                              className={`cursor-pointer hover:text-[var(--tracker-text-main)] transition-colors rounded px-1 hover:bg-[var(--tracker-accent-soft)] flex items-center gap-1 w-[72px] ${metrics.fact > metrics.plan && metrics.plan > 0 ? "text-[var(--tracker-danger)] font-semibold" : ""}`}
-                              onClick={(e) => { e.stopPropagation(); startEditing(task.id, "factH"); }}
-                            >
-                              <Timer className="size-3.5 shrink-0" /> {isEditing(task.id, "factH") ? (
-                                <input
-                                  ref={inputEditRef}
-                                  className="w-10 text-right font-semibold bg-transparent border-b-2 border-[var(--tracker-accent)] outline-none py-0.5"
-                                  value={task.factH}
-                                  onChange={(e) => updateTask(month, task.id, "factH", e.target.value)}
-                                  onBlur={stopEditing}
-                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") stopEditing(); }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  autoFocus
-                                />
-                              ) : <>{fmt2(metrics.fact)}<span className="text-[var(--tracker-text-muted)]">ч</span></>}
-                            </span>
-                            {task.num && (
-                              <button
-                                className={`flex items-center gap-1 font-medium hover:underline w-[72px] ${metrics.totalH > 0 ? "text-[var(--tracker-accent-fg)]" : ""}`}
-                                onClick={(e) => { e.stopPropagation(); setTotalHDialog({ taskNum: task.num, open: true }); }}
-                              >
-                                <span className="opacity-60">Σ</span> {fmt2(metrics.totalH)}<span className="text-[var(--tracker-text-muted)]">ч</span>
-                              </button>
-                            )}
-                            {(task.budgetAllocated ?? 0) > 0 && (
-                              <button
-                                className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded bg-[var(--tracker-accent-bg)] text-[var(--tracker-accent-fg-dark)] hover:opacity-80 transition-opacity"
-                                onClick={(e) => { e.stopPropagation(); onOpenBudgetSheet?.(task, month); }}
-                                title="Бюджет задачи"
-                              >
-                                <Wallet className="size-3 inline" /> {task.budgetAllocated}ч
-                              </button>
-                            )}
                           </div>
 
                           {!clientMode && !isGuest && (

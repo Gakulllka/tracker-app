@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { STATUSES, scolText } from "@/lib/types";
+import { STATUSES } from "@/lib/types";
+import { scolText } from "@/lib/tokens";
 import { useTaskStore } from "@/lib/store";
 import type { Status, Task } from "@/lib/types";
 import type { Question } from "@/lib/questions";

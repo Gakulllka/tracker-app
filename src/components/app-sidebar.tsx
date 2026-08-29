@@ -113,8 +113,8 @@ interface AppSidebarProps {
   // ── Инструменты ──
   storeUndo: () => void;
   storeRedo: () => void;
-  customDark: boolean;
-  storeSetCustomDark: (v: boolean) => void;
+  darkMode: boolean;
+  setDarkMode: (v: boolean) => void;
   setShareDialogOpen: (v: boolean) => void;
   setSettingsOpen: (v: boolean, tab?: string) => void;
   refreshAuth: () => Promise<void> | void;
@@ -146,7 +146,7 @@ export function AppSidebar({
   authData, workspaceId, switchWorkspace,
   activeDomainId, visibleDomains, storeSetActiveDomain, setNewDomainDialog, canCreateDomain,
   isReadOnlyDomain, requestingAccess, requestAccessToActive,
-  storeUndo, storeRedo, customDark, storeSetCustomDark,
+  storeUndo, storeRedo, darkMode, setDarkMode,
   setShareDialogOpen, setSettingsOpen, refreshAuth, onOpenTask,
   allData, backlog, monthlyPlan, updateTask, addLinkedQuestion,
   signalsFilterActive, setSignalsFilterActive,
@@ -448,8 +448,8 @@ export function AppSidebar({
               </RailIcon>
             </>
           )}
-          <RailIcon title={customDark ? "Светлая тема" : "Тёмная тема"} onClick={() => storeSetCustomDark(!customDark)}>
-            {customDark ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+          <RailIcon title={darkMode ? "Светлая тема" : "Тёмная тема"} onClick={() => setDarkMode(!darkMode)}>
+            {darkMode ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
           </RailIcon>
         </div>
 

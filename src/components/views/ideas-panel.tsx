@@ -8,9 +8,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { TaskContextMenu } from "@/components/task-context-menu";
 import { getTaskMetrics, fmt2, progColor, CLOSED_STATUSES } from "@/lib/metrics";
 import { useTaskStore } from "@/lib/store";
-import {
-  PCOL, PRIORITIES, STATUSES, PHASE_COLORS, getPhaseForStatus, scolText,
-} from "@/lib/types";
+import { PRIORITIES, STATUSES } from "@/lib/types";
+import { PCOL, scolText } from "@/lib/tokens";
 import type { Task, Status } from "@/lib/types";
 
 export interface IdeasPanelProps {
@@ -66,7 +65,7 @@ export function IdeasPanel({
   {ideasOpen && <div className="task-card-grid p-3 pt-0">
     {ideaRows.map(({ task, sourceMonth }) => {
       const metrics = getTaskMetrics(task, totalFactMap);
-      const accentColor = PHASE_COLORS[getPhaseForStatus(task.status)] || "var(--tracker-accent)";
+      const accentColor = "var(--tracker-accent)";
       return (
       <TaskContextMenu key={task.id} task={task} month={sourceMonth} isDark={isDark} updateTask={updateTask} deleteTask={deleteTask} moveToBacklog={moveToBacklog} duplicateTask={duplicateTask} isGuest={isGuest}>
         <div
@@ -108,13 +107,13 @@ export function IdeasPanel({
                   <PopoverContent className="w-[280px] p-2" align="end" side="bottom">
                     <div className="flex flex-col gap-1.5">
                       {([
-                        { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW], color: PHASE_COLORS.new },
-                        { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS], color: PHASE_COLORS.in_progress },
-                        { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE], color: PHASE_COLORS.done },
-                        { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL], color: PHASE_COLORS.cancel },
+                        { label: "Новая", items: [STATUSES.IDEA, STATUSES.NEW] },
+                        { label: "В работе", items: [STATUSES.ANALYSIS, STATUSES.APPROVAL, STATUSES.QUEUE_DEV, STATUSES.DEV, STATUSES.TEST, STATUSES.RELEASE, STATUSES.DOCS] },
+                        { label: "Завершена", items: [STATUSES.COMPLETED, STATUSES.PROD_CHECK, STATUSES.DONE] },
+                        { label: "Отмена", items: [STATUSES.POSTPONED, STATUSES.CANCEL] },
                       ]).map((group) => (
                         <div key={group.label}>
-                          <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: group.color }}>{group.label}</div>
+                          <div className="text-[8px] uppercase tracking-wider font-semibold mb-0.5 px-0.5" style={{ color: "var(--tracker-text-muted)" }}>{group.label}</div>
                           <div className="flex flex-wrap gap-1">
                             {group.items.map((s) => (
                               <button

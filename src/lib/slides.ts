@@ -4,6 +4,7 @@
  */
 
 import { STATUSES, MONTHS, STATUS_ORDER } from "./types";
+import { INK } from "./tokens";
 import type { Task } from "./types";
 import { evalExpr, fmt2, buildTotalFactMap } from "./metrics";
 import { SlideData } from "./presentation-renderer";
@@ -12,7 +13,6 @@ export function generateSlides(
   month: number,
   year: number,
   allData: Record<number, Task[]>,
-  accentHex: string,
   totalFactMap: Record<string, number>,
   monthCapacity: number,
   backlog: Task[] = [],
@@ -113,7 +113,7 @@ export function generateSlides(
   // 1) Title
   slides.push({
     type: "title",
-    content: { month: monthLabel, total, secondaryTotal: backlogCount + ideasCount, completed, pct: compPct, accent: accentHex },
+    content: { month: monthLabel, total, secondaryTotal: backlogCount + ideasCount, completed, pct: compPct, accent: INK },
   });
 
   // 2) KPI — Plan (Dashboard budget), Fact, dynamics
@@ -135,7 +135,7 @@ export function generateSlides(
       compPctPrev: prevCompPct,
       currentUncompleted,
       prevUncompleted,
-      accent: accentHex,
+      accent: INK,
     },
   });
 
@@ -149,7 +149,7 @@ export function generateSlides(
         tasks: completedWithDelta,
         total: completedTasks.length,
         totalHours: completedTotalHours,
-        accent: accentHex,
+        accent: INK,
       },
     });
   }
@@ -162,7 +162,7 @@ export function generateSlides(
         tasks: inProgressWithDelta,
         total: inProgressTasks.length,
         totalHours: inProgressTotalHours,
-        accent: accentHex,
+        accent: INK,
       },
     });
   }
@@ -175,7 +175,7 @@ export function generateSlides(
       total: rows.length,
       completed,
       totalHours: R2(factH),
-      accent: accentHex,
+      accent: INK,
       totalFactMap,
     },
   });
@@ -185,7 +185,7 @@ export function generateSlides(
     type: "summary",
     content: {
       month: monthLabel,
-      accent: accentHex,
+      accent: INK,
       total,
       completed,
       planH,

@@ -5,6 +5,7 @@
  */
 import { useState, useCallback } from "react";
 import type { Task, Domain } from "@/lib/types";
+import { INK } from "@/lib/tokens";
 import {
   exportJSON, exportMonthXLSX, exportAllXLSX,
   importJSON,
@@ -15,7 +16,6 @@ interface UseExportParams {
   backlog: Task[];
   currentMonth: number;
   totalFactMap: Record<string, number>;
-  accentHex: string;
   domains: Domain[];
   activeDomainId: string;
   activeDomainName: string | undefined;
@@ -30,7 +30,7 @@ interface UseExportParams {
 }
 
 export function useExport({
-  allData, backlog, currentMonth, totalFactMap, accentHex,
+  allData, backlog, currentMonth, totalFactMap,
   domains, activeDomainId, activeDomainName,
   questions, presBg,
   storeSetAllData, storeSetBacklog, storeSetDomains,
@@ -49,7 +49,7 @@ export function useExport({
 
   const handleExportJSON = useCallback(() => {
     setExportError(null);
-    exportJSON(allData, backlog, "", "", domains, activeDomainId, activeDomainName, questions, presBg);
+    exportJSON(allData, backlog, domains, activeDomainId, activeDomainName, questions, presBg);
   }, [allData, backlog, domains, activeDomainId, activeDomainName, questions, presBg]);
 
   const handleExportMonthXLSX = useCallback(async () => {
@@ -60,20 +60,20 @@ export function useExport({
       return;
     }
     try {
-      await exportMonthXLSX(monthRows, currentMonth, totalFactMap, accentHex);
+      await exportMonthXLSX(monthRows, currentMonth, totalFactMap);
     } catch (err) {
       setExportError(String(err));
     }
-  }, [allData, currentMonth, totalFactMap, accentHex]);
+  }, [allData, currentMonth, totalFactMap, INK]);
 
   const handleExportAllXLSX = useCallback(async () => {
     setExportError(null);
     try {
-      await exportAllXLSX(allData, totalFactMap, accentHex);
+      await exportAllXLSX(allData, totalFactMap);
     } catch (err) {
       setExportError(String(err));
     }
-  }, [allData, totalFactMap, accentHex]);
+  }, [allData, totalFactMap, INK]);
 
   const handleJSONFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

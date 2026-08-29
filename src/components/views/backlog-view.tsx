@@ -15,10 +15,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/empty-state";
 import { Trash2, Plus, Ruler, MessageSquare, ScrollText, ClipboardList } from "lucide-react";
-import {
-  MONTHS, STATUSES, PRIORITIES, PCOL, scolText,
-  type Status, type Priority, type Task,
-} from "@/lib/types";
+import { MONTHS, STATUSES, PRIORITIES, type Status, type Priority, type Task } from "@/lib/types";
+import { PCOL, scolText } from "@/lib/tokens";
 import { evalExpr, fmt2, createNewTask } from "@/lib/metrics";
 import { useTaskStore } from "@/lib/store";
 

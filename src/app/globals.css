@@ -81,6 +81,23 @@
   --sidebar-accent-foreground: #17181C;
   --sidebar-border: #DEDDD6;
   --sidebar-ring: #17181C;
+
+  /* Токены трекера. Раньше выставлялись рантаймом из lib/theme.ts, из-за чего
+     при загрузке успевала мелькнуть неоформленная страница. Теперь статика. */
+  --tracker-accent: #17181C;
+  --tracker-accent-hover: #2A2B31;
+  --tracker-accent-soft: rgba(23, 24, 28, 0.08);
+  --tracker-accent-soft-hover: rgba(23, 24, 28, 0.14);
+  --tracker-accent-bg: #EFEFEC;
+  --tracker-accent-fg: #17181C;
+  --tracker-accent-fg-dark: #17181C;
+  --tracker-accent-contrast: #FFFFFF;
+  --tracker-bg-main: #FAFAF8;
+  --tracker-bg-card: #FFFFFF;
+  --tracker-text-main: #17181C;
+  --tracker-text-muted: #5D5D57;
+  --tracker-border: #DEDDD6;
+  --tracker-danger: #C6453F;
 }
 
 .dark {
@@ -118,6 +135,21 @@
   --sidebar-accent-foreground: #F5F5F2;
   --sidebar-border: #34353C;
   --sidebar-ring: #F5F5F2;
+
+  --tracker-accent: #F5F5F2;
+  --tracker-accent-hover: #E4E4E0;
+  --tracker-accent-soft: rgba(250, 250, 248, 0.10);
+  --tracker-accent-soft-hover: rgba(250, 250, 248, 0.14);
+  --tracker-accent-bg: #26282E;
+  --tracker-accent-fg: #F5F5F2;
+  --tracker-accent-fg-dark: #F2F2EF;
+  --tracker-accent-contrast: #17181C;
+  --tracker-bg-main: #131418;
+  --tracker-bg-card: #1A1B20;
+  --tracker-text-main: #F5F5F2;
+  --tracker-text-muted: #ABABA5;
+  --tracker-border: #34353C;
+  --tracker-danger: #E0706A;
 }
 
 @layer base {
@@ -135,10 +167,12 @@
 
 .task-card {
   background: var(--tracker-bg-card, #fff);
-  /* Чёрная обводка — единый стиль белых «окон» (кнопки, карточки, панели). */
-  border: 3px solid #17181C;
+  /* Чернильная обводка — единый стиль белых «окон». Одинаковая у всех
+     карточек: статус и приоритет уже показаны плашками и группировкой,
+     кодировать их ещё и толщиной значит сказать одно и то же дважды. */
+  border: 2px solid var(--tracker-accent);
   border-radius: var(--radius-card, 14px);
-  padding: 18px 20px;
+  padding: 14px 16px;
   cursor: pointer;
   transition: box-shadow 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
   box-shadow: var(--shadow-card);
@@ -206,16 +240,18 @@
   margin-bottom: 16px;
 }
 
+/* Заголовок группы: цветной маркер и подпись, без заливки.
+   Цветная подложка во всю ширину была единственной крупной декоративной
+   заливкой на экране — по канону цвет несёт смысл, а не украшает. */
 .priority-group-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 2px 2px 6px;
   margin-bottom: 8px;
-  border-radius: 10px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   transition: all 0.2s ease;
   border: 2px solid transparent;
@@ -227,9 +263,10 @@
 }
 
 .priority-group-header .priority-group-count {
-  font-size: 0.65rem;
-  font-weight: 500;
-  opacity: 0.6;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--tracker-text-muted);
+  letter-spacing: 0;
   text-transform: none;
 }
 
@@ -243,7 +280,7 @@
 }
 
 .task-card-name {
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 500;
   color: var(--tracker-text-main, #1a1a2e);
   line-height: 1.4;
@@ -262,8 +299,8 @@
   padding: 0 8px;
   font-size: 0.75rem;
   border-radius: 6px;
-  /* Чёрная обводка — единый стиль белых «окон» */
-  border: 2px solid #17181C;
+  /* Чернильная обводка — единый стиль белых «окон» */
+  border: 2px solid var(--tracker-accent);
   background: var(--tracker-bg, var(--background));
   color: var(--tracker-text-main, var(--foreground));
   outline: none;
@@ -282,8 +319,87 @@ select.field-input {
   cursor: pointer;
 }
 
+
+/* ── Блок часов на карточке ────────────────────────────────────────────
+   Итого крупное: по нему считается прогресс и срабатывает отсечение при
+   перерасходе. План и факт — мелкой строкой, редактируются по клику.   */
+
+.task-card-hours {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 11px;
+  padding-top: 9px;
+  border-top: 1px solid var(--tracker-accent);
+}
+
+.task-card-total {
+  font-family: var(--font-geist-mono, monospace);
+  font-size: 1.35rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--tracker-text-main);
+  font-variant-numeric: tabular-nums;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+button.task-card-total {
+  cursor: pointer;
+}
+button.task-card-total:hover {
+  text-decoration: underline;
+}
+
+.task-card-total-label {
+  font-size: 0.56rem;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--tracker-text-muted);
+}
+
+.task-card-hours-detail {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-geist-mono, monospace);
+  font-size: 0.75rem;
+  color: var(--tracker-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.task-card-hours-edit {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 3px;
+  transition: background 0.15s, color 0.15s;
+}
+.task-card-hours-edit:hover {
+  background: var(--tracker-accent-soft);
+  color: var(--tracker-text-main);
+}
+
+.task-card-hours-sep {
+  opacity: 0.45;
+}
+
+.task-card-budget {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.56rem;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--tracker-accent-bg);
+  color: var(--tracker-accent-fg-dark);
+}
+
 .task-card-progress {
-  height: 4px;
+  height: 5px;
   border-radius: 9999px;
   background: color-mix(in srgb, var(--tracker-border, #e8e0f5) 60%, transparent);
   overflow: hidden;
@@ -526,7 +642,7 @@ button[data-slot="button"][class*="bg-[var(--tracker-accent)]"]:active {
 .mobile-task-card {
   position: relative;
   background: var(--tracker-bg-card, #fff);
-  border: 3px solid #17181C;
+  border: 2px solid var(--tracker-accent);
   border-radius: 16px;
   padding: 14px 16px;
   cursor: pointer;
