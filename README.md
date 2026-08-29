@@ -90,7 +90,7 @@ src/
 ├── hooks/                Реакции на изменения: права, синхронизация, клавиши
 └── lib/                  Логика без интерфейса: стор, метрики, импорт, права
 tests/
-├── unit/                 52 юнит-теста (npm test)
+├── unit/                 84 юнит-теста (npm test)
 └── smoke.spec.ts         Playwright (npm run test:e2e)
 prisma/schema.prisma      Модель данных — единственный источник правды
 scripts/run.mjs           Запускатель с портом из .env

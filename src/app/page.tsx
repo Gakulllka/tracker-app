@@ -10,8 +10,10 @@ import React, {
 import { AuthGate } from "@/app/auth-gate";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { useInsightSync } from "@/hooks/useInsightSync";
+import { useDomains } from "@/hooks/useDomains";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { mergeImportedTasks, type ImportPayload } from "@/lib/task-import";
+import { filterTasks, sortTasks, buildMonthBreakdown } from "@/lib/task-filters";
 import { useTaskStore, PresBgSettings, DEFAULT_PRES_BG, undoStore } from "@/lib/store";
 import { createTheme, applyTheme } from "@/lib/theme";
 import { useServerSync } from "@/hooks/useServerSync";
@@ -36,11 +38,7 @@ import {
   STATUS_ORDER,
   PRIO_START,
 } from "@/lib/types";
-import {
-  parseFormulas,
-  applyFormula,
-  describeFormula,
-} from "@/lib/comment-formulas";
+import { applyCommentFormulas } from "@/lib/comment-formulas";
 
 import {
   getRowsMetrics,
@@ -481,83 +479,29 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
 
 
   /** Полный список с сервера (включая archived для админа). */
-  const [serverDomains, setServerDomains] = useState<Array<{ id: string; name: string; archived?: boolean }>>([]);
-
-  /** Перечитать домены с сервера и положить в store. */
-  const refreshDomains = useCallback(async () => {
-    try {
-      const res = await fetch("/api/domains", {
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data.domains)) {
-        storeSetDomains(data.domains.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name })));
-        setServerDomains(data.domains);
-      }
-    } catch { /* silent */ }
-  }, [authData.token, storeSetDomains]);
-
-  useEffect(() => {
-    const t = setTimeout(() => { refreshDomains(); }, 0);
-    return () => clearTimeout(t);
-  }, [refreshDomains]);
-
-  /** Диалог создания домена из шапки. */
-  const [newDomainDialog, setNewDomainDialog] = useState(false);
-  const [newDomainName, setNewDomainName] = useState("");
-  const [creatingDomain, setCreatingDomain] = useState(false);
-  const createDomainFromHeader = useCallback(async () => {
-    const name = newDomainName.trim();
-    if (!name) return;
-    setCreatingDomain(true);
-    try {
-      const res = await fetch("/api/domains", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
-        body: JSON.stringify({ token: authData.token, name }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.domain) {
-        await refreshDomains();
-        await refreshAuth(); // создатель получил право редактирования
-        storeSetActiveDomain(data.domain.id);
-        setNewDomainDialog(false);
-        setNewDomainName("");
-      } else {
-        setActionError(data.error || "Не удалось создать домен");
-      }
-    } catch {
-      setActionError("Нет соединения с сервером");
-    }
-    setCreatingDomain(false);
-  }, [newDomainName, authData.token, refreshDomains, refreshAuth, storeSetActiveDomain]);
+  /* ---- Домены (реализация — hooks/useDomains.ts) ---- */
+  const {
+    domains: serverDomains,
+    refresh: refreshDomains,
+    create: createDomainFromHeader,
+    creating: creatingDomain,
+    dialogOpen: newDomainDialog,
+    setDialogOpen: setNewDomainDialog,
+    newName: newDomainName,
+    setNewName: setNewDomainName,
+    requestAccess: requestAccessToActive,
+    requestingAccess,
+  } = useDomains({
+    token: authData.token,
+    activeDomainId,
+    setStoreDomains: storeSetDomains,
+    setActiveDomain: storeSetActiveDomain,
+    refreshAuth: async () => { await refreshAuth?.(); },
+    onError: setActionError,
+  });
 
   /** Глобальный поиск (Ctrl+K). */
   const [paletteOpen, setPaletteOpen] = useState(false);
-
-  /** Запрос доступа к активному домену прямо из шапки. */
-  const [requestingAccess, setRequestingAccess] = useState(false);
-  const requestAccessToActive = useCallback(async () => {
-    setRequestingAccess(true);
-    try {
-      const res = await fetch("/api/domains/access", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
-        body: JSON.stringify({ token: authData.token, domainId: activeDomainId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        // Успех виден по пропаданию кнопки запроса доступа (refreshAuth).
-        await refreshAuth?.();
-      } else {
-        setActionError(data.error || "Ошибка запроса доступа");
-      }
-    } catch {
-      setActionError("Нет соединения с сервером");
-    }
-    setRequestingAccess(false);
-  }, [authData.token, activeDomainId, refreshAuth]);
 
   const totalFactMap = useMemo(
     () => buildTotalFactMap(activeDomainData?.dataByYearMonth || {}, currentYear, currentMonth),
@@ -580,65 +524,21 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     [rows, clientMode]
   );
 
-  const filteredRows = useMemo(() => {
-    let result = visibleRows;
-    // Фильтр по сигналам руководителя (кнопка-уведомление)
-    if (signalsFilterActive) {
-      result = result.filter(r =>
-        r.approvalStatus === "pending" ||
-        r.approvalStatus === "rejected" ||
-        !!r.executiveFlag
-      );
-    }
-    if (filterStatuses.size > 0) {
-      result = result.filter((r) => filterStatuses.has(r.status));
-    }
-    if (filterPriorities.size > 0) {
-      result = result.filter((r) =>
-        filterPriorities.has(r.priority)
-      );
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (r) =>
-          r.name.toLowerCase().includes(q) ||
-          r.num.toLowerCase().includes(q) ||
-          r.comment.toLowerCase().includes(q) ||
-          r.status.toLowerCase().includes(q) ||
-          r.priority.toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [visibleRows, filterStatuses, filterPriorities, searchQuery, signalsFilterActive]);
+  const filteredRows = useMemo(
+    () => filterTasks(visibleRows, {
+      signalsOnly: signalsFilterActive,
+      statuses: filterStatuses,
+      priorities: filterPriorities,
+      search: searchQuery,
+    }),
+    [visibleRows, filterStatuses, filterPriorities, searchQuery, signalsFilterActive],
+  );
 
-  const sortedRows = useMemo(() => {
-    const arr = [...filteredRows];
-    if (sortKey) {
-      arr.sort((a, b) => {
-        if (sortKey === "name")
-          return sortDir * a.name.localeCompare(b.name);
-        if (sortKey === "comment")
-          return sortDir * a.comment.localeCompare(b.comment);
-        if (sortKey === "priority")
-          return (
-            sortDir *
-            (PRIO_START[a.priority] - PRIO_START[b.priority])
-          );
-        if (sortKey === "status")
-          return (
-            sortDir *
-            (STATUS_ORDER[a.status] - STATUS_ORDER[b.status])
-          );
-        return (
-          sortDir *
-          (sortVal(a, sortKey, qMap, totalFactMap) -
-            sortVal(b, sortKey, qMap, totalFactMap))
-        );
-      });
-    }
-    return arr;
-  }, [filteredRows, sortKey, sortDir, qMap, totalFactMap]);
+  const sortedRows = useMemo(
+    () => sortTasks(filteredRows, sortKey, sortDir as 1 | -1,
+      (task, key) => sortVal(task, key, qMap, totalFactMap)),
+    [filteredRows, sortKey, sortDir, qMap, totalFactMap],
+  );
 
   const rowsMetrics = useMemo(
     () => getRowsMetrics(visibleRows, totalFactMap),
@@ -657,25 +557,11 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   /* Phase 4: monthKey для запросов в /api/insights */
   const insightMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
 
-  /* TotalH dialog breakdown */
-  const monthBreakdown = useMemo(() => {
-    if (!totalHDialog.taskNum) return { rows: [], taskName: "" };
-    const rows: { month: number; planH: number; factH: number; cumulative: number; status: string }[] = [];
-    let taskName = "";
-    let cum = 0;
-    for (let m = 0; m <= 11; m++) {
-      const mr = allData[m] || [];
-      const t = mr.find((r) => r.num === totalHDialog.taskNum);
-      if (t) {
-        if (!taskName) taskName = t.name;
-        const plan = evalExpr(t.planH);
-        const fact = evalExpr(t.factH);
-        cum += fact;
-        rows.push({ month: m, planH: plan, factH: fact, cumulative: cum, status: t.status });
-      }
-    }
-    return { rows, taskName };
-  }, [totalHDialog.taskNum, allData]);
+  /* Разбивка по месяцам для окна «Итого» */
+  const monthBreakdown = useMemo(
+    () => buildMonthBreakdown(totalHDialog.taskNum, allData, evalExpr),
+    [totalHDialog.taskNum, allData],
+  );
 
 
   /* ---- Handlers ---- */
@@ -692,42 +578,26 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     setEditingCell(null);
   }, []);
 
-  /* Phase 7.3: при выходе из редактирования комментария — пробуем
-   * распознать формулы (@факт+10, @план*2 и т.п.). Если найдены —
-   * меняем factH/planH и заменяем комментарий на системную запись. */
+  /** При выходе из редактирования комментария применяем формулы «@факт+10». */
   const commitCommentFormulas = useCallback((month: number, taskId: string) => {
     const task = (allData[month] || []).find((r) => r.id === taskId);
     if (!task) return;
-    const { formulas, remainingText } = parseFormulas(task.comment || "");
-    if (formulas.length === 0) return;
 
-    let newFactH = evalExpr(task.factH);
-    let newPlanH = evalExpr(task.planH);
-    const systemNotes: string[] = [];
+    const result = applyCommentFormulas(
+      task.comment || "",
+      evalExpr(task.factH),
+      evalExpr(task.planH),
+    );
+    if (!result.applied) return;
 
-    for (const f of formulas) {
-      if (f.target === "fact") {
-        const oldVal = newFactH;
-        newFactH = applyFormula(oldVal, f.op, f.operand);
-        systemNotes.push(describeFormula(f, oldVal, newFactH));
-      } else {
-        const oldVal = newPlanH;
-        newPlanH = applyFormula(oldVal, f.op, f.operand);
-        systemNotes.push(describeFormula(f, oldVal, newPlanH));
-      }
-    }
-
-    // Применяем изменения. Делаем snapshot для undo.
     useTaskStore.getState().snapshot();
-    if (systemNotes.length > 0 && evalExpr(task.factH) !== newFactH) {
-      updateTask(month, taskId, "factH", String(Math.round(newFactH * 100) / 100));
+    if (evalExpr(task.factH) !== result.factH) {
+      updateTask(month, taskId, "factH", String(result.factH));
     }
-    if (systemNotes.length > 0 && evalExpr(task.planH) !== newPlanH) {
-      updateTask(month, taskId, "planH", String(Math.round(newPlanH * 100) / 100));
+    if (evalExpr(task.planH) !== result.planH) {
+      updateTask(month, taskId, "planH", String(result.planH));
     }
-    // Заменяем комментарий: системные строки + остаток обычного текста (если был).
-    const newComment = systemNotes.join("\n") + (remainingText ? "\n" + remainingText : "");
-    updateTask(month, taskId, "comment", newComment);
+    updateTask(month, taskId, "comment", result.comment);
   }, [allData, updateTask]);
 
   const isEditing = useCallback(

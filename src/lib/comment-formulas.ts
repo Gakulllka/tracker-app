@@ -81,3 +81,57 @@ function formatNumber(n: number): string {
   const rounded = Math.round(n * 100) / 100;
   return String(rounded);
 }
+
+export interface FormulaResult {
+  /** Найдены ли формулы в комментарии. */
+  applied: boolean;
+  factH: number;
+  planH: number;
+  /** Новый текст комментария: системные записи плюс остаток обычного текста. */
+  comment: string;
+}
+
+/**
+ * Разбирает формулы в комментарии и считает новые значения часов.
+ *
+ * В комментарий можно написать «@факт+10» или «@план*2» — при выходе из
+ * редактирования это превращается в изменение часов, а сама формула
+ * заменяется человекочитаемой записью вида «Факт: 4 → 14».
+ *
+ * Функция ничего не сохраняет: возвращает новые значения, а применяет их
+ * вызывающий код. Так её можно проверить тестами.
+ */
+export function applyCommentFormulas(
+  comment: string,
+  currentFactH: number,
+  currentPlanH: number,
+): FormulaResult {
+  const { formulas, remainingText } = parseFormulas(comment || "");
+
+  if (formulas.length === 0) {
+    return { applied: false, factH: currentFactH, planH: currentPlanH, comment };
+  }
+
+  let factH = currentFactH;
+  let planH = currentPlanH;
+  const notes: string[] = [];
+
+  for (const formula of formulas) {
+    if (formula.target === "fact") {
+      const before = factH;
+      factH = applyFormula(before, formula.op, formula.operand);
+      notes.push(describeFormula(formula, before, factH));
+    } else {
+      const before = planH;
+      planH = applyFormula(before, formula.op, formula.operand);
+      notes.push(describeFormula(formula, before, planH));
+    }
+  }
+
+  return {
+    applied: true,
+    factH: Math.round(factH * 100) / 100,
+    planH: Math.round(planH * 100) / 100,
+    comment: notes.join("\n") + (remainingText ? "\n" + remainingText : ""),
+  };
+}
