@@ -1012,27 +1012,64 @@ html, body {
   padding: 56px 24px;
   text-align: center;
 }
+
+/* ── Моменты входа ─────────────────────────────────────────────────────
+   Заставка, экран входа и пустые состояния — единственные места, где
+   манга-приёмы звучат в полную силу. В рабочей области их нет: таблица
+   задач должна оставаться тихой.                                        */
+
+/* Медленное вращение лучей. Заметно, только если смотреть — а смотрят
+   на заставку не дольше секунды. */
+.brand-speedlines {
+  animation: brand-speedlines-turn 90s linear infinite;
+  transform-origin: 50% 44%;
+}
+
+@keyframes brand-speedlines-turn {
+  to { transform: rotate(360deg); }
+}
+
+/* Если в системе отключена анимация — лучи просто стоят. */
+@media (prefers-reduced-motion: reduce) {
+  .brand-speedlines { animation: none; }
+}
+
+/* Пустое состояние: рамка со штриховкой вместо серого квадрата.
+   Штриховка — тот же полутон, набранный линиями, а не заливкой. */
 .empty-state-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
+  border: 2.5px solid var(--tracker-accent);
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--tracker-accent) 12%, transparent) 0 1px,
+    transparent 1px 6px
+  );
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+}
+
+.empty-state-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--tracker-text-main);
+}
+
+.empty-state-hint {
+  font-size: 0.75rem;
+  color: var(--tracker-text-muted);
+  max-width: 34ch;
+}
+
+/* Раскладка иконки; вид задан выше в блоке «Моменты входа». */
+.empty-state-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--tracker-accent-bg, #f3eefb);
-  color: var(--tracker-accent, #17181C);
-  margin-bottom: 14px;
-}
-.empty-state-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--tracker-text-main, #2a2520);
+  color: var(--tracker-accent);
+  margin-bottom: 16px;
 }
 .empty-state-hint {
-  font-size: 12px;
   margin-top: 4px;
-  color: var(--tracker-text-muted, #8a8378);
-  max-width: 260px;
   line-height: 1.5;
 }
 
@@ -1042,7 +1079,7 @@ kbd {
   font-size: 10px;
   padding: 2px 5px;
   border-radius: 5px;
-  border: 1px solid #17181C;
+  border: 1px solid var(--tracker-accent);
   border-bottom-width: 2px;
   background: var(--tracker-bg-main, #faf9f7);
   color: var(--tracker-text-muted, #8a8378);

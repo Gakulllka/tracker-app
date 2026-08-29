@@ -10,14 +10,18 @@
  * с компактным знаком сверху.
  */
 import React, { useState, useEffect } from "react";
+import { RAIL } from "@/lib/tokens";
 import { Loader2, ArrowRight, Eye } from "lucide-react";
 
 /* Фиксированные фирменные токены (сознательно не из темы) */
-const INK = "var(--tracker-accent)";
+/* Вход — парадная дверь продукта, и она одинакова для всех.
+   Раньше часть цветов бралась из токенов темы, а часть была захардкожена
+   светлой: в тёмной теме тёмный текст ложился на тёмный фон. */
+const INK = RAIL.bg;
 const INK_SOFT = "#26282E";
-const PAPER = "var(--tracker-bg-main)";
-const CARD = "var(--tracker-bg-card)";
-const LINE = "var(--tracker-border)";
+const PAPER = RAIL.text;
+const CARD = "#FFFFFF";
+const LINE = "#DEDDD6";
 const TEXT = "#1C1D21";
 const MUTED = "#8B8A84";
 const MONO = "var(--font-geist-mono, ui-monospace, monospace)";
@@ -41,11 +45,11 @@ function DeltaStack({ size = 260, stroke = PAPER }: { size?: number; stroke?: st
       width={size} height={size * 0.9} viewBox="0 0 100 90"
       xmlns="http://www.w3.org/2000/svg" aria-hidden
     >
-      <polygon points="50,4 96,86 4,86" fill="none" stroke={stroke} strokeWidth="1.6" strokeLinejoin="round" opacity="0.9" />
-      <polygon points="50,20 86.5,84 13.5,84" fill="none" stroke={stroke} strokeWidth="1.2" strokeLinejoin="round" opacity="0.55" />
-      <polygon points="50,36 77,82 23,82" fill="none" stroke={stroke} strokeWidth="1" strokeLinejoin="round" opacity="0.34" />
-      <polygon points="50,52 67.5,80 32.5,80" fill="none" stroke={stroke} strokeWidth="0.9" strokeLinejoin="round" opacity="0.2" />
-      <polygon points="50,66 59,78.5 41,78.5" fill="none" stroke={stroke} strokeWidth="0.8" strokeLinejoin="round" opacity="0.12" />
+      <polygon points="50,4 96,86 4,86" fill="none" stroke={stroke} strokeWidth="3.2" strokeLinejoin="round" />
+      <polygon points="50,20 86.5,84 13.5,84" fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" />
+      <polygon points="50,36 77,82 23,82" fill="none" stroke={stroke} strokeWidth="1.4" strokeLinejoin="round" />
+      <polygon points="50,52 67.5,80 32.5,80" fill="none" stroke={stroke} strokeWidth="1" strokeLinejoin="round" />
+      <polygon points="50,66 59,78.5 41,78.5" fill="none" stroke={stroke} strokeWidth="0.8" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -55,7 +59,7 @@ function DeltaMark({ size = 20, color = PAPER }: { size?: number; color?: string
   return (
     <svg width={size} height={size * 0.9} viewBox="0 0 44 40" xmlns="http://www.w3.org/2000/svg" aria-hidden>
       <polygon points="22,3 41,37 3,37" fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round" />
-      <polygon points="22,13 35,35 9,35" fill="none" stroke={color} strokeWidth="1.4" strokeLinejoin="round" opacity="0.4" />
+      <polygon points="22,13 35,35 9,35" fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -153,7 +157,8 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
 
   const inputStyle: React.CSSProperties = {
     background: CARD,
-    border: `1px solid ${LINE}`,
+    /* Чернильный контур 2px — тот же, что у карточек и диалогов. */
+    border: `2px solid ${INK}`,
     color: TEXT,
   };
 
@@ -218,10 +223,14 @@ export default function AuthScreen({ onAuth }: AuthScreenProps) {
             </span>
           </div>
 
-          <h1 className="text-[24px] font-bold tracking-tight" style={{ color: TEXT }}>
+          <h1 className="text-[28px] font-medium tracking-tight" style={{ color: TEXT }}>
             {mode === "login" ? "С возвращением" : "Новый аккаунт"}
           </h1>
-          <p className="mt-1.5 text-[13.5px]" style={{ color: MUTED }}>
+          {/* Черта под подписью — та же структура титула, что в шапке месяца. */}
+          <p
+            className="mt-1.5 pb-4 text-[13.5px]"
+            style={{ color: MUTED, borderBottom: `2px solid ${INK}` }}
+          >
             {mode === "login"
               ? "Войдите, чтобы продолжить работу с задачами"
               : "Пара полей — и вы в общем пространстве команды"}

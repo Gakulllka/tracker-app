@@ -7,9 +7,13 @@
  * Используется и при проверке сессии, и при первой загрузке данных.
  */
 import React from "react";
+import { RAIL } from "@/lib/tokens";
 
-const INK = "var(--tracker-accent)";
-const PAPER = "var(--tracker-bg-main)";
+/* Заставка графитовая в обеих темах — как рельса. Раньше здесь стояли
+   токены темы, и в тёмной теме экран инвертировался, хотя в описании
+   значилось «единый для всех, без привязки к теме пользователя». */
+const INK = RAIL.bg;
+const PAPER = RAIL.text;
 
 interface BrandSplashProps {
   /** Показан ли сплэш (false — плавно растворяется и отпускает клики). */
@@ -27,8 +31,42 @@ export function BrandSplash({ visible, label = "Загрузка..." }: BrandSpl
       style={{ background: INK }}
       aria-hidden={!visible}
     >
+      {/* Линии концентрации — приём манги для кульминации кадра.
+          Единственное место в приложении, где им позволено появиться:
+          если поставить их везде, они перестанут что-либо значить. */}
+      <svg
+        className="brand-speedlines pointer-events-none absolute inset-0 h-full w-full"
+        preserveAspectRatio="none"
+        viewBox="0 0 100 100"
+        aria-hidden="true"
+      >
+        <defs>
+          <radialGradient id="brand-speedlines-fade">
+            <stop offset="42%" stopColor="#fff" stopOpacity="0" />
+            <stop offset="100%" stopColor="#fff" stopOpacity="0.55" />
+          </radialGradient>
+          <mask id="brand-speedlines-mask">
+            <rect width="100" height="100" fill="url(#brand-speedlines-fade)" />
+          </mask>
+        </defs>
+        <g mask="url(#brand-speedlines-mask)" stroke={PAPER} strokeWidth="0.45">
+          {Array.from({ length: 28 }, (_, i) => {
+            const angle = (i / 28) * Math.PI * 2;
+            return (
+              <line
+                key={i}
+                x1={50 + Math.cos(angle) * 18}
+                y1={44 + Math.sin(angle) * 18}
+                x2={50 + Math.cos(angle) * 110}
+                y2={44 + Math.sin(angle) * 110}
+              />
+            );
+          })}
+        </g>
+      </svg>
+
       <div
-        className={`flex flex-col items-center transition-transform duration-500 ${
+        className={`relative flex flex-col items-center transition-transform duration-500 ${
           visible ? "scale-100" : "scale-[0.97]"
         }`}
       >
@@ -41,7 +79,8 @@ export function BrandSplash({ visible, label = "Загрузка..." }: BrandSpl
             viewBox="0 0 100 100"
             fill="none"
             stroke={PAPER}
-            strokeWidth="2"
+            strokeWidth="4.5"
+            strokeLinejoin="round"
             className="absolute inset-0"
             style={{
               animation: 'brand-hero-breathe 7s ease-in-out infinite',
@@ -58,9 +97,9 @@ export function BrandSplash({ visible, label = "Загрузка..." }: BrandSpl
             viewBox="0 0 100 100"
             fill="none"
             stroke={PAPER}
-            strokeWidth="2"
+            strokeWidth="2.4"
+            strokeLinejoin="round"
             className="absolute inset-0"
-            style={{ opacity: 0.5 }}
           >
             <polygon
               points="50,25 78,78 22,78"
@@ -79,9 +118,9 @@ export function BrandSplash({ visible, label = "Загрузка..." }: BrandSpl
             viewBox="0 0 100 100"
             fill="none"
             stroke={PAPER}
-            strokeWidth="2"
+            strokeWidth="1.2"
+            strokeLinejoin="round"
             className="absolute inset-0"
-            style={{ opacity: 0.25 }}
           >
             <polygon points="50,40 62,68 38,68" />
           </svg>

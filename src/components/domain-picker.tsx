@@ -10,13 +10,15 @@
  */
 import React, { useState, useEffect, useCallback } from "react";
 import { Loader2, Plus, Lock, ArrowRight, Eye } from "lucide-react";
+import { RAIL } from "@/lib/tokens";
 
-/* Фиксированные фирменные токены (как в auth-screen) */
-const INK = "var(--tracker-accent)";
+/* Выбор домена — часть парадной двери, оформление одинаково для всех тем
+   (см. auth-screen). Токены темы здесь брать нельзя: TEXT/MUTED светлые. */
+const INK = RAIL.bg;
 const INK_SOFT = "#26282E";
-const PAPER = "var(--tracker-bg-main)";
-const CARD = "var(--tracker-bg-card)";
-const LINE = "var(--tracker-border)";
+const PAPER = RAIL.text;
+const CARD = "#FFFFFF";
+const LINE = "#DEDDD6";
 const TEXT = "#1C1D21";
 const MUTED = "#8B8A84";
 const MONO = "var(--font-geist-mono, ui-monospace, monospace)";
@@ -99,7 +101,7 @@ export function DomainPickerScreen({
         <div className="flex items-center gap-2.5 select-none">
           <svg width="18" height="16" viewBox="0 0 44 40" xmlns="http://www.w3.org/2000/svg" style={{ color: PAPER }}>
             <polygon points="22,3 41,37 3,37" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
-            <polygon points="22,13 35,35 9,35" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" opacity="0.4" />
+            <polygon points="22,13 35,35 9,35" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
           </svg>
           <span
             className="text-[13px] font-semibold uppercase"
@@ -116,11 +118,11 @@ export function DomainPickerScreen({
             width={260} height={234} viewBox="0 0 100 90"
             xmlns="http://www.w3.org/2000/svg" aria-hidden
           >
-            <polygon points="50,4 96,86 4,86" fill="none" stroke={PAPER} strokeWidth="1.6" strokeLinejoin="round" opacity="0.9" />
-            <polygon points="50,20 86.5,84 13.5,84" fill="none" stroke={PAPER} strokeWidth="1.2" strokeLinejoin="round" opacity="0.55" />
-            <polygon points="50,36 77,82 23,82" fill="none" stroke={PAPER} strokeWidth="1" strokeLinejoin="round" opacity="0.34" />
-            <polygon points="50,52 67.5,80 32.5,80" fill="none" stroke={PAPER} strokeWidth="0.9" strokeLinejoin="round" opacity="0.2" />
-            <polygon points="50,66 59,78.5 41,78.5" fill="none" stroke={PAPER} strokeWidth="0.8" strokeLinejoin="round" opacity="0.12" />
+            <polygon points="50,4 96,86 4,86" fill="none" stroke={PAPER} strokeWidth="3.2" strokeLinejoin="round" />
+            <polygon points="50,20 86.5,84 13.5,84" fill="none" stroke={PAPER} strokeWidth="2" strokeLinejoin="round" />
+            <polygon points="50,36 77,82 23,82" fill="none" stroke={PAPER} strokeWidth="1.4" strokeLinejoin="round" />
+            <polygon points="50,52 67.5,80 32.5,80" fill="none" stroke={PAPER} strokeWidth="1" strokeLinejoin="round" />
+            <polygon points="50,66 59,78.5 41,78.5" fill="none" stroke={PAPER} strokeWidth="0.8" strokeLinejoin="round" />
           </svg>
           <div>
             <p className="text-[22px] font-semibold leading-snug tracking-tight" style={{ color: PAPER }}>
@@ -150,7 +152,7 @@ export function DomainPickerScreen({
             >
               <svg width="24" height="22" viewBox="0 0 44 40" xmlns="http://www.w3.org/2000/svg" style={{ color: PAPER }}>
                 <polygon points="22,3 41,37 3,37" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
-                <polygon points="22,13 35,35 9,35" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" opacity="0.4" />
+                <polygon points="22,13 35,35 9,35" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
               </svg>
             </div>
             <span
