@@ -74,11 +74,15 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
   const numColor = isLight ? "rgba(23,24,28,0.55)" : "rgba(245,245,242,0.60)";
   const nameColor = textColor;
 
+  /* Заголовок раздела — бровь с чертой, тот же приём, что в шапке
+     месяца и в окне задачи. Был центрированный текст 54 пикселя,
+     съедавший четверть слайда и ни с чем не рифмующийся. */
   const sectionH2 = (text: string): React.ReactNode => (
     <h2 style={{
-      fontFamily: F, fontSize: "54px", fontWeight: 500, marginBottom: "24px",
-      textAlign: "center", flexShrink: 0,
-      color: textColor,
+      fontFamily: F, fontSize: "17px", fontWeight: 500, flexShrink: 0,
+      letterSpacing: "2.4px", textTransform: "uppercase",
+      color: mutedColor, paddingBottom: "12px", marginBottom: "26px",
+      borderBottom: `3px solid ${acA}`,
     }}>{text}</h2>
   );
 
@@ -100,40 +104,42 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
        кольцевая диаграмма и число 64 пикселя — слайд кричал громче,
        чем говорит весь остальной продукт. */
     return (
-      <div style={{
-        ...shell, height: "100%", display: "flex",
-        alignItems: "center", justifyContent: "center",
-      }}>
-        {/* Композиция собрана по центру, как на экране загрузки: титул
-            не растянут по высоте, а стоит цельным блоком. */}
-        <div style={{ maxWidth: "760px", width: "100%" }}>
-          <p style={{ fontFamily: FONT_MONO, fontSize: "16px", letterSpacing: "3px", textTransform: "uppercase", color: mutedColor, marginBottom: "10px" }}>
-            {year}{domain ? ` · ${domain}` : ""}
-          </p>
+      <div style={{ ...shell, height: "100%", display: "flex", flexDirection: "column" }}>
+        <p style={{
+          fontFamily: FONT_MONO, fontSize: "18px", letterSpacing: "4px",
+          textTransform: "uppercase", color: mutedColor,
+        }}>
+          {year}{domain ? ` · ${domain}` : ""}
+        </p>
 
+        {/* Месяц занимает полотно: на 16:9 сжатый в середину блок оставлял
+            вокруг себя поле пустоты. Числа стоят на общей линии внизу,
+            отбитые чернильной чертой — как в шапке списка задач. */}
+        <div style={{ flex: "1 1 auto", display: "flex", alignItems: "center" }}>
           <h1 style={{
-            fontFamily: F, fontSize: "clamp(64px,8vw,104px)", fontWeight: 500,
-            lineHeight: 1, letterSpacing: "-3px", color: textColor,
+            fontFamily: F, fontSize: "clamp(88px,13vw,190px)", fontWeight: 500,
+            lineHeight: 0.92, letterSpacing: "-0.045em", color: textColor,
           }}>{month}</h1>
+        </div>
 
-          <div style={{ width: "96px", height: "4px", background: acA, margin: "28px 0 26px" }} />
-
-          <div style={{ display: "flex", gap: "64px", flexWrap: "wrap" }}>
-            <div>
-              <p style={{ fontFamily: F, fontSize: "15px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor }}>Задач</p>
-              <p style={{ fontFamily: FONT_MONO, fontSize: "46px", fontWeight: 500, color: textColor, lineHeight: 1.1 }}>{total}</p>
-            </div>
-            <div>
-              <p style={{ fontFamily: F, fontSize: "15px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor }}>Завершено</p>
-              <p style={{ fontFamily: FONT_MONO, fontSize: "46px", fontWeight: 500, color: textColor, lineHeight: 1.1 }}>{completed}</p>
-            </div>
-            <div>
-              <p style={{ fontFamily: F, fontSize: "15px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor }}>Часов</p>
-              <p style={{ fontFamily: FONT_MONO, fontSize: "46px", fontWeight: 500, color: textColor, lineHeight: 1.1 }}>{fmt2(factH)}</p>
-            </div>
+        <div style={{ borderTop: `4px solid ${acA}`, paddingTop: "26px", display: "flex", alignItems: "flex-end", gap: "72px", flexWrap: "wrap" }}>
+          <div>
+            <p style={{ fontFamily: F, fontSize: "16px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor }}>Задач</p>
+            <p style={{ fontFamily: FONT_MONO, fontSize: "54px", fontWeight: 500, color: textColor, lineHeight: 1.05 }}>{total}</p>
+          </div>
+          <div>
+            <p style={{ fontFamily: F, fontSize: "16px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor }}>Завершено</p>
+            <p style={{ fontFamily: FONT_MONO, fontSize: "54px", fontWeight: 500, color: textColor, lineHeight: 1.05 }}>{completed}</p>
+          </div>
+          <div>
+            <p style={{ fontFamily: F, fontSize: "16px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor }}>Часов</p>
+            <p style={{ fontFamily: FONT_MONO, fontSize: "54px", fontWeight: 500, color: textColor, lineHeight: 1.05 }}>{fmt2(factH)}</p>
           </div>
 
-          <p style={{ fontFamily: FONT_MONO, fontSize: "14px", letterSpacing: "2px", textTransform: "uppercase", color: mutedColor, marginTop: "34px" }}>
+          <p style={{
+            marginLeft: "auto", fontFamily: FONT_MONO, fontSize: "15px",
+            letterSpacing: "2px", textTransform: "uppercase", color: mutedColor,
+          }}>
             Delta · операционный монитор
           </p>
         </div>
@@ -185,23 +191,29 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
                 <span style={{
                   fontFamily: F, width: "104px", fontSize: "15px",
                   letterSpacing: "1.2px", textTransform: "uppercase",
-                  color: isCurrent ? textColor : mutedColor,
+                  fontWeight: isCurrent ? 500 : 400,
+                  color: textColor,
                 }}>{MONTHS[h.month]}</span>
 
                 <span style={{
-                  flex: 1, height: "26px", position: "relative", overflow: "hidden",
-                  border: `2px solid rgba(${r},${g},${b},1)`, borderRadius: "4px",
+                  flex: 1, height: "34px", position: "relative", overflow: "hidden",
+                  border: `2px solid ${acA}`, borderRadius: "4px",
                 }}>
+                  {/* Прошлые месяцы — штриховка, текущий — сплошная заливка.
+                      Раньше прошлые гасились прозрачностью, и пять строк
+                      из шести становились еле различимы. */}
                   <span style={{
                     position: "absolute", inset: 0, width: `${width}%`, display: "block",
-                    background: isCurrent && factN > planN ? dangerColor : acA,
-                    opacity: isCurrent ? 1 : 0.45,
+                    background: isCurrent
+                      ? (factN > planN ? dangerColor : acA)
+                      : `repeating-linear-gradient(135deg, ${acA} 0 3px, transparent 3px 8px)`,
                   }} />
                 </span>
 
                 <span style={{
-                  fontFamily: FONT_MONO, width: "88px", textAlign: "right", fontSize: "20px",
-                  color: isCurrent ? textColor : mutedColor,
+                  fontFamily: FONT_MONO, width: "96px", textAlign: "right", fontSize: "22px",
+                  fontWeight: isCurrent ? 500 : 400,
+                  color: textColor,
                 }}>{fmt2(h.factH)}</span>
               </div>
             );

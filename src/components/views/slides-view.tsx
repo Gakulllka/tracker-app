@@ -545,7 +545,9 @@ export function SlidePreview({
           flexDirection: "column",
           justifyContent: "flex-start",
           alignItems: "stretch",
-          padding: "24px 28px",
+          /* Поля слайда пропорциональны ширине: на 16:9 фиксированные
+             28 пикселей теряются, и содержание болтается у самого края. */
+          padding: "clamp(28px, 5%, 72px) clamp(32px, 6%, 88px)",
           zIndex: 1,
           overflow: "hidden",
         }}

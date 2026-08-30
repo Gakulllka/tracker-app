@@ -162,14 +162,10 @@ export function ProtocolsView({
 
   return (
     <div className="space-y-5">
-      {/* Заголовок */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="paper-eyebrow">ДОКУМЕНТЫ</p>
-          <h1 className="mt-0.5 text-[22px] font-bold tracking-tight text-[var(--tracker-text-main)]">
-            Протоколы встреч
-          </h1>
-        </div>
+      {/* Своего заголовка у вкладки нет: общая шапка уже написала
+          «Протоколы». Раньше здесь было ещё «ДОКУМЕНТЫ / Протоколы
+          встреч» — то же самое третий раз подряд. */}
+      <div className="flex items-center justify-end">
         {!isGuest && (
           <Button
             onClick={() => setUploadDialogOpen(true)}
@@ -187,21 +183,11 @@ export function ProtocolsView({
           <Loader2 className="size-6 animate-spin text-muted-foreground" />
         </div>
       ) : protocols.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div
-            className="size-14 rounded-2xl flex items-center justify-center mb-4"
-            style={{ background: "var(--tracker-accent-bg)" }}
-          >
-            <FileText
-              className="size-7"
-              style={{ color: "var(--tracker-accent)" }}
-            />
-          </div>
-          <p className="text-[15px] font-semibold text-[var(--tracker-text-main)]">
-            Нет протоколов
-          </p>
-          <p className="text-[13px] text-muted-foreground mt-1 max-w-[260px]">
-            Загрузите первый протокол встречи, чтобы начать
+        <div className="empty-state py-14">
+          <div className="empty-state-icon"><FileText className="size-6" /></div>
+          <p className="empty-state-title">Пока нет протоколов</p>
+          <p className="empty-state-hint">
+            Загрузите первый протокол встречи — он появится здесь
           </p>
           {!isGuest && (
             <Button
@@ -327,22 +313,16 @@ function ProtocolCard({
             </h3>
           </div>
 
-          <div className="flex items-center gap-3 mt-1.5 text-[12px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Calendar className="size-3" />
-              {fmtProtocolDate(protocol.meetingDate)}
-            </span>
-            <span className="flex items-center gap-1">
-              <File className="size-3" />
-              {formatFileSize(protocol.fileSize)}
-            </span>
-            {protocol.author && (
-              <span className="flex items-center gap-1">
-                <User className="size-3" />
-                {protocol.author}
-              </span>
-            )}
-          </div>
+          {/* Реквизиты одной строкой через точку. Раньше у каждого
+              значения была своя иконка-крючок — три значка на строку,
+              которые ничего не добавляли к смыслу. */}
+          <p className="mt-1 text-[12px] delta-num" style={{ color: "var(--tracker-text-muted)" }}>
+            {[
+              fmtProtocolDate(protocol.meetingDate),
+              formatFileSize(protocol.fileSize),
+              protocol.author,
+            ].filter(Boolean).join(" · ")}
+          </p>
 
           {protocol.notes && (
             <p className="text-[12px] text-muted-foreground mt-2 line-clamp-2">
@@ -350,8 +330,8 @@ function ProtocolCard({
             </p>
           )}
           {!canPreview && (
-            <p className="text-[11px] text-muted-foreground mt-1.5 italic">
-              Предпросмотр недоступен для этого типа файла. Скачайте для просмотра.
+            <p className="text-[11px] mt-1.5" style={{ color: "var(--tracker-text-muted)" }}>
+              Предпросмотр недоступен — скачайте файл
             </p>
           )}
         </div>

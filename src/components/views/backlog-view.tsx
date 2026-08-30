@@ -233,7 +233,7 @@ export function BacklogView({
                       вернутся в месяц вместе с задачей. */}
                   <span
                     className="backlog-col delta-num"
-                    style={fact > 0 ? { color: "var(--tracker-text-main)" } : undefined}
+                    style={fact === 0 ? { color: "var(--tracker-text-muted)" } : undefined}
                     title={fact > 0 ? "Уже отработано до попадания в беклог" : undefined}
                   >
                     {fact > 0 ? fmt2(fact) : "—"}

@@ -563,6 +563,12 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
    * в разы. При бюджете 240 и сумме планов 548 получалось 228%, что
    * ни о чём не говорит.
    */
+  /** Сколько плановых часов ещё не отработано: план минус факт. */
+  const planLeft = useMemo(
+    () => R2(rowsMetrics.totPlan - rowsMetrics.totFact),
+    [rowsMetrics.totPlan, rowsMetrics.totFact],
+  );
+
   /** Свободный остаток бюджета месяца: бюджет минус отработанное. */
   const freeHours = useMemo(
     () => Math.max(0, R2(monthlyPlan - rowsMetrics.totFact)),
@@ -1038,9 +1044,14 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
                 <dt>Факт</dt>
                 <dd>{fmt2(rowsMetrics.totFact)}</dd>
               </div>
+              {/* Остаток плановых часов. «Итого» здесь не имело смысла:
+                  оно складывает накопление по задачам за всё время их
+                  жизни и к текущему месяцу отношения не имеет. */}
               <div>
-                <dt>Итого</dt>
-                <dd>{fmt2(rowsMetrics.totTotalH)}</dd>
+                <dt>Остаток</dt>
+                <dd style={planLeft < 0 ? { color: "var(--tracker-danger)" } : undefined}>
+                  {fmt2(planLeft)}
+                </dd>
               </div>
 
               {/* Загрузка: сколько запланировано от лимита. Раньше здесь стоял

@@ -312,42 +312,10 @@ export function QuestionsView({
         </nav>
 
         <div className="questions-pane">
-          <div className="questions-list">
-            {visible.length === 0 ? (
-              <div className="empty-state py-10">
-                <div className="empty-state-icon"><MessageSquare className="size-6" /></div>
-                <p className="empty-state-title">{EMPTY_TITLES[bucket]}</p>
-                <p className="empty-state-hint">{EMPTY_HINTS[bucket]}</p>
-              </div>
-            ) : (
-              visible.map((q) => (
-                <QuestionCard
-                  key={q.id}
-                  q={q}
-                  expandedId={expandedId}
-                  setExpandedId={setExpandedId}
-                  answeringId={answeringId}
-                  setAnsweringId={setAnsweringId}
-                  answerDraft={answerDraft}
-                  setAnswerDraft={setAnswerDraft}
-                  answerQuestion={answerQuestion}
-                  deleteAnswer={deleteAnswer}
-                  removeQuestion={removeQuestion}
-                  archiveQuestion={archiveQuestion}
-                  openTaskDialog={openTaskDialog}
-                  isDark={isDark}
-                  isGuest={isGuest}
-                  currentUsername={currentUsername}
-                  allData={allData}
-                  updateTask={updateTask}
-                  currentMonth={currentMonth}
-                />
-              ))
-            )}
-          </div>
-
-      {/* ── Input area ── */}
-      <div className="ink-window p-4">
+          {/* Форма и поиск сверху: внизу они уезжали бы за пределы экрана,
+              как только вопросов станет много — а их станет много. */}
+          <div className="questions-compose">
+            <div>
         <div className="flex gap-3">
           <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
             style={{ background: "var(--tracker-accent-bg)", color: "var(--tracker-accent-fg-dark)" }}>
@@ -410,6 +378,41 @@ export function QuestionsView({
           </div>
         </div>
       </div>
+          </div>
+
+          <div className="questions-list">
+            {visible.length === 0 ? (
+              <div className="empty-state py-10">
+                <div className="empty-state-icon"><MessageSquare className="size-6" /></div>
+                <p className="empty-state-title">{EMPTY_TITLES[bucket]}</p>
+                <p className="empty-state-hint">{EMPTY_HINTS[bucket]}</p>
+              </div>
+            ) : (
+              visible.map((q) => (
+                <QuestionCard
+                  key={q.id}
+                  q={q}
+                  expandedId={expandedId}
+                  setExpandedId={setExpandedId}
+                  answeringId={answeringId}
+                  setAnsweringId={setAnsweringId}
+                  answerDraft={answerDraft}
+                  setAnswerDraft={setAnswerDraft}
+                  answerQuestion={answerQuestion}
+                  deleteAnswer={deleteAnswer}
+                  removeQuestion={removeQuestion}
+                  archiveQuestion={archiveQuestion}
+                  openTaskDialog={openTaskDialog}
+                  isDark={isDark}
+                  isGuest={isGuest}
+                  currentUsername={currentUsername}
+                  allData={allData}
+                  updateTask={updateTask}
+                  currentMonth={currentMonth}
+                />
+              ))
+            )}
+          </div>
 
         </div>
       </div>

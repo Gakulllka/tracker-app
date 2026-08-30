@@ -1293,6 +1293,9 @@ html, body {
   z-index: 100;
   display: flex;
   align-items: center;
+  /* По центру экрана, а не прижато к левому краю: заставка не соседствует
+     с рельсой, прижиматься ей не к чему. */
+  justify-content: center;
   padding: 0 clamp(24px, 8vw, 96px);
   transition: opacity 0.5s ease;
 }
@@ -1304,14 +1307,14 @@ html, body {
 
 .splash-frame {
   width: 100%;
-  max-width: 420px;
+  max-width: 520px;
 }
 
 .splash-mark-row {
   display: flex;
   align-items: flex-end;
-  gap: 16px;
-  margin-bottom: 18px;
+  gap: 22px;
+  margin-bottom: 22px;
 }
 
 .splash-titles {
@@ -1320,7 +1323,7 @@ html, body {
 
 .splash-wordmark {
   font-family: var(--font-geist-mono, ui-monospace, monospace);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 500;
   letter-spacing: 0.42em;
   text-transform: uppercase;
@@ -1330,7 +1333,7 @@ html, body {
 }
 
 .splash-product {
-  font-size: 26px;
+  font-size: 44px;
   font-weight: 500;
   letter-spacing: -0.02em;
   line-height: 1.15;
@@ -1385,11 +1388,10 @@ html, body {
 /* На телефоне композиция уезжает в центр: слева от неё нет рельсы,
    к которой можно прижаться, и прижатый к краю блок выглядит забытым. */
 @media (max-width: 767px) {
-  .splash {
-    justify-content: center;
-    padding: 0 28px;
-  }
-  .splash-product { font-size: 22px; }
+  .splash { padding: 0 28px; }
+  .splash-product { font-size: 30px; }
+  .splash-wordmark { font-size: 12px; }
+  .splash-mark-row { gap: 16px; }
 }
 
 /* Без анимации: знак сразу целый, полоса стоит. */
@@ -1961,6 +1963,14 @@ kbd {
   flex-direction: column;
 }
 
+/* Форма над списком: внизу она уезжала бы за экран при большом числе
+   вопросов, и чтобы задать новый, пришлось бы долистывать до конца. */
+.questions-compose {
+  flex: none;
+  padding: 12px 14px;
+  border-bottom: 2px solid var(--tracker-accent);
+}
+
 .questions-list {
   flex: 1;
   min-height: 0;
@@ -2012,6 +2022,9 @@ kbd {
   padding: 8px 14px;
 }
 
+/* Шапка на чернилах. Колонки внутри задают свой серый цвет, поэтому
+   он здесь перебивается: иначе получается серое по чёрному — та же
+   ловушка, что с токенами внутри рельсы. */
 .backlog-head {
   background: var(--tracker-accent);
   color: var(--tracker-accent-contrast);
@@ -2019,6 +2032,14 @@ kbd {
   font-weight: 500;
   letter-spacing: 0.11em;
   text-transform: uppercase;
+}
+
+.backlog-head .backlog-rank,
+.backlog-head .backlog-num,
+.backlog-head .backlog-name,
+.backlog-head .backlog-col {
+  color: inherit;
+  font-weight: 500;
 }
 
 .backlog-row {
@@ -2041,9 +2062,12 @@ kbd {
   outline-offset: -2px;
 }
 
-/* Ниже порога задачи в бюджет месяца уже не умещаются. */
-.backlog-row--over {
-  opacity: 0.62;
+/* Ниже порога задачи в бюджет месяца не умещаются. Приглушаем текст
+   явным цветом, а не opacity: полупрозрачный текст на любом фоне
+   читается хуже, чем честный серый. */
+.backlog-row--over .backlog-name,
+.backlog-row--over .backlog-col--left {
+  color: var(--tracker-text-muted);
 }
 
 .backlog-rank {
@@ -2051,14 +2075,15 @@ kbd {
   flex: none;
   text-align: right;
   font-family: var(--font-geist-mono, ui-monospace, monospace);
-  color: var(--tracker-text-muted);
+  font-weight: 500;
+  color: var(--tracker-text-main);
 }
 
 .backlog-num {
   width: 58px;
   flex: none;
   font-family: var(--font-geist-mono, ui-monospace, monospace);
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--tracker-text-muted);
 }
 
@@ -2085,7 +2110,7 @@ kbd {
   flex: none;
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: var(--tracker-text-muted);
+  color: var(--tracker-text-main);
 }
 
 /* Остаток — то, во что задача обойдётся, если взять её в месяц. */

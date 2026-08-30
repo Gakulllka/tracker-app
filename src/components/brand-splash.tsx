@@ -36,8 +36,8 @@ export function BrandSplash({ visible, label = "Загрузка..." }: BrandSpl
         <div className="splash-mark-row">
           <svg
             className="splash-mark"
-            width="60"
-            height="60"
+            width="96"
+            height="96"
             viewBox="0 0 100 100"
             fill="none"
             stroke={RAIL.text}
