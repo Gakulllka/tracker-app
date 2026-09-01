@@ -17,9 +17,7 @@ interface ChatMessage {
 
 export interface ChatViewProps {
   apiKeyRef: React.MutableRefObject<string>;
-  apiKeyDialogOpen: boolean;
   setApiKeyDialogOpen: (v: boolean) => void;
-  onApiKeySaved: () => void;
   chatModel: string; setChatModel: (v: string) => void;
   rows: Task[]; month: number; year: number;
   allData: Record<number, Task[]>; backlog: Task[];
@@ -53,13 +51,12 @@ function renderBold(text: string): React.ReactNode {
 }
 
 export function ChatView({
-  apiKeyRef, apiKeyDialogOpen, setApiKeyDialogOpen, onApiKeySaved,
+  apiKeyRef, setApiKeyDialogOpen,
   chatModel, setChatModel, rows, month, year, allData, backlog, totalFactMap, questions, addQuestion,
 }: ChatViewProps) {
   const [input, setInput] = useState("");
   const [log, setLog] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState("");
   const [creatingQuestion, setCreatingQuestion] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -157,37 +154,8 @@ export function ChatView({
 
   return (
     <div className="flex flex-col gap-3" style={{ height: "calc(100vh - 200px)", minHeight: 500 }}>
-      {/* API Key Dialog */}
-      <Dialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle><KeyRound className="size-5 inline mr-2 text-[var(--tracker-accent)]" />Gemini API ключ</DialogTitle>
-            <DialogDescription>Введите ваш API ключ Google Gemini. Хранится только в памяти сессии.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 pt-1">
-            <Input value={apiKeyInput} onChange={e => setApiKeyInput(e.target.value)} placeholder="AIzaSy..." className="font-mono text-sm"
-              onKeyDown={e => { if (e.key === "Enter" && apiKeyInput.trim()) { apiKeyRef.current = apiKeyInput.trim(); setApiKeyDialogOpen(false); setApiKeyInput(""); onApiKeySaved(); } }} autoFocus />
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium whitespace-nowrap">Модель</label>
-              <Select value={chatModel} onValueChange={setChatModel}>
-                <SelectTrigger className="h-9 flex-1 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview"].map(m =>
-                    <SelectItem key={m} value={m} className="text-xs">{m.replace("gemini-", "")}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-xs text-muted-foreground">Получить ключ: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="underline" style={{ color: "var(--tracker-accent)" }}>aistudio.google.com</a></p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setApiKeyDialogOpen(false)}>Отмена</Button>
-            <Button disabled={!apiKeyInput.trim()} className="bg-[var(--tracker-accent)] text-[var(--tracker-accent-contrast)]"
-              onClick={() => { apiKeyRef.current = apiKeyInput.trim(); setApiKeyDialogOpen(false); setApiKeyInput(""); onApiKeySaved(); }}>
-              <Check className="size-4 mr-1.5" />Сохранить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Диалог ключа переехал на уровень страницы: отсюда он был
+          недоступен со вкладки слайдов, где вкладка чата не смонтирована. */}
 
       {/* Create question dialog */}
       <Dialog open={!!creatingQuestion} onOpenChange={open => { if (!open) setCreatingQuestion(null); }}>

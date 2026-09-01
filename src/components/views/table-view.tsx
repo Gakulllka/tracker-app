@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DeleteTaskDialog } from "@/components/dialogs/delete-task-dialog";
 import { MobileTaskCards } from "@/components/views/mobile-task-cards";
 import { IdeasPanel } from "@/components/views/ideas-panel";
+import { PLANFIX_BASE_URL } from "@/lib/planfix";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -1218,7 +1219,7 @@ export function TableView({
                               </Button>
                               {task.num && (
                                 <Button variant="ghost" size="icon" className="h-6 w-6" asChild title="Открыть в PlanFix">
-                                  <a href={`https://emk.planfix.ru/task/${task.num}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                  <a href={`${PLANFIX_BASE_URL}${task.num}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                                     <ExternalLink className="size-3" />
                                   </a>
                                 </Button>

@@ -22,6 +22,9 @@ export function generateSlides(
   dataByYearMonth: Record<string, Task[]> = {},
   /** Домен для брови на титульном слайде. */
   domainName = "",
+  /** Бюджеты по месяцам, ключ "YYYY-MM". Нужны, чтобы отметить перерасход
+   *  не только в текущем месяце, но и в предыдущих. */
+  monthlyPlans: Record<string, number> = {},
 ): SlideData[] {
   const monthRows = (allData[month] || []).filter((r) => !r._deleted && (r.name || r.num));
   const rows = monthRows.filter((r) => r.status !== STATUSES.IDEA);
@@ -53,11 +56,13 @@ export function generateSlides(
 
   const compPct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-  /* История отработанных часов за последние шесть месяцев — для полос
-     на слайде показателей. Три плитки «план / факт / перерасход» не
-     показывали динамику: было непонятно, месяц выдался обычным или нет. */
-  const history: { month: number; factH: number }[] = [];
-  for (let back = 5; back >= 0; back--) {
+  /* История за три последних месяца — для полос на слайде показателей.
+     Три плитки «план / факт / перерасход» не показывали динамику: было
+     непонятно, месяц выдался обычным или нет. У каждого месяца свой
+     бюджет, поэтому перерасход отмечается по всей истории, а не только
+     в текущем месяце. */
+  const history: { month: number; factH: number; budget: number; over: boolean }[] = [];
+  for (let back = 2; back >= 0; back--) {
     const m = month - back;
     const y = m < 0 ? year - 1 : year;
     const mm = ((m % 12) + 12) % 12;
@@ -66,9 +71,15 @@ export function generateSlides(
       (r) => !r._deleted && (r.name || r.num),
     );
     if (rowsOfMonth.length === 0 && back > 0) continue;
+
+    const monthFact = R2(rowsOfMonth.reduce((sum, r) => sum + evalExpr(r.factH), 0));
+    const monthBudget = monthlyPlans[key] ?? monthCapacity;
+
     history.push({
       month: mm,
-      factH: R2(rowsOfMonth.reduce((sum, r) => sum + evalExpr(r.factH), 0)),
+      factH: monthFact,
+      budget: monthBudget,
+      over: monthBudget > 0 && monthFact > monthBudget,
     });
   }
   const monthLabel = `${MONTHS[month]} ${year}`;

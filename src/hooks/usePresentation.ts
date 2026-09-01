@@ -13,6 +13,7 @@ import type { SlideData } from "@/lib/presentation-renderer";
 import type { PresBgSettings } from "@/lib/store";
 import { fetchPresentationSnapshot, type SnapshotResponse } from "@/lib/presentation-snapshots-client";
 import { MONTHS } from "@/lib/types";
+import { buildInsightPrompt } from "@/lib/ai-prompt";
 
 interface UsePresentationParams {
   allData: Record<number, Task[]>;
@@ -35,13 +36,15 @@ interface UsePresentationParams {
   monthCapacity: number;
   /** Домен для брови на титульном слайде. */
   activeDomainName?: string;
+  /** Бюджеты по месяцам, ключ "YYYY-MM". */
+  monthlyPlans?: Record<string, number>;
 }
 
 export function usePresentation({
   allData, backlog, currentMonth, currentYear, darkMode,
   totalFactMap, dataByYearMonth, presBg, workspaceId, activeDomainId, insightMonthKey,
   chatModel, apiKeyRef, setView, setApiKeyDialogOpen,
-  monthCapacity, activeDomainName = "",
+  monthCapacity, activeDomainName = "", monthlyPlans = {},
 }: UsePresentationParams) {
 
   const [currentSlide, setCurrentSlide]     = useState(0);
@@ -69,6 +72,7 @@ export function usePresentation({
     snapshot?.closed ? snapshot.active : null, previousSnapshot?.active ?? null,
     dataByYearMonth,
     activeDomainName,
+    monthlyPlans,
   );
 
   const openPresentation = useCallback(() => setView("slides"), [setView]);
@@ -138,10 +142,12 @@ export function usePresentation({
     if (!rows.length) { setAiAnalysisError("В этом месяце нет задач для анализа"); return; }
     setAiAnalysisError(null); setAiConclusionBusy(true);
     try {
-      const summary = rows.map(r =>
-        `#${r.num} "${r.name}" — статус: ${r.status}, план: ${r.planH || "—"}ч, факт: ${r.factH || "—"}ч`
-      ).join("\n");
-      const prompt = `Ты аналитик проекта. На основе списка задач за ${MONTHS[currentMonth]} ${currentYear} напиши краткие выводы на русском языке. Ответь строго в формате JSON без пояснений:\n{"achievements":["...","..."],"risks":["...","..."],"inProgress":["...","..."],"summary":["...","..."]}\nКаждый массив — 2-3 пункта, лаконично, до 10 слов каждый.\nЗадачи:\n${summary}`;
+      const prompt = buildInsightPrompt(rows, {
+        month: currentMonth,
+        year: currentYear,
+        budget: monthCapacity,
+        totalFactMap,
+      });
       const res  = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", parts: [{ text: prompt }] }], apiKey, model: chatModel }) });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -151,7 +157,7 @@ export function usePresentation({
       const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
       setAiAnalysisError(msg);
     } finally { setAiConclusionBusy(false); }
-  }, [allData, currentMonth, currentYear, apiKeyRef, chatModel, setApiKeyDialogOpen]);
+  }, [allData, currentMonth, currentYear, apiKeyRef, chatModel, setApiKeyDialogOpen, monthCapacity, totalFactMap]);
 
   const handleApproveDraft = useCallback(async () => {
     if (!aiDraft) return;

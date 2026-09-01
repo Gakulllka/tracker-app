@@ -18,6 +18,7 @@ import { PCOL, scolText } from "@/lib/tokens";
 import { evalExpr, fmt2, getTaskMetrics, progColor, CLOSED_STATUSES } from "@/lib/metrics";
 import { useTaskStore } from "@/lib/store";
 import { describeTaskHistory } from "@/lib/task-history";
+import { PLANFIX_BASE_URL } from "@/lib/planfix";
 import {
   ChevronDown, ChevronUp, MessageSquare, Reply, Paperclip, Send, X,
   Package, Trash2, ExternalLink,
@@ -147,7 +148,7 @@ export function TaskDetailDialog({
   }, [monthBreakdown]);
 
 
-  const planfixUrl = task.num ? `https://emk.planfix.ru/task/${task.num}` : null;
+  const planfixUrl = task.num ? `${PLANFIX_BASE_URL}${task.num}` : null;
 
   /** Свёрнуто по умолчанию: комментарии оставляют нечасто. */
   const [commentsOpen, setCommentsOpen] = useState(false);

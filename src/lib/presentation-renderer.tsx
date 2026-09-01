@@ -8,6 +8,7 @@ import { getPhaseForStatus, MONTHS } from "./types";
 import type { PresBgSettings } from "./store";
 import { fmt2, evalExpr, R2 } from "./metrics";
 import { describeMonth } from "./task-history";
+import { PLANFIX_BASE_URL } from "./planfix";
 import {
   buildTheme, hexToRgb, isHexDark, statusColor,
   FONT_FAMILY, FONT_MONO, FONT_STYLE,
@@ -154,73 +155,82 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     const factN = Number(c.factH) || 0;
     const completed = Number(c.completed) || 0;
     const total = Number(c.total) || 0;
-    const history = (c.history || []) as { month: number; factH: number }[];
-    const peak = Math.max(planN, ...history.map((h) => h.factH), 1);
+    const history = (c.history || []) as
+      { month: number; factH: number; budget: number; over: boolean }[];
+    const peak = Math.max(planN, ...history.map((h) => Math.max(h.factH, h.budget)), 1);
 
     const prevFact = history.length > 1 ? history[history.length - 2].factH : null;
     const diff = prevFact === null ? 0 : R2(factN - prevFact);
 
-    /* Динамика полосами по месяцам вместо трёх плиток «план / факт /
-       перерасход». Плитки показывали три числа, но не отвечали на главный
-       вопрос: месяц выдался обычным или нет. Полосы отвечают сразу. */
+    /* Числа столбиком слева, динамика справа: используется ширина слайда,
+       а не высота. Раньше всё шло сверху вниз и не влезало в 16:9 —
+       содержимое сжималось и становилось нечитаемым.
+
+       Перерасход отмечается у каждого месяца по его собственному бюджету,
+       а не только у текущего. Текущий месяц выделен насыщенностью. */
     return (
       <div style={{ ...shell, height: "100%", display: "flex", flexDirection: "column" }}>
         {sectionH2("Показатели месяца")}
 
-        <div style={{ display: "flex", gap: "56px", flexWrap: "wrap", marginBottom: "28px" }}>
-          <div>
-            <p style={{ fontFamily: F, fontSize: "14px", letterSpacing: "1.6px", textTransform: "uppercase", color: mutedColor }}>Бюджет</p>
-            <p style={{ fontFamily: FONT_MONO, fontSize: "38px", fontWeight: 500, color: textColor, lineHeight: 1.1 }}>{fmt2(planN)}</p>
+        <div style={{ flex: "1 1 auto", display: "flex", gap: "44px", minHeight: 0 }}>
+          <div style={{ width: "31%", flex: "none", display: "flex", flexDirection: "column", justifyContent: "center", gap: "22px" }}>
+            <div>
+              <p style={{ fontFamily: F, fontSize: "14px", letterSpacing: "1.8px", textTransform: "uppercase", color: mutedColor }}>Бюджет</p>
+              <p style={{ fontFamily: FONT_MONO, fontSize: "42px", fontWeight: 500, color: textColor, lineHeight: 1.05 }}>{fmt2(planN)}</p>
+            </div>
+            <div>
+              <p style={{ fontFamily: F, fontSize: "14px", letterSpacing: "1.8px", textTransform: "uppercase", color: mutedColor }}>Отработано</p>
+              <p style={{ fontFamily: FONT_MONO, fontSize: "42px", fontWeight: 500, color: factN > planN ? dangerColor : textColor, lineHeight: 1.05 }}>{fmt2(factN)}</p>
+            </div>
+            <div>
+              <p style={{ fontFamily: F, fontSize: "14px", letterSpacing: "1.8px", textTransform: "uppercase", color: mutedColor }}>Завершено</p>
+              <p style={{ fontFamily: FONT_MONO, fontSize: "42px", fontWeight: 500, color: textColor, lineHeight: 1.05 }}>{completed} / {total}</p>
+            </div>
           </div>
-          <div>
-            <p style={{ fontFamily: F, fontSize: "14px", letterSpacing: "1.6px", textTransform: "uppercase", color: mutedColor }}>Отработано</p>
-            <p style={{ fontFamily: FONT_MONO, fontSize: "38px", fontWeight: 500, color: factN > planN ? dangerColor : textColor, lineHeight: 1.1 }}>{fmt2(factN)}</p>
-          </div>
-          <div>
-            <p style={{ fontFamily: F, fontSize: "14px", letterSpacing: "1.6px", textTransform: "uppercase", color: mutedColor }}>Завершено</p>
-            <p style={{ fontFamily: FONT_MONO, fontSize: "38px", fontWeight: 500, color: textColor, lineHeight: 1.1 }}>{completed} / {total}</p>
-          </div>
-        </div>
 
-        <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", justifyContent: "center", gap: "12px" }}>
-          {history.map((h, i) => {
-            const isCurrent = i === history.length - 1;
-            const width = Math.max(2, (h.factH / peak) * 100);
-            return (
-              <div key={`${h.month}-${i}`} style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                <span style={{
-                  fontFamily: F, width: "104px", fontSize: "15px",
-                  letterSpacing: "1.2px", textTransform: "uppercase",
-                  fontWeight: isCurrent ? 500 : 400,
-                  color: textColor,
-                }}>{MONTHS[h.month]}</span>
-
-                <span style={{
-                  flex: 1, height: "34px", position: "relative", overflow: "hidden",
-                  border: `2px solid ${acA}`, borderRadius: "4px",
-                }}>
-                  {/* Прошлые месяцы — штриховка, текущий — сплошная заливка.
-                      Раньше прошлые гасились прозрачностью, и пять строк
-                      из шести становились еле различимы. */}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center", gap: "16px" }}>
+            {history.map((h, i) => {
+              const isCurrent = i === history.length - 1;
+              const width = Math.max(2, (h.factH / peak) * 100);
+              const budgetMark = Math.min(100, (h.budget / peak) * 100);
+              const fill = h.over ? dangerColor : acA;
+              return (
+                <div key={`${h.month}-${i}`} style={{ display: "flex", alignItems: "center", gap: "18px" }}>
                   <span style={{
-                    position: "absolute", inset: 0, width: `${width}%`, display: "block",
-                    background: isCurrent
-                      ? (factN > planN ? dangerColor : acA)
-                      : `repeating-linear-gradient(135deg, ${acA} 0 3px, transparent 3px 8px)`,
-                  }} />
-                </span>
+                    fontFamily: F, width: "112px", flex: "none", fontSize: "16px",
+                    letterSpacing: "1.4px", textTransform: "uppercase",
+                    fontWeight: isCurrent ? 500 : 400, color: textColor,
+                  }}>{MONTHS[h.month]}</span>
 
-                <span style={{
-                  fontFamily: FONT_MONO, width: "96px", textAlign: "right", fontSize: "22px",
-                  fontWeight: isCurrent ? 500 : 400,
-                  color: textColor,
-                }}>{fmt2(h.factH)}</span>
-              </div>
-            );
-          })}
+                  <span style={{
+                    flex: 1, height: isCurrent ? "38px" : "30px", position: "relative",
+                    border: `2px solid ${acA}`, borderRadius: "4px", overflow: "hidden",
+                  }}>
+                    <span style={{
+                      position: "absolute", inset: 0, width: `${width}%`, display: "block",
+                      background: fill, opacity: isCurrent ? 1 : 0.72,
+                    }} />
+                    {/* Засечка бюджета месяца: видно, дотянули до потолка или нет. */}
+                    {budgetMark < 99 && (
+                      <span style={{
+                        position: "absolute", top: 0, bottom: 0, left: `${budgetMark}%`,
+                        width: "2px", background: acA, display: "block",
+                      }} />
+                    )}
+                  </span>
+
+                  <span style={{
+                    fontFamily: FONT_MONO, width: "104px", flex: "none", textAlign: "right",
+                    fontSize: isCurrent ? "24px" : "21px", fontWeight: isCurrent ? 500 : 400,
+                    color: h.over ? dangerColor : textColor,
+                  }}>{fmt2(h.factH)}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        <p style={{ fontFamily: F, fontSize: "19px", lineHeight: 1.5, color: mutedColor, marginTop: "22px" }}>
+        <p style={{ fontFamily: F, fontSize: "18px", lineHeight: 1.5, color: mutedColor, marginTop: "20px", flex: "none" }}>
           {describeMonth(factN, planN, completed, total, diff)}
         </p>
       </div>
@@ -264,7 +274,24 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
                 display: "flex", flexDirection: "column", gap: "8px",
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                  <span style={{ fontFamily: F, fontSize: "14px", color: numColor, fontWeight: 600 }}>#{t.num || ""}</span>
+                  {/* Номер — ссылка в PlanFix: со слайда задачу открывают
+                      чаще всего именно там, а не в трекере. */}
+                  {t.num ? (
+                    <a
+                      href={`${PLANFIX_BASE_URL}${t.num}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontFamily: FONT_MONO, fontSize: "14px", color: numColor,
+                        fontWeight: 500, textDecoration: "underline",
+                        textDecorationThickness: "1px", textUnderlineOffset: "3px",
+                      }}
+                    >
+                      #{t.num}
+                    </a>
+                  ) : (
+                    <span style={{ fontFamily: FONT_MONO, fontSize: "14px", color: numColor }}>—</span>
+                  )}
                   <span style={{ fontFamily: F, fontSize: "12px", fontWeight: 500, padding: "2px 10px", borderRadius: "8px", border: `1px solid ${acA}`, color: nameColor, display: "inline-flex", alignItems: "center", gap: "6px" }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, display: "inline-block", flexShrink: 0 }} />
                     {t.status}
@@ -388,77 +415,94 @@ export function PresentationSlide({ slide, theme, aiConclusion }: PresentationSl
     const currentUncompleted = Number(c.currentUncompleted) || 0;
     const prevUncompleted = Number(c.prevUncompleted) || 0;
 
-    const fallbackAchievements: string[] = [];
-    if (compPct >= 70) fallbackAchievements.push(`${compPct}% задач выполнено — высокая эффективность`);
-    if (completed > 0) fallbackAchievements.push(`Завершено ${completed} из ${total} задач`);
-    if (overPct < 0) fallbackAchievements.push(`Экономия ${Math.abs(overPct)}% бюджета`);
-    if (fallbackAchievements.length === 0) fallbackAchievements.push("Месяц в процессе, данные накапливаются");
+    /* Заготовка на случай, когда ИИ недоступен.
+       Раньше она выносила приговоры: «Отличный результат», «Низкая
+       эффективность — необходимо пересмотреть процессы», «Критический
+       перерасход требует немедленного вмешательства». Это оценка работы
+       людей, выведенная из двух чисел, и в отчёте руководителю она
+       читается как мнение системы. Теперь только факты. */
+    const factsDone: string[] = [];
+    if (completed > 0) factsDone.push(`Закрыто ${completed} задач из ${total}.`);
+    if (factN <= planN && planN > 0) factsDone.push(`Уложились в бюджет месяца — ${fmt2(planN - factN)} ч осталось.`);
+    if (factsDone.length === 0) factsDone.push(`Отработано ${fmt2(factN)} ч.`);
 
-    const fallbackRisks: string[] = [];
-    if (overPct > 20) fallbackRisks.push(`Перерасход ${overPct}% — превышен лимит бюджета`);
-    if (overPct > 0 && overPct <= 20) fallbackRisks.push(`Незначительный перерасход ${overPct}%`);
-    if (currentUncompleted > prevUncompleted) fallbackRisks.push(`Рост невыполненных задач: ${currentUncompleted} (+${currentUncompleted - prevUncompleted})`);
-    if (currentUncompleted === 0 && total > 0) fallbackRisks.push("Все задачи закрыты");
+    const factsRisks: string[] = [];
+    if (planN > 0 && factN > planN) factsRisks.push(`Бюджет месяца превышен на ${fmt2(factN - planN)} ч.`);
+    if (currentUncompleted > prevUncompleted) {
+      factsRisks.push(`Незакрытых задач стало больше: ${currentUncompleted} против ${prevUncompleted} в прошлом месяце.`);
+    }
 
-    const fallbackInProgress: string[] = [];
+    const factsProgress: string[] = [];
     const inProgressCount = total - completed;
-    if (inProgressCount > 0) fallbackInProgress.push(`${inProgressCount} задач в работе`);
-    if (planN > factN) fallbackInProgress.push(`Остаток бюджета: ${fmt2(planN - factN)}ч`);
-
-    const fallbackSummary: string[] = [];
-    if (compPct >= 80 && overPct <= 10) fallbackSummary.push("Отличный результат — задачи выполнены в рамках бюджета");
-    else if (compPct >= 50 && overPct <= 20) fallbackSummary.push("Результат удовлетворительный, есть области для оптимизации");
-    else if (compPct < 50) fallbackSummary.push("Низкая эффективность — необходимо пересмотреть процессы");
-    if (overPct > 20) fallbackSummary.push("Критический перерасход требует немедленного вмешательства");
+    if (inProgressCount > 0) factsProgress.push(`${inProgressCount} задач переходят на следующий месяц.`);
 
     const con = aiConclusion ?? {
-      achievements: fallbackAchievements, risks: fallbackRisks,
-      inProgress: fallbackInProgress, summary: fallbackSummary,
+      achievements: factsDone,
+      risks: factsRisks,
+      inProgress: factsProgress,
+      summary: [] as string[],
     };
 
-    const sections = [
-      { key: "achievements" as const, label: "Достижения", col: successColor, items: con.achievements },
-      { key: "risks" as const, label: "Риски", col: dangerColor, items: con.risks },
-      { key: "inProgress" as const, label: "В процессе", col: "acA", items: con.inProgress },
-      { key: "summary" as const, label: "Выводы", col: "acA", items: con.summary },
-    ].filter((s) => s.items && s.items.length > 0);
+    /* Три раздела сверху, вывод широкой полосой снизу — он ключевой.
+       Цифр на слайде нет: они уже сказаны на первом и втором. */
+    const columns = [
+      { key: "achievements", label: "Что получилось", col: successColor, items: con.achievements },
+      { key: "risks", label: "Требует внимания", col: dangerColor, items: con.risks },
+      { key: "inProgress", label: "В работе", col: acA, items: con.inProgress },
+    ].filter((c) => c.items && c.items.length > 0);
+
+    const verdict = (con.summary || []).slice(0, 2);
 
     return (
-      <div style={{ ...shell, textAlign: "center", maxWidth: "1000px", margin: "auto" }}>
-        {sectionH2("Итоги и выводы")}
-        <div style={{ display: "grid", gridTemplateColumns: sections.length > 2 ? "1fr 1fr" : "1fr", gap: "20px", textAlign: "left" }}>
-          {sections.map((s) => (
-            <div key={s.key} style={{
-              borderRadius: "14px", padding: "24px 28px",
-              border: BDR,
-            }}>
-              <h4 style={{
-                fontFamily: F, fontSize: "13px", fontWeight: 500, textTransform: "uppercase",
-                letterSpacing: ".12em", color: s.col, marginBottom: "14px",
-                display: "flex", alignItems: "center", gap: "8px",
-              }}>
-                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: s.col, display: "inline-block", flexShrink: 0 }} />
-                {s.label}
-              </h4>
-              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
-                {(s.items || []).map((item, i) => (
-                  <li key={i} style={{
-                    fontFamily: F, fontSize: "16px",
-                    color: theme.isLight ? "rgba(30,41,59,.85)" : "rgba(255,255,255,.82)",
-                    paddingLeft: "18px", position: "relative", lineHeight: 1.45,
-                  }}>
-                    <span style={{ position: "absolute", left: 0, top: "7px", width: "6px", height: "6px", borderRadius: "50%", background: s.col, display: "inline-block" }} />
-                    {item}
-                  </li>
-                ))}
-              </ul>
+      <div style={{ ...shell, height: "100%", display: "flex", flexDirection: "column" }}>
+        <h2 style={{
+          fontFamily: F, fontSize: "17px", fontWeight: 500, flexShrink: 0,
+          letterSpacing: "2.4px", textTransform: "uppercase", color: mutedColor,
+          paddingBottom: "12px", marginBottom: "26px", borderBottom: `3px solid ${acA}`,
+          display: "flex", alignItems: "baseline", gap: "12px",
+        }}>
+          <span>Итоги месяца</span>
+          {aiConclusion && (
+            <span style={{ marginLeft: "auto", letterSpacing: "1px", textTransform: "none", fontSize: "14px" }}>
+              {aiConclusion.source === "ai" ? "сгенерировано ИИ" : "заполнено вручную"}
+            </span>
+          )}
+        </h2>
+
+        <div style={{
+          flex: "1 1 auto", minHeight: 0, display: "grid",
+          gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, 1fr)`,
+          gap: "34px", alignContent: "start",
+        }}>
+          {columns.map((c) => (
+            <div key={c.key}>
+              <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: "12px" }}>
+                <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: c.col, display: "inline-block", flexShrink: 0 }} />
+                <span style={{
+                  fontFamily: F, fontSize: "15px", fontWeight: 500, letterSpacing: "1.6px",
+                  textTransform: "uppercase", color: c.col,
+                }}>{c.label}</span>
+              </div>
+              {(c.items || []).slice(0, 3).map((item, i) => (
+                <p key={i} style={{
+                  fontFamily: F, fontSize: "19px", lineHeight: 1.5, color: textColor,
+                  marginBottom: "10px",
+                }}>{item}</p>
+              ))}
             </div>
           ))}
         </div>
-        {aiConclusion && (
-          <p style={{ fontFamily: F, fontSize: "14px", color: mutedColor, textAlign: "center", marginTop: "16px" }}>
-            AI-анализ · {aiConclusion.source === "ai" ? "сгенерировано ИИ" : "заполнено вручную"}
-          </p>
+
+        {verdict.length > 0 && (
+          <div style={{ flex: "none", borderTop: `3px solid ${acA}`, paddingTop: "20px", marginTop: "20px" }}>
+            <p style={{
+              fontFamily: F, fontSize: "14px", fontWeight: 500, letterSpacing: "2px",
+              textTransform: "uppercase", color: mutedColor, marginBottom: "8px",
+            }}>Вывод</p>
+            {verdict.map((line, i) => (
+              <p key={i} style={{ fontFamily: F, fontSize: "23px", lineHeight: 1.45, color: textColor }}>{line}</p>
+            ))}
+          </div>
         )}
       </div>
     );

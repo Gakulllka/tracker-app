@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { AuthGate } from "@/app/auth-gate";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
+import { ApiKeyDialog, loadStoredApiKey, API_KEY_STORAGE } from "@/components/dialogs/api-key-dialog";
 import { RAIL } from "@/lib/tokens";
 import { useInsightSync } from "@/hooks/useInsightSync";
 import { useDomains } from "@/hooks/useDomains";
@@ -364,11 +365,33 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
   // Chat state
+  /* Ключ Gemini живёт в localStorage: раньше он был только в useRef
+     и стирался при каждой перезагрузке страницы. */
   const apiKeyRef = useRef<string>("");
   /** Phase 7.3: реактивный флаг наличия ключа — для индикатора в SlidesView. */
   const [hasApiKey, setHasApiKey] = useState(false);
   const [chatModel, setChatModel] = useState("gemini-2.5-flash");
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+
+  useEffect(() => {
+    const stored = loadStoredApiKey();
+    if (stored) {
+      apiKeyRef.current = stored;
+      setHasApiKey(true);
+    }
+  }, []);
+
+  const saveApiKey = useCallback((key: string) => {
+    apiKeyRef.current = key;
+    setHasApiKey(true);
+    try { localStorage.setItem(API_KEY_STORAGE, key); } catch { /* переполнено */ }
+  }, []);
+
+  const clearApiKey = useCallback(() => {
+    apiKeyRef.current = "";
+    setHasApiKey(false);
+    try { localStorage.removeItem(API_KEY_STORAGE); } catch { /* нечего удалять */ }
+  }, []);
 
   const editRef = useRef<HTMLTextAreaElement>(null);
   const inputEditRef = useRef<HTMLInputElement>(null);
@@ -715,6 +738,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
     presBg, workspaceId, activeDomainId, insightMonthKey,
     chatModel, apiKeyRef, setView: setView as (v: string) => void, setApiKeyDialogOpen,
     activeDomainName: activeDomain?.name,
+    monthlyPlans: monthlyPlanByYearMonth || {},
     monthCapacity: monthlyPlan > 0 ? monthlyPlan : 240,
   });
 
@@ -1187,9 +1211,7 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
           <div className="view-enter">
           <ChatView
             apiKeyRef={apiKeyRef}
-            apiKeyDialogOpen={apiKeyDialogOpen}
             setApiKeyDialogOpen={setApiKeyDialogOpen}
-            onApiKeySaved={() => setHasApiKey(true)}
             chatModel={chatModel}
             setChatModel={setChatModel}
             rows={rows}
@@ -1266,6 +1288,17 @@ function TaskTrackerInner({ authData, onLogout, switchWorkspace, refreshAuth }: 
         )}
       </main>
       </SidebarInset>
+
+      {/* Диалог ключа на уровне страницы — доступен с любой вкладки. */}
+      <ApiKeyDialog
+        open={apiKeyDialogOpen}
+        onOpenChange={setApiKeyDialogOpen}
+        hasKey={hasApiKey}
+        onSave={saveApiKey}
+        onClear={clearApiKey}
+        model={chatModel}
+        setModel={setChatModel}
+      />
 
       <MobileBottomNav
         view={view}
