@@ -67,13 +67,17 @@ export function usePresentation({
     return () => { cancelled = true; };
   }, [activeDomainId, insightMonthKey]);
 
-  const slides: SlideData[] = generateSlides(
-    currentMonth, currentYear, allData, totalFactMap, monthCapacity, backlog,
-    snapshot?.closed ? snapshot.active : null, previousSnapshot?.active ?? null,
+  const slides: SlideData[] = generateSlides({
+    month: currentMonth,
+    year: currentYear,
+    allData,
     dataByYearMonth,
-    activeDomainName,
+    totalFactMap,
+    backlog,
+    budget: monthCapacity,
     monthlyPlans,
-  );
+    domainName: activeDomainName,
+  });
 
   const openPresentation = useCallback(() => setView("slides"), [setView]);
 

@@ -1,256 +1,186 @@
 /**
- * slides.ts — генерация слайдов презентации из данных месяца.
- * Вынесено из page.tsx.
+ * Слайды отчёта за месяц.
+ *
+ * Презентацию делает бизнес-аналитик как отчёт своей работы для
+ * руководителя отдела и показывает вживую, рассказывая. Из этого следует
+ * почти всё устройство.
+ *
+ * Пять слайдов, каждый отвечает на свой вопрос. Прежние шесть отвечали
+ * на меньшее: слайд «Полный список задач» дублировал «Завершённые» и
+ * «В работе», а слайд показателей дублировал титул. При этом не было
+ * ответа на главный вопрос встречи — что делаем дальше и какой бюджет
+ * берём, — хотя именно ради него руководитель и собирается.
+ *
+ * Слайды разреженные: когда рассказываешь сам, плотный текст на экране
+ * конкурирует с говорящим, и человек начинает читать вместо того, чтобы
+ * слушать.
  */
 
-import { STATUSES, MONTHS, STATUS_ORDER } from "./types";
-import { INK } from "./tokens";
-import type { Task } from "./types";
-import { evalExpr, fmt2, buildTotalFactMap } from "./metrics";
-import { SlideData } from "./presentation-renderer";
+import { STATUSES, MONTHS } from "./types";
+import type { Task, Status } from "./types";
+import { evalExpr, R2, CLOSED_STATUSES } from "./metrics";
+import { buildNextMonthPlan, FULL_MONTH_HOURS } from "./next-month";
+import { collectPositiveFacts } from "./month-facts";
+import type { SlideData } from "./presentation-renderer";
 
-export function generateSlides(
-  month: number,
-  year: number,
-  allData: Record<number, Task[]>,
-  totalFactMap: Record<string, number>,
-  monthCapacity: number,
-  backlog: Task[] = [],
-  currentSnapshot?: { monthlyTasksCount: number; backlogCount: number; ideasCount: number } | null,
-  previousSnapshot?: { monthlyTasksCount: number; backlogCount: number; ideasCount: number } | null,
-  /** Полная база по ключам "YYYY-MM" — для кумулятивного итога на конец прошлого месяца. */
-  dataByYearMonth: Record<string, Task[]> = {},
-  /** Домен для брови на титульном слайде. */
-  domainName = "",
-  /** Бюджеты по месяцам, ключ "YYYY-MM". Нужны, чтобы отметить перерасход
-   *  не только в текущем месяце, но и в предыдущих. */
-  monthlyPlans: Record<string, number> = {},
-): SlideData[] {
-  const monthRows = (allData[month] || []).filter((r) => !r._deleted && (r.name || r.num));
-  const rows = monthRows.filter((r) => r.status !== STATUSES.IDEA);
-  const liveBacklogCount = (backlog || []).filter((r) => !r._deleted && (r.name || r.num)).length;
-  const ideaIds = new Set<string>();
-  Object.values(allData).forEach((monthTasks) => monthTasks.forEach((r) => { if (!r._deleted && r.status === STATUSES.IDEA && (r.name || r.num)) ideaIds.add(r.id); }));
-  const liveIdeasCount = ideaIds.size;
-  const backlogCount = currentSnapshot?.backlogCount ?? liveBacklogCount;
-  const ideasCount = currentSnapshot?.ideasCount ?? liveIdeasCount;
-  let total = currentSnapshot?.monthlyTasksCount ?? rows.length;
-  let completed = 0;
-  let factH = 0;
-  const completedTasks: Task[] = [];
-  const inProgressTasks: Task[] = [];
+export interface SlidesInput {
+  month: number;
+  year: number;
+  /** Задачи по месяцам текущего года. */
+  allData: Record<number, Task[]>;
+  /** Полная база по ключам "YYYY-MM" — для истории и накоплений. */
+  dataByYearMonth: Record<string, Task[]>;
+  /** Накопленный итог по номеру задачи. */
+  totalFactMap: Record<string, number>;
+  backlog: Task[];
+  /** Бюджет часов текущего месяца. */
+  budget: number;
+  /** Бюджеты по месяцам, ключ "YYYY-MM". */
+  monthlyPlans: Record<string, number>;
+  domainName: string;
+}
 
-  for (const r of rows) {
-    if (r.status === STATUSES.DONE || r.status === STATUSES.COMPLETED) {
-      completed++;
-      completedTasks.push(r);
-    } else if (
-      r.status !== STATUSES.CANCEL &&
-      r.status !== STATUSES.IDEA &&
-      r.status !== STATUSES.POSTPONED
-    ) {
-      inProgressTasks.push(r);
+function monthKey(year: number, month: number): string {
+  return `${year}-${String(month + 1).padStart(2, "0")}`;
+}
+
+/** Сколько месяцев задача с этим номером встречается в базе. */
+function countMonthsByNum(dataByYearMonth: Record<string, Task[]>): Record<string, number> {
+  const seen: Record<string, Set<string>> = {};
+
+  for (const [key, rows] of Object.entries(dataByYearMonth)) {
+    for (const task of rows) {
+      if (!task.num || task._deleted) continue;
+      (seen[task.num] ??= new Set()).add(key);
     }
-    factH += evalExpr(r.factH);
   }
 
-  const compPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const counts: Record<string, number> = {};
+  for (const [num, keys] of Object.entries(seen)) counts[num] = keys.size;
+  return counts;
+}
 
-  /* История за три последних месяца — для полос на слайде показателей.
-     Три плитки «план / факт / перерасход» не показывали динамику: было
-     непонятно, месяц выдался обычным или нет. У каждого месяца свой
-     бюджет, поэтому перерасход отмечается по всей истории, а не только
-     в текущем месяце. */
+export function generateSlides(input: SlidesInput): SlideData[] {
+  const {
+    month, year, allData, dataByYearMonth, totalFactMap,
+    backlog, budget, monthlyPlans, domainName,
+  } = input;
+
+  const rows = (allData[month] || []).filter((r) => !r._deleted && (r.name || r.num));
+  if (rows.length === 0) return [];
+
+  const closedTasks = rows.filter((r) => CLOSED_STATUSES.has(r.status as Status));
+  const openTasks = rows.filter(
+    (r) => !CLOSED_STATUSES.has(r.status as Status) && r.status !== STATUSES.CANCEL,
+  );
+
+  const factH = R2(rows.reduce((sum, r) => sum + evalExpr(r.factH), 0));
+  const planH = R2(rows.reduce((sum, r) => sum + evalExpr(r.planH), 0));
+
+  /* ── История за три месяца: по ней видно, был ли перерасход как
+        явление, а не как одна цифра текущего месяца. ── */
   const history: { month: number; factH: number; budget: number; over: boolean }[] = [];
   for (let back = 2; back >= 0; back--) {
     const m = month - back;
     const y = m < 0 ? year - 1 : year;
     const mm = ((m % 12) + 12) % 12;
-    const key = `${y}-${String(mm + 1).padStart(2, "0")}`;
-    const rowsOfMonth = (dataByYearMonth[key] || []).filter(
+    const key = monthKey(y, mm);
+
+    const monthRows = (dataByYearMonth[key] || []).filter(
       (r) => !r._deleted && (r.name || r.num),
     );
-    if (rowsOfMonth.length === 0 && back > 0) continue;
+    if (monthRows.length === 0 && back > 0) continue;
 
-    const monthFact = R2(rowsOfMonth.reduce((sum, r) => sum + evalExpr(r.factH), 0));
-    const monthBudget = monthlyPlans[key] ?? monthCapacity;
+    const mFact = R2(monthRows.reduce((sum, r) => sum + evalExpr(r.factH), 0));
+    const mBudget = monthlyPlans[key] ?? budget;
 
     history.push({
       month: mm,
-      factH: monthFact,
-      budget: monthBudget,
-      over: monthBudget > 0 && monthFact > monthBudget,
+      factH: mFact,
+      budget: mBudget,
+      /* Нулевой бюджет означает «не должны были брать задачи в работу».
+         Любой отработанный час при нём — законный перерасход, который
+         вычитается из бюджета следующего месяца. */
+      over: mFact > mBudget,
     });
   }
-  const monthLabel = `${MONTHS[month]} ${year}`;
-  const slides: SlideData[] = [];
 
-  // ── Previous month data for dynamics ──
-  // Переход через год: у января (month=0) прошлый = декабрь прошлого года.
-  const prevDate = new Date(year, month - 1, 1);
-  const prevYear = prevDate.getFullYear();
-  const prevMonth = prevDate.getMonth(); // 0..11, корректно для января → 11
-  const prevMonthKey = `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}`;
-  // Берём строки прошлого месяца из полной базы (для января — декабрь прошлого года).
-  const prevRows = (dataByYearMonth[prevMonthKey] || []).filter(
-    (r) => !r._deleted && (r.name || r.num) && r.status !== STATUSES.IDEA
+  /* ── Прошлый месяц: для сравнения в фактах ── */
+  const prevM = month === 0 ? 11 : month - 1;
+  const prevY = month === 0 ? year - 1 : year;
+  const prevRows = (dataByYearMonth[monthKey(prevY, prevM)] || []).filter(
+    (r) => !r._deleted && (r.name || r.num),
   );
-  // Кумулятивный итог по num на конец прошлого месяца (вечная задача).
-  const prevTotalFactMap = buildTotalFactMap(dataByYearMonth, prevYear, prevMonth);
-  let prevCompleted = 0;
-  let prevFactH = 0;
-  let prevUncompleted = 0;
-  for (const r of prevRows) {
-    if (r.status === STATUSES.DONE || r.status === STATUSES.COMPLETED) {
-      prevCompleted++;
-    }
-    prevFactH += evalExpr(r.factH);
-  }
-  prevUncompleted = prevRows.length - prevCompleted;
-  const currentUncompleted = total - completed;
+  const prevClosed = prevRows.filter((r) => CLOSED_STATUSES.has(r.status as Status)).length;
 
-  const planH = monthCapacity;
-  const overPct = planH > 0 ? Math.round(((factH - planH) / planH) * 100) : 0;
-  const prevOverPct = planH > 0 ? Math.round(((prevFactH - planH) / planH) * 100) : 0;
-  const prevCompPct = prevRows.length > 0 ? Math.round((prevCompleted / prevRows.length) * 100) : 0;
+  const next = buildNextMonthPlan(rows, backlog, budget, totalFactMap);
 
-  // ── Completed tasks: cumulative hours & per-task delta from previous month ──
-  const completedWithDelta = completedTasks.map((t) => {
-    const currentTotal = t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH);
-    const prevTask = t.num ? prevRows.find((p) => p.num === t.num) : undefined;
-    const prevTotal = prevTask
-      ? (prevTask.num ? (prevTotalFactMap[prevTask.num] || 0) : evalExpr(prevTask.factH))
-      : 0;
-    const delta = currentTotal - prevTotal;
-    return { task: t, currentTotal, prevTotal, delta };
+  const facts = collectPositiveFacts({
+    rows,
+    budget,
+    totalFactMap,
+    monthsByNum: countMonthsByNum(dataByYearMonth),
+    prevUncompleted: prevRows.length - prevClosed,
+    prevCompleted: prevClosed,
   });
 
-  const completedTotalHours = R2(completedWithDelta.reduce((s, d) => s + d.currentTotal, 0));
+  const withTotals = (list: Task[]) =>
+    list.map((t) => ({
+      num: t.num || "",
+      name: t.name || "Без названия",
+      plan: evalExpr(t.planH),
+      done: t.num ? (totalFactMap[t.num] ?? evalExpr(t.factH)) : evalExpr(t.factH),
+      status: t.status,
+    }));
 
-  // ── In-progress tasks: cumulative hours & delta ──
-  const inProgressWithDelta = inProgressTasks.map((t) => {
-    const currentTotal = t.num ? (totalFactMap[t.num] || evalExpr(t.factH)) : evalExpr(t.factH);
-    const prevTask = t.num ? prevRows.find((p) => p.num === t.num) : undefined;
-    const prevTotal = prevTask
-      ? (prevTask.num ? (prevTotalFactMap[prevTask.num] || 0) : evalExpr(prevTask.factH))
-      : 0;
-    const delta = currentTotal - prevTotal;
-    return { task: t, currentTotal, prevTotal, delta };
-  });
-
-  const inProgressTotalHours = R2(inProgressWithDelta.reduce((s, d) => s + d.currentTotal, 0));
-
-  // ── Slides ──
-
-  // 1) Title
-  slides.push({
-    type: "title",
-    content: {
-      month: MONTHS[month],
-      year,
-      domain: domainName,
-      total,
-      completed,
-      factH: R2(factH),
-      pct: compPct,
-      accent: INK,
+  return [
+    {
+      id: "title",
+      type: "title",
+      content: { month: MONTHS[month], year, domain: domainName },
     },
-  });
-
-  // 2) KPI — Plan (Dashboard budget), Fact, dynamics
-  slides.push({
-    type: "kpi",
-    content: {
-      planH,
-      factH: R2(factH),
-      overPct,
-      prevOverPct,
-      completed,
-      completedPrev: prevCompleted,
-      total,
-      totalPrev: previousSnapshot ? previousSnapshot.monthlyTasksCount + previousSnapshot.backlogCount + previousSnapshot.ideasCount : prevRows.length,
-      backlogCount,
-      ideasCount,
-      totalAll: total + backlogCount + ideasCount,
-      compPct,
-      compPctPrev: prevCompPct,
-      currentUncompleted,
-      prevUncompleted,
-      history,
-      accent: INK,
-    },
-  });
-
-  // 3) ~~Statuses~~ — removed per requirements
-
-  // 4) Completed tasks — ALL tasks, hours, delta
-  if (completedTasks.length > 0) {
-    slides.push({
-      type: "completed",
+    {
+      id: "month",
+      type: "month",
       content: {
-        tasks: completedWithDelta,
-        total: completedTasks.length,
-        totalHours: completedTotalHours,
-        accent: INK,
+        total: rows.length,
+        closed: closedTasks.length,
+        open: openTasks.length,
+        factH,
+        planH,
+        budget,
+        history,
+        /* Перерасход при нулевом бюджете переносится в следующий месяц. */
+        carriedOverrun: budget > 0 ? 0 : factH,
       },
-    });
-  }
-
-  // 5) In-progress tasks — ALL tasks, hours, delta
-  if (inProgressTasks.length > 0) {
-    slides.push({
-      type: "inprogress",
+    },
+    {
+      id: "work",
+      type: "work",
       content: {
-        tasks: inProgressWithDelta,
-        total: inProgressTasks.length,
-        totalHours: inProgressTotalHours,
-        accent: INK,
+        closed: withTotals(closedTasks),
+        open: withTotals(openTasks),
       },
-    });
-  }
-
-  // 6) Full table — ALL tasks sorted by status
-  slides.push({
-    type: "table",
-    content: {
-      rows: sortRowsByStatus(rows),
-      total: rows.length,
-      completed,
-      totalHours: R2(factH),
-      accent: INK,
-      totalFactMap,
     },
-  });
-
-  // 7) Summary — AI-driven conclusions
-  slides.push({
-    type: "summary",
-    content: {
-      month: monthLabel,
-      accent: INK,
-      total,
-      completed,
-      planH,
-      factH: R2(factH),
-      compPct,
-      overPct,
-      currentUncompleted,
-      prevUncompleted,
+    {
+      id: "next",
+      type: "next",
+      content: {
+        committed: next.committed,
+        budget: next.budget,
+        free: next.free,
+        fullMonth: FULL_MONTH_HOURS,
+        carry: next.carry,
+        backlogTotal: next.backlogTotal,
+        backlogCount: next.backlogTasks.length,
+        large: next.large,
+        scenarios: next.scenarios,
+      },
     },
-  });
-
-  return slides;
-}
-
-function R2(v: number): number {
-  return Math.round(v * 100) / 100;
-}
-
-/** Сортировка задач по порядку статусов (от Идеи до Завершённых). */
-function sortRowsByStatus(rows: Task[]): Task[] {
-  return [...rows].sort((a, b) => {
-    const orderA = STATUS_ORDER[a.status] ?? 99;
-    const orderB = STATUS_ORDER[b.status] ?? 99;
-    return orderA - orderB;
-  });
+    {
+      id: "verdict",
+      type: "verdict",
+      content: { facts },
+    },
+  ];
 }

@@ -1,5 +1,3 @@
-import type { Task } from "./types";
-import { scolText } from "./tokens";
 import type { PresBgSettings } from "./presentation-bg";
 import { LIGHT, DARK } from "./tokens";
 
@@ -130,16 +128,6 @@ export function isHexDark(color: string): boolean {
   return ((0.299 * r + 0.587 * g + 0.114 * b) / 255) < 0.5;
 }
 
-/**
- * Цвет статуса на слайде — та же палитра, что в трекере и в Planfix.
- * Запасной вариант — акцент темы, чтобы неизвестный статус не пропал.
- */
-export function statusColor(status: string, theme: PresentationTheme): string {
-  return (
-    scolText(status as Task["status"], theme.isLight === false) ||
-    `rgba(${theme.rgb[0]},${theme.rgb[1]},${theme.rgb[2]},.8)`
-  );
-}
 
 /* ================================================================ *
  *  Шрифт Geist + background layer                                  *

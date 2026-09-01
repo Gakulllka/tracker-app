@@ -51,7 +51,7 @@ export function renderPresentationHtml(
   const slidesHtml = slides
     .map((slide, idx) => {
       const inner = renderToStaticMarkup(
-        <PresentationSlide slide={slide} theme={theme} aiConclusion={aiConclusion} fixedAspect />,
+        <PresentationSlide slide={slide} theme={theme} aiConclusion={aiConclusion} />,
       );
       return `<div class="slide${idx === 0 ? " active" : ""}" data-idx="${idx}">${inner}</div>`;
     })

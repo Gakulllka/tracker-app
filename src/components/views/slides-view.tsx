@@ -494,7 +494,7 @@ export function SlidesView({
           Как это попадёт в слайд
         </h3>
         {(() => {
-          const summarySlide = slides.find(s => s.type === "summary");
+          const summarySlide = slides.find(s => s.type === "verdict");
           if (!summarySlide) return null;
           return <SlidePreview slide={summarySlide} presBg={presBg} darkMode={darkMode} aiConclusion={aiConclusion} />;
         })()}
