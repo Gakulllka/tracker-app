@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveSessionFromRequest, touchSession, getClientIp } from "@/lib/auth";
+import {
+  NOTIFIED_FIELDS, mergeEvents, feedSince, retentionBefore,
+  type FieldChange as NotifChange,
+} from "@/lib/notifications";
 
 /* ============================================================================
  *  GET /api/owner-notifications
@@ -41,21 +45,12 @@ const ACTION_LABEL: Record<string, string> = {
   backlog_delete: "удалил задачу из беклога",
 };
 
-const FIELD_LABEL: Record<string, string> = {
-  num: "номер",
-  name: "название",
-  status: "статус",
-  priority: "приоритет",
-  planH: "план, ч",
-  factH: "факт, ч",
-  comment: "комментарий",
-  executiveFlag: "флаг руководителя",
-  approvalStatus: "согласование",
-  excludeFromCut: "защита от отсечения",
-  budgetAllocated: "бюджет месяца",
-};
+/* Поля, о которых уведомляем, и границы окон — в lib/notifications.ts.
+   Комментарий и факт оттуда исключены: их правят по ходу работы, и
+   синхронизация ловила промежуточные состояния. */
+const FIELD_LABEL = NOTIFIED_FIELDS;
 
-interface FieldChange { field: string; label: string; from: string; to: string }
+type FieldChange = NotifChange;
 
 function safeParse(raw: string): Record<string, unknown> {
   try {
@@ -133,14 +128,24 @@ export async function GET(req: NextRequest) {
     // ── Журнал активности ────────────────────────────────────────────────
     // ActivityLog не хранит domainId, поэтому домен восстанавливаем через
     // саму задачу. Тянем с запасом: часть записей отсеется как чужая.
+    /* Окно ленты — две недели. Раньше запрос брал последние записи
+       независимо от давности, и правки месячной давности лежали
+       наравне со свежими. */
+    const since = feedSince();
+
     const logs = await prisma.activityLog.findMany({
       where: {
         action: { in: TASK_ACTIONS },
         username: { not: auth.user.username },   // свои действия не показываем
-        ...(before ? { createdAt: { lt: new Date(before) } } : {}),
+        createdAt: {
+          gte: since,
+          ...(before ? { lt: new Date(before) } : {}),
+        },
       },
       orderBy: { createdAt: "desc" },
-      take: limit * 4,
+      /* Запас больше прежнего: часть записей отсеется как чужая, часть
+         схлопнется в одно уведомление. */
+      take: limit * 8,
     });
 
     const taskIds = logs.filter(l => l.entityType !== "backlog").map(l => l.entityId);
@@ -165,7 +170,7 @@ export async function GET(req: NextRequest) {
     for (const t of tasks) entity.set(t.id, t);
     for (const b of backlogItems) entity.set(b.id, b);
 
-    const items = logs
+    const rawItems = logs
       .map(l => {
         const e = entity.get(l.entityId);
         if (!e || !ownedIds.includes(e.domainId)) return null;
@@ -188,8 +193,12 @@ export async function GET(req: NextRequest) {
           createdAt: l.createdAt.toISOString(),
         };
       })
-      .filter(Boolean)
-      .slice(0, limit);
+      .filter(Boolean) as unknown as Parameters<typeof mergeEvents>[0];
+
+    /* Правки одной задачи одним автором за час сливаются в одно
+       уведомление: показывается переход от первого значения к последнему
+       и число правок. Раньше каждая синхронизация давала свою строку. */
+    const items = mergeEvents(rawItems).slice(0, limit);
 
     // ── Вопросы и ответы по доменам владельца ───────────────────────────
     const questions = await prisma.question.findMany({
@@ -251,6 +260,15 @@ export async function GET(req: NextRequest) {
       requestId: r.id,
       createdAt: r.createdAt.toISOString(),
     }));
+
+    /* Уборка журнала. Записи старше трёх месяцев удаляются: очистки не было
+       нигде, и ActivityLog рос бесконечно. Делается на первой странице
+       и не блокирует ответ — если не получится, попробуем в следующий раз. */
+    if (!before) {
+      void prisma.activityLog
+        .deleteMany({ where: { createdAt: { lt: retentionBefore() } } })
+        .catch(() => { /* уборка не критична */ });
+    }
 
     const merged = [...items, ...questionItems, ...accessItems]
       .filter((x): x is NonNullable<typeof x> => x !== null)

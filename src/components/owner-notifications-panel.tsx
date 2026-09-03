@@ -26,6 +26,8 @@ export interface OwnerNotification {
   kind: "task" | "backlog" | "question" | "access";
   action: string;
   actionLabel: string;
+  /** Сколько правок слилось в это уведомление. */
+  editCount?: number;
   author: string;
   domainId: string;
   domainName: string;
@@ -236,6 +238,11 @@ export function OwnerNotificationsPanel({ token, onOpenTask }: OwnerNotification
                         <b>{n.author}</b>{" "}
                         <span style={{ color: "var(--tracker-text-muted, var(--muted-foreground))" }}>
                           {n.actionLabel}
+                          {(n.editCount ?? 1) > 1 && (
+                            <span className="delta-num" style={{ color: "var(--tracker-text-muted)" }}>
+                              {" "}· {n.editCount} правки
+                            </span>
+                          )}
                         </span>
                       </span>
                       <span
